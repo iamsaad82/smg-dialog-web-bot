@@ -2,6 +2,15 @@ import { authApi } from './auth';
 import { userApi } from './users';
 import { apiCore } from './core';
 import { tenantApi } from './tenants';
+import { chatApi } from './chat';
+import { DocumentApi } from './documents';
+import { agencyApi } from './agencies';
+import { InteractiveApi, UIComponentsApi } from './interactive';
+
+// Instanzen der API-Klassen erstellen
+const documentApi = new DocumentApi();
+const interactiveApi = new InteractiveApi();
+const uiComponentsApi = new UIComponentsApi();
 
 // Kombinierte API-Schnittstelle
 export const api = {
@@ -38,6 +47,49 @@ export const api = {
   getTenantDetails: tenantApi.getTenantDetails.bind(tenantApi),
   getWeaviateStatus: tenantApi.getWeaviateStatus.bind(tenantApi),
   getEmbedConfig: tenantApi.getEmbedConfig.bind(tenantApi),
+
+  // Chat-Funktionen
+  getCompletion: chatApi.getCompletion.bind(chatApi),
+  getCompletionStream: chatApi.getCompletionStream.bind(chatApi),
+  search: chatApi.search.bind(chatApi),
+  
+  // Dokument-Funktionen
+  getDocuments: documentApi.getDocuments.bind(documentApi),
+  getDocument: documentApi.getDocument.bind(documentApi),
+  createDocument: documentApi.createDocument.bind(documentApi),
+  uploadPdf: documentApi.uploadPdf.bind(documentApi),
+  uploadCsv: documentApi.uploadCsv.bind(documentApi),
+  uploadJson: documentApi.uploadJson.bind(documentApi),
+  uploadMarkdown: documentApi.uploadMarkdown.bind(documentApi),
+  deleteDocument: documentApi.deleteDocument.bind(documentApi),
+  updateDocument: documentApi.updateDocument.bind(documentApi),
+  getDocumentStatus: documentApi.getDocumentStatus.bind(documentApi),
+  reindexDocument: documentApi.reindexDocument.bind(documentApi),
+  reindexAllDocuments: documentApi.reindexAllDocuments.bind(documentApi),
+  
+  // Agentur-Funktionen
+  getAllAgencies: agencyApi.getAllAgencies.bind(agencyApi),
+  getAgency: agencyApi.getAgency.bind(agencyApi),
+  createAgency: agencyApi.createAgency.bind(agencyApi),
+  updateAgency: agencyApi.updateAgency.bind(agencyApi),
+  deleteAgency: agencyApi.deleteAgency.bind(agencyApi),
+  assignTenantToAgency: agencyApi.assignTenantToAgency.bind(agencyApi),
+  removeTenantFromAgency: agencyApi.removeTenantFromAgency.bind(agencyApi),
+  
+  // Interaktive Funktionen
+  getInteractiveConfig: interactiveApi.getInteractiveConfig.bind(interactiveApi),
+  updateInteractiveConfig: interactiveApi.updateInteractiveConfig.bind(interactiveApi),
+  createInteractiveElement: interactiveApi.createInteractiveElement.bind(interactiveApi),
+  updateInteractiveElement: interactiveApi.updateInteractiveElement.bind(interactiveApi),
+  deleteInteractiveElement: interactiveApi.deleteInteractiveElement.bind(interactiveApi),
+  
+  // UI-Komponenten Funktionen
+  getUIComponentsConfig: uiComponentsApi.getUIComponentsConfig.bind(uiComponentsApi),
+  saveUIComponentsConfig: uiComponentsApi.saveUIComponentsConfig.bind(uiComponentsApi),
+  getUIComponentDefinitions: uiComponentsApi.getUIComponentDefinitions.bind(uiComponentsApi),
+  createUIComponentDefinition: uiComponentsApi.createUIComponentDefinition.bind(uiComponentsApi),
+  updateUIComponentDefinition: uiComponentsApi.updateUIComponentDefinition.bind(uiComponentsApi),
+  deleteUIComponentDefinition: uiComponentsApi.deleteUIComponentDefinition.bind(uiComponentsApi),
 };
 
 export default api; 
