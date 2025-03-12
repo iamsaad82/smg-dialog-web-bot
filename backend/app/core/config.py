@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     AUTO_CREATE_SUPERUSER: bool = os.getenv("AUTO_CREATE_SUPERUSER", "False").lower() == "true"
 
     # Weaviate
-    WEAVIATE_URL: str = os.getenv("WEAVIATE_URL", "http://weaviate:8080")
+    WEAVIATE_URL: str = os.getenv("WEAVIATE_URL", "http://localhost:8080")
     WEAVIATE_API_KEY: Optional[str] = os.getenv("WEAVIATE_API_KEY")
 
     # LLM Config
@@ -41,8 +41,8 @@ class Settings(BaseSettings):
     # PostgreSQL Einstellungen
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "postgres")
-    POSTGRES_HOST: str = "postgres"  # Docker-Container-Name
-    POSTGRES_PORT: str = "5432"
+    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "localhost")
+    POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "smg_dialog")
     SQLALCHEMY_DATABASE_URI: Optional[str] = None
 
@@ -51,8 +51,7 @@ class Settings(BaseSettings):
         "http://localhost:3000",     # Frontend Dev-Server
         "http://localhost",          # Frontend Prod
         "http://localhost:8080",     # Alternative Frontend
-        "http://frontend:3000",      # Docker Frontend Dev
-        "http://frontend",           # Docker Frontend Prod
+        "https://smg-dialog-web-bot.onrender.com",  # Render Frontend
     ]
 
     # Nur für Entwicklung
@@ -62,10 +61,13 @@ class Settings(BaseSettings):
         super().__init__(**data)
         
         # Datenbank-URI zusammenbauen
-        self.SQLALCHEMY_DATABASE_URI = (
-            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST}/{self.POSTGRES_DB}"
-        )
+        if self.DATABASE_URL:
+            self.SQLALCHEMY_DATABASE_URI = self.DATABASE_URL
+        else:
+            self.SQLALCHEMY_DATABASE_URI = (
+                f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+                f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            )
 
     class Config:
         case_sensitive = True
