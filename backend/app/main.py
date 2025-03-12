@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from .api.v1 import tenants, documents, chat
+from .api.v1 import tenants, documents, chat, auth
 from .core.config import settings
 import os
 import logging
 import asyncio
+from .db.session import SessionLocal
 
 # Logging konfigurieren
 logging.basicConfig(
@@ -37,6 +38,28 @@ async def validate_weaviate_classes():
         logger.error(f"Fehler bei der Validierung der Weaviate-Klassen: {e}")
         # Anwendung nicht beenden, auch wenn die Validierung fehlschlägt
 
+# Startup-Event zur Erstellung des Superusers
+@app.on_event("startup")
+async def create_superuser():
+    """Erstellt einen Superuser beim ersten Start der Anwendung, wenn keiner existiert."""
+    logger.info("Überprüfe, ob ein Superuser erstellt werden muss...")
+    try:
+        from app.utils.init_superuser import create_initial_superuser
+        
+        # Datenbankverbindung erstellen
+        db = SessionLocal()
+        try:
+            superuser_created = create_initial_superuser(db)
+            if superuser_created:
+                logger.info("Superuser erfolgreich erstellt!")
+            else:
+                logger.info("Kein Superuser erstellt.")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Fehler bei der Überprüfung/Erstellung des Superusers: {e}")
+        # Anwendung nicht beenden, auch wenn die Superuser-Erstellung fehlschlägt
+
 # CORS-Middleware hinzufügen
 origins = [
     "http://localhost:3000",
@@ -59,6 +82,13 @@ app.add_middleware(
 async def health_check():
     """Einfacher Endpunkt für Gesundheitschecks."""
     return {"status": "ok"}
+
+# Authentifizierungs-Router
+app.include_router(
+    auth.router,
+    prefix=f"{settings.API_V1_STR}/auth",
+    tags=["auth"]
+)
 
 # API-Routen einbinden
 app.include_router(

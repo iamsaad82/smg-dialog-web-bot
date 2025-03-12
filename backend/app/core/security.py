@@ -1,7 +1,10 @@
 from fastapi import Depends, HTTPException, Security, status, Request
-from fastapi.security import APIKeyHeader
-from typing import Optional
+from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
+from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+from jose import jwt, JWTError
+from passlib.context import CryptContext
 from ..services.tenant_service import tenant_service
 from ..core.config import settings
 from ..db.session import get_db
@@ -10,7 +13,80 @@ import os
 # Header für API-Key
 API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
+# OAuth2-Schema für JWT-Token
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
+# Password-Hashing-Kontext
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# JWT-Konfiguration
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "temporaerer_geheimer_schluessel")  # In der Produktion durch sichere Umgebungsvariable ersetzen
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+
+# Passwort-Funktionen
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """
+    Überprüft, ob das eingegebene Passwort mit dem Hash übereinstimmt.
+    """
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    """
+    Erstellt einen Hash aus dem angegebenen Passwort.
+    """
+    return pwd_context.hash(password)
+
+
+# JWT-Token-Funktionen
+def create_jwt_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+    """
+    Erstellt ein JWT-Token mit den angegebenen Daten und Ablaufzeit.
+    """
+    to_encode = data.copy()
+    
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
+
+def create_access_token(user_id: str) -> str:
+    """
+    Erstellt ein kurzlebiges Access-Token für den angegebenen Benutzer.
+    """
+    return create_jwt_token(
+        data={"sub": user_id, "type": "access"},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+
+
+def create_refresh_token(user_id: str) -> str:
+    """
+    Erstellt ein langlebiges Refresh-Token für den angegebenen Benutzer.
+    """
+    return create_jwt_token(
+        data={"sub": user_id, "type": "refresh"},
+        expires_delta=timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    )
+
+
+def decode_token(token: str) -> Dict[str, Any]:
+    """
+    Decodiert und verifiziert ein JWT-Token.
+    Wirft eine JWTError, wenn das Token ungültig ist.
+    """
+    return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+
+
+# API-Key-Funktionen
 async def get_tenant_id_from_api_key(
     request: Request,
     api_key_header: Optional[str] = Security(API_KEY_HEADER),

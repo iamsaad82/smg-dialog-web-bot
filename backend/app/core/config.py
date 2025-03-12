@@ -15,6 +15,14 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # Automatischer Admin-Benutzer
+    FIRST_SUPERUSER_USERNAME: str = os.getenv("FIRST_SUPERUSER_USERNAME", "admin")
+    FIRST_SUPERUSER_EMAIL: str = os.getenv("FIRST_SUPERUSER_EMAIL", "admin@example.com")
+    FIRST_SUPERUSER_PASSWORD: str = os.getenv("FIRST_SUPERUSER_PASSWORD", "")
+    FIRST_SUPERUSER_FIRSTNAME: str = os.getenv("FIRST_SUPERUSER_FIRSTNAME", "Admin")
+    FIRST_SUPERUSER_LASTNAME: str = os.getenv("FIRST_SUPERUSER_LASTNAME", "User")
+    AUTO_CREATE_SUPERUSER: bool = os.getenv("AUTO_CREATE_SUPERUSER", "False").lower() == "true"
+
     # Weaviate
     WEAVIATE_URL: str = os.getenv("WEAVIATE_URL", "http://weaviate:8080")
     WEAVIATE_API_KEY: Optional[str] = os.getenv("WEAVIATE_API_KEY")
