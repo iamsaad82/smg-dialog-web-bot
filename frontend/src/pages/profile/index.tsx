@@ -37,7 +37,8 @@ export default function ProfilePage() {
       setUpdateError(null);
       
       if (user) {
-        await api.updateUser(user.id, {
+        await api.updateUser({
+          id: user.id,
           first_name: firstName,
           last_name: lastName,
           email,

@@ -71,26 +71,23 @@ const ContactCard: React.FC<ContactCardProps> = ({
   const badgeBgColor = useColorModeValue('gray.100', 'gray.700');
 
   const renderRating = (rating: { score: number; max: number; reviews?: number }) => {
-    const stars = [];
     const fullStars = Math.floor(rating.score);
     const hasHalfStar = rating.score % 1 >= 0.5;
-
-    for (let i = 0; i < fullStars; i++) {
-      stars.push(<Icon key={`full-${i}`} as={StarIcon} color="yellow.400" />);
-    }
-
-    if (hasHalfStar) {
-      stars.push(<Icon key="half" as={StarIcon} color="yellow.400" opacity={0.5} />);
-    }
-
     const emptyStars = Math.floor(rating.max - rating.score - (hasHalfStar ? 0.5 : 0));
-    for (let i = 0; i < emptyStars; i++) {
-      stars.push(<Icon key={`empty-${i}`} as={StarIcon} color="gray.300" />);
-    }
 
     return (
       <Flex align="center">
-        <Flex>{stars}</Flex>
+        <Flex>
+          {Array.from({ length: fullStars }).map((_, i) => (
+            <Icon key={`full-${i}`} as={StarIcon} color="yellow.400" />
+          ))}
+          {hasHalfStar && (
+            <Icon key="half" as={StarIcon} color="yellow.400" opacity={0.5} />
+          )}
+          {Array.from({ length: emptyStars }).map((_, i) => (
+            <Icon key={`empty-${i}`} as={StarIcon} color="gray.300" />
+          ))}
+        </Flex>
         {rating.reviews && (
           <Text ml={2} fontSize="sm" color="gray.500">
             ({rating.reviews} Bewertungen)

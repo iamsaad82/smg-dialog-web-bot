@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ContactInfo, ContactLink } from '../types/interactive';
+import { ContactInfo, ContactLink } from '../types/api';
 
 interface ContactCardEditorProps {
   contact: ContactInfo;
@@ -29,40 +29,44 @@ const ContactCardEditor: React.FC<ContactCardEditorProps> = ({
   };
 
   const handleAddKeyword = () => {
-    if (newKeyword.trim()) {
-      setEditedContact(prev => ({
-        ...prev,
-        keywords: [...prev.keywords, newKeyword.trim()]
-      }));
-      setNewKeyword('');
-    }
+    if (!newKeyword.trim()) return;
+    
+    setEditedContact(prev => ({
+      ...prev,
+      keywords: [...(prev.keywords || []), newKeyword.trim()]
+    }));
+    setNewKeyword('');
   };
 
   const handleRemoveKeyword = (index: number) => {
     setEditedContact(prev => ({
       ...prev,
-      keywords: prev.keywords.filter((_, i) => i !== index)
+      keywords: prev.keywords ? 
+        prev.keywords.filter((_, i) => i !== index) :
+        []
     }));
   };
 
   const handleAddLink = () => {
-    if (newLink.label.trim() && newLink.url.trim()) {
-      setEditedContact(prev => ({
-        ...prev,
-        links: [...prev.links, { ...newLink }]
-      }));
-      setNewLink({
-        type: 'website',
-        label: '',
-        url: ''
-      });
-    }
+    if (!newLink.label.trim() || !newLink.url.trim()) return;
+    
+    setEditedContact(prev => ({
+      ...prev,
+      links: [...(prev.links || []), { ...newLink }]
+    }));
+    setNewLink({
+      type: 'website',
+      label: '',
+      url: ''
+    });
   };
 
   const handleRemoveLink = (index: number) => {
     setEditedContact(prev => ({
       ...prev,
-      links: prev.links.filter((_, i) => i !== index)
+      links: prev.links ? 
+        prev.links.filter((_, i) => i !== index) :
+        []
     }));
   };
 
@@ -181,7 +185,7 @@ const ContactCardEditor: React.FC<ContactCardEditorProps> = ({
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Keywords</label>
           
           <div className="flex flex-wrap gap-2 mb-2">
-            {editedContact.keywords.map((keyword, index) => (
+            {editedContact.keywords?.map((keyword, index) => (
               <div key={index} className="bg-indigo-100 dark:bg-indigo-900 px-2 py-1 rounded-md flex items-center">
                 <span className="text-indigo-800 dark:text-indigo-200 text-sm">{keyword}</span>
                 <button
@@ -218,7 +222,7 @@ const ContactCardEditor: React.FC<ContactCardEditorProps> = ({
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Links</label>
           
           <div className="space-y-2 mb-4">
-            {editedContact.links.map((link, index) => (
+            {editedContact.links?.map((link, index) => (
               <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-700 rounded-md">
                 <span className="font-medium">{link.label}:</span>
                 <span className="text-blue-500 flex-1 truncate">{link.url}</span>
