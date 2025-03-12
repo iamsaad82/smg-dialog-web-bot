@@ -1,5 +1,6 @@
 # Dependencies
 /node_modules
+/frontend/node_modules
 /.pnp
 .pnp.js
 
@@ -8,6 +9,7 @@
 /out/
 /build
 /dist
+/frontend/.next/
 
 # Testing
 /coverage
@@ -58,4 +60,6 @@ var/
 *.sqlite
 *.db
 
-# Dockerfiles werden nicht ausgeschlossen 
+# Große Dateien
+*.node
+# Dateien über 50MB werden vermieden 
