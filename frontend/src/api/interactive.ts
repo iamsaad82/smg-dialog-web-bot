@@ -1,5 +1,5 @@
 import { apiCore } from './core';
-import { InteractiveConfig, UIComponentsConfig } from '../types/api';
+import { InteractiveConfig } from '../types/api';
 
 interface ComponentRule {
   id: string;
@@ -8,6 +8,7 @@ interface ComponentRule {
   isEnabled: boolean;
 }
 
+// Lokale Definition für UI-Komponenten
 interface UIComponentsConfig {
   prompt: string;
   rules: ComponentRule[];

@@ -7,7 +7,8 @@ import { parseBotResponse } from "@/utils/botResponseParser";
 import { InteractiveElement } from "@/types/interactive";
 import { ChatInput } from "../input/ChatInput";
 import { MessageList } from "./MessageList";
-import { ChatMessage } from "./MessageItem";
+import { MessageItem } from "./MessageItem";
+import { ChatMessage } from "./utils/types";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface ChatContainerProps {

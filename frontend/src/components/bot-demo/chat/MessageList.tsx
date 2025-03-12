@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageItem, ChatMessage } from './MessageItem';
+import { MessageItem } from './MessageItem';
+import { ChatMessage } from './utils/types';
 import { Bot, Loader } from "lucide-react";
 
 interface MessageListProps {
