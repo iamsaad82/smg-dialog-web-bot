@@ -196,3 +196,94 @@ For detailed documentation on the UI components system, see [ui-komponenten-syst
 ## 📄 License
 
 This project is licensed under the MIT License.
+
+## 🚀 Deployment für Produktiveinsatz
+
+Für den Einsatz in einer Produktionsumgebung müssen folgende Schritte durchgeführt werden:
+
+### 1. Frontend und Backend konfigurieren
+
+Stellen Sie sicher, dass in der Produktionsumgebung folgende Änderungen vorgenommen wurden:
+
+- **Frontend**: In allen API-Client-Dateien ist der Entwicklungsmodus (`isDevelopment`) deaktiviert
+- **Backend**: Alle erforderlichen Umgebungsvariablen sind konfiguriert
+- **Authentifizierung**: Stellen Sie sicher, dass die Authentifizierung im `ProtectedLayout` aktiviert ist
+
+### 2. Datenbank-Migrationen durchführen
+
+Vor dem ersten Start müssen alle Datenbank-Migrationen durchgeführt werden:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+### 3. Super-Admin-Benutzer erstellen
+
+Es gibt zwei Möglichkeiten, einen Super-Admin-Benutzer zu erstellen:
+
+#### Option A: Automatische Erstellung beim ersten Start (empfohlen)
+
+Konfigurieren Sie folgende Umgebungsvariablen in der `.env`-Datei:
+
+```
+AUTO_CREATE_SUPERUSER=true
+FIRST_SUPERUSER_USERNAME=admin
+FIRST_SUPERUSER_EMAIL=admin@example.com
+FIRST_SUPERUSER_PASSWORD=IhrSicheresPasswort
+FIRST_SUPERUSER_FIRSTNAME=Admin
+FIRST_SUPERUSER_LASTNAME=User
+```
+
+Bei dieser Methode wird automatisch ein Admin-Benutzer erstellt, wenn beim Start der Anwendung noch kein Administrator existiert.
+
+#### Option B: Manuelle Erstellung
+
+```bash
+cd backend
+python -m app.scripts.create_admin_user --username admin --email admin@example.com --password IhrSicheresPasswort --first-name Admin --last-name User
+```
+
+Ersetzen Sie `IhrSicheresPasswort` durch ein sicheres Passwort. Mit diesem Benutzer können Sie sich dann als Super-Admin anmelden und weitere Benutzer anlegen.
+
+### 4. Deployment-Optionen
+
+#### A. Lokale Server-Umgebung
+
+Für die Bereitstellung auf einem lokalen Server verwenden Sie:
+
+```bash
+docker-compose up -d
+```
+
+#### B. Cloud-Deployment mit Render
+
+Für die Bereitstellung in der Render-Cloud:
+
+```bash
+render deploy
+```
+
+#### C. Manuelles Deployment
+
+Für die manuelle Bereitstellung auf einem Server verwenden Sie das Deployment-Skript:
+
+```bash
+bash deploy.sh
+```
+
+### 5. Nach dem Deployment
+
+Nach erfolgreichem Deployment:
+
+- Melden Sie sich mit dem erstellten Super-Admin-Benutzer an
+- Legen Sie Agenturen und Tenants an
+- Konfigurieren Sie die System-Einstellungen
+- Erstellen Sie weitere Benutzer nach Bedarf
+
+### 6. Sicherheitshinweise
+
+- Ändern Sie regelmäßig das Passwort des Super-Admin-Benutzers
+- Aktivieren Sie die 2-Faktor-Authentifizierung, wenn verfügbar
+- Beschränken Sie Zugriffe auf Backend-APIs über eine Firewall
+- Überprüfen Sie regelmäßig die Logs auf verdächtige Aktivitäten
