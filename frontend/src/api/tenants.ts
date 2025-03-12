@@ -1,0 +1,186 @@
+import { apiCore, API_BASE_URL } from './core';
+import { Tenant, TenantCreate, TenantUpdate, TenantExtended } from '../types/api';
+
+export class TenantApi {
+  // --- Tenant-Endpunkte ---
+
+  async createTenant(data: TenantCreate): Promise<Tenant> {
+    const adminApiKey = "admin-secret-key-12345";
+    
+    try {
+      // Direkter Fetch mit Admin-API-Key statt axios
+      const response = await fetch(`${API_BASE_URL}/tenants`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': adminApiKey
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const newTenant = await response.json();
+      
+      // Automatisch Standard-UI-Komponenten für den neuen Tenant erstellen
+      try {
+        // Standard-Prompt und -Regeln aus der Konstanten-Datei importieren
+        const { DEFAULT_BASE_PROMPT, DEFAULT_RULES } = await import('../components/ui-components-editor/shared/constants');
+        
+        // UI-Komponenten-Konfiguration speichern
+        await fetch(`${API_BASE_URL}/tenants/${newTenant.id}/ui-components`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': adminApiKey
+          },
+          body: JSON.stringify({
+            prompt: DEFAULT_BASE_PROMPT,
+            rules: DEFAULT_RULES
+          })
+        });
+        
+        console.log('Standard-UI-Komponenten für neuen Tenant erstellt:', newTenant.id);
+      } catch (err) {
+        // Fehler beim Erstellen der UI-Komponenten sollten nicht das Erstellen des Tenants verhindern
+        console.error('Fehler beim Erstellen der Standard-UI-Komponenten:', err);
+      }
+      
+      return newTenant;
+    } catch (error) {
+      console.error("Fehler beim Erstellen eines Tenants:", error);
+      throw error;
+    }
+  }
+
+  async getTenant(id: string): Promise<Tenant> {
+    const response = await apiCore.getClient().get(`/tenants/${id}`);
+    return response.data;
+  }
+
+  async getAllTenants(): Promise<Tenant[]> {
+    const adminApiKey = "admin-secret-key-12345";
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/tenants`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': adminApiKey,
+          'Accept': 'application/json'
+        },
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error("Fehler beim Abrufen aller Tenants:", error);
+      throw error;
+    }
+  }
+
+  async updateTenant(id: string, data: TenantUpdate): Promise<Tenant> {
+    const response = await apiCore.getClient().put(`/tenants/${id}`, data);
+    return response.data;
+  }
+
+  async deleteTenant(id: string): Promise<void> {
+    const adminApiKey = "admin-secret-key-12345";
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/tenants/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'X-API-Key': adminApiKey
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Fehler beim Löschen des Tenants:", error);
+      throw error;
+    }
+  }
+
+  // --- Admin-Endpunkte ---
+  
+  async getWeaviateStatus(): Promise<any> {
+    const adminApiKey = "admin-secret-key-12345";
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/admin/weaviate-status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': adminApiKey
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error("Fehler beim Abrufen des Weaviate-Status:", error);
+      return { status: 'error' };
+    }
+  }
+
+  async getEmbedConfig(apiKey: string): Promise<any> {
+    try {
+      // Direkter Fetch mit API-Key statt axios
+      const response = await fetch(`${API_BASE_URL}/embed/config`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': apiKey
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Embed-Konfiguration:", error);
+      throw error;
+    }
+  }
+
+  // Erweiterte Details eines Tenants abrufen, inklusive Agentur und zugewiesenen Redakteuren
+  async getTenantDetails(id: string): Promise<TenantExtended> {
+    const adminApiKey = "admin-secret-key-12345";
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/tenants/${id}/details`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': adminApiKey
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error("Fehler beim Abrufen der erweiterten Tenant-Details:", error);
+      throw error;
+    }
+  }
+}
+
+// Singleton-Instanz
+export const tenantApi = new TenantApi(); 

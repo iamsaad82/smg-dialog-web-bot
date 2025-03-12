@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"api/tenants.ts -> ../components/ui-components-editor/shared/constants\":{\"id\":\"api/tenants.ts -> ../components/ui-components-editor/shared/constants\",\"files\":[\"static/chunks/_pages-dir-browser_src_components_ui-components-editor_shared_constants_ts.js\"]}}"
