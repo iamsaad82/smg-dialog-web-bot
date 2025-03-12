@@ -12,7 +12,12 @@ services:
         fromService:
           name: dialog-engine-backend
           type: web
-          property: url
+          property: host
+      - key: BACKEND_PORT
+        fromService:
+          name: dialog-engine-backend
+          type: web
+          property: port
     autoDeploy: true
 
   - type: web
