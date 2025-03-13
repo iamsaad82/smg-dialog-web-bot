@@ -89,18 +89,23 @@ try {
     closeBtn.style.cursor = 'pointer';
     closeBtn.style.marginLeft = '10px';
     closeBtn.onclick = () => {
-      toast.remove();
+      // Sicherstellen, dass toast.remove() sicher ist
+      if (toast && toast.parentNode) {
+        toast.remove();
+      }
     };
     toast.appendChild(closeBtn);
 
     // Füge das Toast dem Container hinzu
-    toastContainer.appendChild(toast);
+    if (toastContainer) {
+      toastContainer.appendChild(toast);
+    }
 
     // Entferne das Toast nach 4 Sekunden
     setTimeout(() => {
       toast.style.opacity = '0';
       setTimeout(() => {
-        if (toast.parentNode === toastContainer) {
+        if (toast.parentNode === toastContainer && toastContainer !== null) {
           toastContainer.removeChild(toast);
         }
       }, 300);
