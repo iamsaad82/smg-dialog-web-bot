@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from ..db.base_class import Base
 
+# EmailStr wieder einführen, da das Paket jetzt korrekt installiert ist
 from pydantic import BaseModel, EmailStr, validator, Field
 from typing import Optional, List, Any
 
@@ -62,6 +63,7 @@ class User(Base):
 # Pydantic-Modelle für API-Requests und Responses
 class UserBase(BaseModel):
     username: str
+    # EmailStr wieder einführen
     email: EmailStr
     first_name: str
     last_name: str
@@ -78,6 +80,7 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
+    # EmailStr wieder einführen
     email: Optional[EmailStr] = None
     password: Optional[str] = None
     first_name: Optional[str] = None

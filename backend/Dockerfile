@@ -8,11 +8,20 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Email-validator vor allen anderen Paketen installieren
+RUN pip install email-validator
+
 # Python-Abhängigkeiten installieren
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-# Explizit email-validator installieren, um Probleme zu vermeiden
-RUN pip install --no-cache-dir email-validator pydantic[email]
+
+# Explizit email-validator und pydantic[email] mit '--no-deps' installieren, um zu vermeiden,
+# dass andere Abhängigkeiten aktualisiert werden
+RUN pip install --no-cache-dir --no-deps email-validator pydantic[email] && \
+    pip install --no-cache-dir dnspython idna
+
+# Überprüfen, ob das Package korrekt installiert wurde
+RUN python -c "from pydantic import EmailStr; print('EmailStr erfolgreich importiert')"
 
 # Start-Script erstellen
 RUN echo '#!/bin/bash\n\
