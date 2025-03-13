@@ -80,10 +80,7 @@ services:
       - key: ENABLE_MODULES
         value: text2vec-transformers
       - key: TRANSFORMERS_INFERENCE_API
-        fromService:
-          name: dialog-engine-transformer
-          type: web
-          property: url
+        value: "https://${dialog-engine-transformer.hostport}"
     disk:
       name: weaviate-data
       mountPath: /var/lib/weaviate
