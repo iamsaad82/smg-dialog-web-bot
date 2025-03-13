@@ -28,7 +28,8 @@ export default function UIComponentsPage() {
     if (id && typeof id === 'string') {
       loadTenantAndConfig()
     }
-  }, [id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]) // loadTenantAndConfig wird absichtlich weggelassen, um Endless-Loop zu vermeiden
 
   const loadTenantAndConfig = async () => {
     if (!id || typeof id !== 'string') return

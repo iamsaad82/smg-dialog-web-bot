@@ -87,11 +87,11 @@ export default function UserDetailPage() {
   const [activeTab, setActiveTab] = useState("details")
   
   useEffect(() => {
-    // Benutzer, Agenturen und Tenants laden, wenn ID verfügbar ist
     if (id) {
       loadData()
     }
-  }, [id])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]) // loadData wird absichtlich weggelassen, um Endless-Loop zu vermeiden
   
   const loadData = async () => {
     setLoading(true)
