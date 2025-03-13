@@ -6,7 +6,7 @@ const nextConfig = {
   poweredByHeader: false, // Entfernt den X-Powered-By Header für bessere Sicherheit
   experimental: {
     // Optimierte Builds
-    optimizeCss: true, // CSS-Optimierungen in Produktion
+    optimizeCss: process.env.NODE_ENV === 'production', // CSS-Optimierungen nur in Produktion aktivieren
   },
   // Proxy-Konfiguration für API-Anfragen
   async rewrites() {
