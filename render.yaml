@@ -3,14 +3,16 @@ services:
     name: dialog-engine-frontend
     env: node
     region: frankfurt
-    buildCommand: cd frontend && npm ci && npm run build
-    startCommand: cd frontend && NODE_ENV=production PORT=$PORT npm start
+    buildCommand: cd frontend && npm ci
+    startCommand: cd frontend && npm run start
     plan: starter
     envVars:
       - key: NODE_ENV
         value: production
       - key: NODE_VERSION
         value: 18
+      - key: PORT
+        value: 10000
       - key: BACKEND_URL
         fromService:
           name: dialog-engine-backend
