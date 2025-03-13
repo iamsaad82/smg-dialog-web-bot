@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y \
 # Python-Abhängigkeiten installieren
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# Explizit email-validator installieren, um Probleme zu vermeiden
+RUN pip install --no-cache-dir email-validator pydantic[email]
 
 # Start-Script erstellen
 RUN echo '#!/bin/bash\n\
