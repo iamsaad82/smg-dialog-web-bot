@@ -3,7 +3,7 @@ services:
     name: dialog-engine-frontend
     env: node
     region: frankfurt
-    buildCommand: cd frontend && npm install
+    buildCommand: cd frontend && npm install --production=false
     startCommand: cd frontend && npm run start
     plan: starter
     envVars:
