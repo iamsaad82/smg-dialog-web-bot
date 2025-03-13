@@ -12,9 +12,11 @@ class SchemaManager:
     """Manager für die Verwaltung von Weaviate-Schemas und Klassen."""
     
     @staticmethod
-    def get_tenant_class_name(tenant_id: str) -> str:
+    def get_tenant_class_name(tenant_id) -> str:
         """Erzeugt einen eindeutigen Klassennamen für jeden Tenant."""
-        return f"Tenant{tenant_id.replace('-', '')}"
+        # Sicherstellen, dass tenant_id ein String ist, unabhängig davon, ob UUID oder String übergeben wird
+        tenant_str = str(tenant_id)
+        return f"Tenant{tenant_str.replace('-', '')}"
     
     @staticmethod
     def class_exists(class_name: str) -> bool:
