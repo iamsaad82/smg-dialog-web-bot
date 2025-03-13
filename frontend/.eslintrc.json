@@ -1,5 +1,11 @@
 {
-  "extends": [
-    "next/core-web-vitals"
-  ]
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "react/jsx-no-comment-textnodes": "off",
+    "react/no-unescaped-entities": "off",
+    "react-hooks/rules-of-hooks": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+    "@next/next/no-img-element": "warn",
+    "@next/next/no-html-link-for-pages": "off"
+  }
 }

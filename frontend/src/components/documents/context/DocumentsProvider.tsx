@@ -175,7 +175,7 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
           // Dokumentenstatus abrufen
           const statusPromises = documentsData.map(async (doc) => {
             try {
-              const status = await api.getDocumentStatus(tenantId, doc.id);
+              const status = await api.getDocumentWeaviateStatus(tenantId, doc.id);
               
               // Wenn der Status einen Backend-Fehler enthält, setzen wir einen Standardstatus
               if (status.error && status.error.includes("unexpected keyword")) {
@@ -300,14 +300,40 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
     setError(null);
 
     try {
-      // Dokument-Status auf "Wird indiziert" setzen
+      console.log(`Reindexiere Dokument ${documentId}`);
+      
+      // Status auf "Wird indiziert" setzen
+      setDocumentStatus(prev => ({
+        ...prev,
+        [documentId]: {
+          status: IndexStatus.NICHT_INDIZIERT,
+          lastUpdated: new Date().toISOString()
+        }
+      }));
+      
+      // Dokument neu indizieren
+      await api.reindexDocument(tenantId, documentId);
+      
+      // Status prüfen
+      let statusResult;
+      try {
+        statusResult = await api.getDocumentWeaviateStatus(tenantId, documentId);
+      } catch (error) {
+        console.error(`Fehler beim Abrufen des Status nach Reindexierung: ${error}`);
+        setError('Fehler beim Prüfen des Indizierungsstatus');
+        toast.error('Fehler beim Prüfen des Indizierungsstatus');
+        return;
+      }
+
+      // Status im State aktualisieren
       setDocuments((prevDocuments) =>
         prevDocuments.map((doc) =>
           doc.id === documentId
             ? {
                 ...doc,
                 status: {
-                  status: IndexStatus.NICHT_INDIZIERT,
+                  status: statusResult.status,
+                  error: statusResult.error,
                   lastUpdated: new Date().toISOString(),
                 },
               }
@@ -315,117 +341,15 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
         )
       );
 
-      console.log(`Reindexing document ${documentId} for tenant ${tenantId}`);
-      
-      // API-Aufruf zum Reindexieren
-      await api.reindexDocument(tenantId, documentId);
-      
-      // Status-Polling starten
-      let retryCount = 0;
-      const maxRetries = 5;
-      const checkStatus = async () => {
-        if (!tenantId) {
-          console.error('Status check failed: No tenant ID available');
-          throw new Error('Kein Tenant ausgewählt');
-        }
-
-        try {
-          console.log(`Checking status for document ${documentId}`);
-          const statusResult = await api.getDocumentStatus(tenantId, documentId);
-          console.log(`Status result:`, statusResult);
-
-          // Status im State aktualisieren
-          setDocuments((prevDocuments) =>
-            prevDocuments.map((doc) =>
-              doc.id === documentId
-                ? {
-                    ...doc,
-                    status: {
-                      status: statusResult.status,
-                      error: statusResult.error,
-                      lastUpdated: new Date().toISOString(),
-                    },
-                  }
-                : doc
-            )
-          );
-
-          // Prüfen, ob die Indizierung abgeschlossen ist
-          if (statusResult.status === IndexStatus.INDIZIERT) {
-            console.log(`Document ${documentId} successfully indexed`);
-            toast.success('Dokument erfolgreich indiziert');
-            return; // Polling beenden
-          } 
-          
-          // Prüfen, ob ein Fehler aufgetreten ist
-          if (statusResult.status === IndexStatus.FEHLER) {
-            console.error(`Indexing error for document ${documentId}:`, statusResult.error);
-            setError(`Fehler bei der Indizierung: ${statusResult.error || 'Unbekannter Fehler'}`);
-            toast.error(`Indizierung fehlgeschlagen: ${statusResult.error || 'Unbekannter Fehler'}`);
-            return; // Polling beenden
-          }
-
-          // Prüfen, ob ein spezifischer Fehler vorliegt, aber weiter versuchen
-          if (statusResult.error) {
-            console.warn(`Status check warning:`, statusResult.error);
-            
-            // Bei Backend-Fehlern oder Netzwerkproblemen länger warten
-            if (
-              statusResult.error.includes('Backend-Fehler') || 
-              statusResult.error.includes('Netzwerkfehler')
-            ) {
-              retryCount++;
-              if (retryCount >= maxRetries) {
-                console.error(`Max retries (${maxRetries}) reached for document ${documentId}`);
-                setError(`Maximale Anzahl an Versuchen erreicht: ${statusResult.error}`);
-                toast.error('Indizierung konnte nicht abgeschlossen werden');
-                return; // Polling beenden
-              }
-              
-              // Längere Wartezeit bei Fehlern
-              console.log(`Retry ${retryCount}/${maxRetries} in 5 seconds...`);
-              setTimeout(checkStatus, 5000);
-              return;
-            }
-            
-            // Bei "Dokument nicht gefunden" abbrechen
-            if (statusResult.error.includes('Dokument nicht gefunden')) {
-              console.error(`Document ${documentId} not found during indexing`);
-              setError('Dokument wurde während der Indizierung gelöscht oder ist nicht auffindbar');
-              toast.error('Indizierung fehlgeschlagen: Dokument nicht gefunden');
-              return; // Polling beenden
-            }
-          }
-
-          // Noch nicht fertig, erneut prüfen
-          console.log('Document still being processed, checking again in 2 seconds...');
-          setTimeout(checkStatus, 2000);
-        } catch (error) {
-          console.error('Error checking document status:', error);
-          
-          // Fehler im State aktualisieren
-          setDocuments((prevDocuments) =>
-            prevDocuments.map((doc) =>
-              doc.id === documentId
-                ? {
-                    ...doc,
-                    status: {
-                      status: IndexStatus.FEHLER,
-                      error: error instanceof Error ? error.message : String(error),
-                      lastUpdated: new Date().toISOString(),
-                    },
-                  }
-                : doc
-            )
-          );
-          
-          setError(`Fehler beim Prüfen des Indizierungsstatus: ${error instanceof Error ? error.message : String(error)}`);
-          toast.error('Fehler beim Prüfen des Indizierungsstatus');
-        }
-      };
-
-      // Erste Statusprüfung nach kurzer Verzögerung
-      setTimeout(checkStatus, 1000);
+      // Prüfen, ob die Indizierung abgeschlossen ist
+      if (statusResult.status === IndexStatus.INDIZIERT) {
+        console.log(`Document ${documentId} successfully indexed`);
+        toast.success('Dokument erfolgreich indiziert');
+      } else {
+        console.error(`Indexing error for document ${documentId}:`, statusResult.error);
+        setError(`Fehler bei der Indizierung: ${statusResult.error || 'Unbekannter Fehler'}`);
+        toast.error(`Indizierung fehlgeschlagen: ${statusResult.error || 'Unbekannter Fehler'}`);
+      }
     } catch (error) {
       console.error('Error reindexing document:', error);
       
@@ -527,7 +451,7 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
       if (newDocIds.length > 0) {
         const statusPromises = newDocIds.map(async (docId) => {
           try {
-            const status = await api.getDocumentStatus(tenantId, docId);
+            const status = await api.getDocumentWeaviateStatus(tenantId, docId);
             statusMap[docId] = {
               status: status.status || IndexStatus.NICHT_INDIZIERT,
               lastUpdated: status.lastUpdated,
@@ -614,7 +538,7 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
         try {
           const statusPromises = selectedDocuments.map(async docId => {
             try {
-              return { docId, status: await api.getDocumentStatus(tenantId, docId) };
+              return { docId, status: await api.getDocumentWeaviateStatus(tenantId, docId) };
             } catch (error) {
               return { 
                 docId, 
@@ -692,7 +616,7 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
         try {
           const statusPromises = documents.map(async doc => {
             try {
-              return { docId: doc.id, status: await api.getDocumentStatus(tenantId, doc.id) };
+              return { docId: doc.id, status: await api.getDocumentWeaviateStatus(tenantId, doc.id) };
             } catch (error) {
               return { 
                 docId: doc.id, 

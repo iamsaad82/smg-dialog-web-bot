@@ -66,6 +66,7 @@ export const api = {
   getDocumentStatus: documentApi.getDocumentStatus.bind(documentApi),
   reindexDocument: documentApi.reindexDocument.bind(documentApi),
   reindexAllDocuments: documentApi.reindexAllDocuments.bind(documentApi),
+  getDocumentWeaviateStatus: documentApi.getWeaviateStatus.bind(documentApi),
   
   // Agentur-Funktionen
   getAllAgencies: agencyApi.getAllAgencies.bind(agencyApi),

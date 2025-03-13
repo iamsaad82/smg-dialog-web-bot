@@ -109,11 +109,11 @@ export const ChatPreview: React.FC<ChatPreviewProps> = ({
       case 'OpeningHoursTable':
         return <OpeningHoursTable data={component.data} />;
       case 'StoreMap':
-        return <StoreMap data={component.data} />;
+        return <StoreMap locations={component.data} />;
       case 'ProductShowcase':
-        return <ProductShowcase data={component.data} />;
+        return <ProductShowcase products={component.data} />;
       case 'ContactCard':
-        return <ContactCard data={component.data} />;
+        return <ContactCard contacts={component.data} />;
       default:
         return (
           <div className="p-4 border rounded mt-2">

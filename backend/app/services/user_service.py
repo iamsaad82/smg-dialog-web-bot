@@ -3,7 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 from uuid import uuid4
 
-from ..models.user import User, UserRole
+from ..models.user import User, UserRole, UserCreate
 from ..core.security import get_password_hash, verify_password
 
 

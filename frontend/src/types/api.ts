@@ -64,6 +64,7 @@ export interface DocumentCreate {
   source?: string;
   metadata?: Record<string, any>;
   file?: File;
+  auto_index?: boolean;
 }
 
 // Chat-Typen

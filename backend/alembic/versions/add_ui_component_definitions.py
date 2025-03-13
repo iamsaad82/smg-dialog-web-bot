@@ -1,7 +1,7 @@
 """add_ui_component_definitions
 
-Revision ID: f3a56e0e4dcb
-Revises: 
+Revision ID: add_ui_component_definitions
+Revises: 202403121530
 Create Date: 2025-03-10 10:00:00.000000
 
 """
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = 'f3a56e0e4dcb'
-down_revision = None  # Diese sollte auf die letzte vorherige Migration verweisen
+revision = 'add_ui_component_definitions'  # Angepasst für konsistente IDs
+down_revision = '202403121530'  # Korrigiert, um auf die vorherige Migration zu verweisen
 branch_labels = None
 depends_on = None
 

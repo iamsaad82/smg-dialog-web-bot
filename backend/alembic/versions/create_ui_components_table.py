@@ -1,7 +1,7 @@
 """create ui_components_configs table
 
 Revision ID: 202403121530
-Revises: 
+Revises: 003
 Create Date: 2024-03-12 15:30:00.000000
 
 """
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = '202403121530'
-down_revision = None
+down_revision = '003'
 branch_labels = None
 depends_on = None
 

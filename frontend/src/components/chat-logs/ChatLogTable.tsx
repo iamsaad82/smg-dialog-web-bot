@@ -19,22 +19,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { demoData } from "./demo-data"
 
-interface ChatLog {
-  id: string
-  sessionId: string
-  clientInfo: string
-  startTime: string
-  duration: string
-  messageCount: number
-  topics?: string[]
-}
+// Verwende den vollständigen Chatlog-Typ aus den Demo-Daten
+export type DemoChatLog = typeof demoData.chatLogs[0];
 
 interface ChatLogTableProps {
-  chatLogs: ChatLog[]
-  onViewDetails: (chatLog: ChatLog) => void
-  onExport: (chatLog: ChatLog) => void
-  onDelete: (chatLog: ChatLog) => void
+  chatLogs: DemoChatLog[]
+  onViewDetails: (chatLog: DemoChatLog) => void
+  onExport: (chatLog: DemoChatLog) => void
+  onDelete: (chatLog: DemoChatLog) => void
 }
 
 export function ChatLogTable({
@@ -43,28 +37,37 @@ export function ChatLogTable({
   onExport,
   onDelete,
 }: ChatLogTableProps) {
+  if (chatLogs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <MessageSquare className="h-12 w-12 text-muted-foreground/50" />
+        <h3 className="mt-4 text-lg font-semibold">Keine Chat-Logs gefunden</h3>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Es wurden keine Chat-Logs mit den aktuellen Filterkriterien gefunden.
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[200px]">Session ID</TableHead>
+            <TableHead>Session ID</TableHead>
             <TableHead>Client</TableHead>
-            <TableHead>Startzeit</TableHead>
+            <TableHead>Start</TableHead>
             <TableHead>Dauer</TableHead>
             <TableHead>Nachrichten</TableHead>
             <TableHead>Themen</TableHead>
-            <TableHead className="text-right">Aktionen</TableHead>
+            <TableHead className="w-[80px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {chatLogs.map((log) => (
             <TableRow key={log.id}>
-              <TableCell className="font-medium">
-                <div className="flex items-center space-x-2">
-                  <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                  <span>{log.sessionId.substring(0, 8)}...</span>
-                </div>
+              <TableCell className="font-mono text-xs">
+                {log.sessionId}
               </TableCell>
               <TableCell>{log.clientInfo}</TableCell>
               <TableCell>{log.startTime}</TableCell>
@@ -73,18 +76,18 @@ export function ChatLogTable({
               <TableCell>
                 <div className="flex flex-wrap gap-1">
                   {log.topics?.map((topic) => (
-                    <Badge key={topic} variant="outline" className="max-w-[120px] truncate">
+                    <Badge key={topic} variant="outline">
                       {topic}
                     </Badge>
-                  )) || "-"}
+                  ))}
                 </div>
               </TableCell>
-              <TableCell className="text-right">
+              <TableCell>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0">
-                      <span className="sr-only">Menü öffnen</span>
+                    <Button variant="ghost" size="icon">
                       <MoreHorizontal className="h-4 w-4" />
+                      <span className="sr-only">Menü öffnen</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -100,7 +103,7 @@ export function ChatLogTable({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={() => onDelete(log)}
-                      className="text-red-600 focus:text-red-600"
+                      className="text-destructive focus:bg-destructive focus:text-destructive-foreground"
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
                       Löschen

@@ -179,7 +179,7 @@ export function SettingsForm() {
                 <FormField
                   control={generalForm.control}
                   name="systemName"
-                  render={({ field }) => (
+                  render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: string } }) => (
                     <FormItem>
                       <FormLabel>Systemname</FormLabel>
                       <FormControl>
@@ -196,7 +196,7 @@ export function SettingsForm() {
                 <FormField
                   control={generalForm.control}
                   name="adminEmail"
-                  render={({ field }) => (
+                  render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: string } }) => (
                     <FormItem>
                       <FormLabel>Administrator-E-Mail</FormLabel>
                       <FormControl>
@@ -240,7 +240,7 @@ export function SettingsForm() {
                 <FormField
                   control={generalForm.control}
                   name="logRetentionDays"
-                  render={({ field }) => (
+                  render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: number } }) => (
                     <FormItem>
                       <FormLabel>Log-Aufbewahrungszeit (Tage)</FormLabel>
                       <FormControl>
@@ -278,7 +278,7 @@ export function SettingsForm() {
                 <FormField
                   control={llmForm.control}
                   name="openaiApiKey"
-                  render={({ field }) => (
+                  render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: string } }) => (
                     <FormItem>
                       <FormLabel>OpenAI API-Schlüssel</FormLabel>
                       <FormControl>
@@ -295,7 +295,7 @@ export function SettingsForm() {
                 <FormField
                   control={llmForm.control}
                   name="mistralApiKey"
-                  render={({ field }) => (
+                  render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: string } }) => (
                     <FormItem>
                       <FormLabel>Mistral API-Schlüssel (optional)</FormLabel>
                       <FormControl>
@@ -340,7 +340,7 @@ export function SettingsForm() {
                   <FormField
                     control={llmForm.control}
                     name="temperature"
-                    render={({ field }) => (
+                    render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: number } }) => (
                       <FormItem>
                         <FormLabel>Temperatur</FormLabel>
                         <FormControl>
@@ -357,7 +357,7 @@ export function SettingsForm() {
                   <FormField
                     control={llmForm.control}
                     name="maxTokens"
-                    render={({ field }) => (
+                    render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: number } }) => (
                       <FormItem>
                         <FormLabel>Max. Tokens</FormLabel>
                         <FormControl>
@@ -396,7 +396,7 @@ export function SettingsForm() {
                 <FormField
                   control={vectorDbForm.control}
                   name="weaviateUrl"
-                  render={({ field }) => (
+                  render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: string } }) => (
                     <FormItem>
                       <FormLabel>Weaviate-URL</FormLabel>
                       <FormControl>
@@ -413,7 +413,7 @@ export function SettingsForm() {
                 <FormField
                   control={vectorDbForm.control}
                   name="weaviateApiKey"
-                  render={({ field }) => (
+                  render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: string } }) => (
                     <FormItem>
                       <FormLabel>Weaviate API-Schlüssel</FormLabel>
                       <FormControl>
@@ -457,7 +457,7 @@ export function SettingsForm() {
                   <FormField
                     control={vectorDbForm.control}
                     name="chunkSize"
-                    render={({ field }) => (
+                    render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: number } }) => (
                       <FormItem>
                         <FormLabel>Chunk-Größe</FormLabel>
                         <FormControl>
@@ -474,7 +474,7 @@ export function SettingsForm() {
                   <FormField
                     control={vectorDbForm.control}
                     name="chunkOverlap"
-                    render={({ field }) => (
+                    render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: number } }) => (
                       <FormItem>
                         <FormLabel>Chunk-Überlapp</FormLabel>
                         <FormControl>
@@ -513,7 +513,7 @@ export function SettingsForm() {
                 <FormField
                   control={notificationForm.control}
                   name="enableErrorNotifications"
-                  render={({ field }) => (
+                  render={({ field }: { field: { checked: boolean; onChange: (checked: boolean) => void } }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
                         <FormLabel className="text-base">Fehlerbenachrichtigungen</FormLabel>
@@ -523,7 +523,7 @@ export function SettingsForm() {
                       </div>
                       <FormControl>
                         <Switch
-                          checked={field.value}
+                          checked={field.checked}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
@@ -535,7 +535,7 @@ export function SettingsForm() {
                   <FormField
                     control={notificationForm.control}
                     name="errorRecipients"
-                    render={({ field }) => (
+                    render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: string } }) => (
                       <FormItem>
                         <FormLabel>E-Mail-Empfänger für Fehler</FormLabel>
                         <FormControl>
@@ -553,7 +553,7 @@ export function SettingsForm() {
                 <FormField
                   control={notificationForm.control}
                   name="enableUsageReports"
-                  render={({ field }) => (
+                  render={({ field }: { field: { checked: boolean; onChange: (checked: boolean) => void } }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
                         <FormLabel className="text-base">Nutzungsberichte</FormLabel>
@@ -563,7 +563,7 @@ export function SettingsForm() {
                       </div>
                       <FormControl>
                         <Switch
-                          checked={field.value}
+                          checked={field.checked}
                           onCheckedChange={field.onChange}
                         />
                       </FormControl>
@@ -602,7 +602,7 @@ export function SettingsForm() {
                 <FormField
                   control={notificationForm.control}
                   name="slackWebhookUrl"
-                  render={({ field }) => (
+                  render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> & { value: string } }) => (
                     <FormItem>
                       <FormLabel>Slack Webhook URL (optional)</FormLabel>
                       <FormControl>

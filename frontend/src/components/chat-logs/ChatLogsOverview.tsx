@@ -20,14 +20,17 @@ import { toast } from "@/utils/toast"
 // Demo-Daten
 import { demoData } from "./demo-data"
 
+// Die vollständige Demo-Chatlog-Struktur
+type DemoChatLog = typeof demoData.chatLogs[0];
+
 interface ChatLogsOverviewProps {
   tenantId: string
 }
 
 export function ChatLogsOverview({ tenantId }: ChatLogsOverviewProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedChatLog, setSelectedChatLog] = useState<typeof demoData.chatLogs[0] | null>(null)
-  const [viewingChatLog, setViewingChatLog] = useState<typeof demoData.chatLogs[0] | null>(null)
+  const [selectedChatLog, setSelectedChatLog] = useState<DemoChatLog | null>(null)
+  const [viewingChatLog, setViewingChatLog] = useState<DemoChatLog | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
   // Filtere Chatverläufe basierend auf der Suchanfrage
@@ -40,11 +43,11 @@ export function ChatLogsOverview({ tenantId }: ChatLogsOverviewProps) {
     )
   })
 
-  const handleViewDetails = (chatLog: typeof demoData.chatLogs[0]) => {
+  const handleViewDetails = (chatLog: DemoChatLog) => {
     setViewingChatLog(chatLog)
   }
 
-  const handleExportChat = (chatLog: typeof demoData.chatLogs[0]) => {
+  const handleExportChat = (chatLog: DemoChatLog) => {
     toast.info(`Chatlog für Session ${chatLog.sessionId} wird exportiert (Demo)`)
   }
 
@@ -96,30 +99,43 @@ export function ChatLogsOverview({ tenantId }: ChatLogsOverviewProps) {
         onDelete={setSelectedChatLog}
       />
 
-      <ChatLogDetails
-        chatLog={viewingChatLog}
-        open={!!viewingChatLog}
-        onClose={() => setViewingChatLog(null)}
-        onExport={() => viewingChatLog && handleExportChat(viewingChatLog)}
-      />
+      {viewingChatLog && (
+        <ChatLogDetails
+          chatLog={viewingChatLog}
+          onClose={() => setViewingChatLog(null)}
+        />
+      )}
 
-      <AlertDialog open={!!selectedChatLog} onOpenChange={(open) => !open && setSelectedChatLog(null)}>
+      <AlertDialog open={!!selectedChatLog} onOpenChange={() => selectedChatLog && setSelectedChatLog(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Chatverlauf löschen?</AlertDialogTitle>
+            <AlertDialogTitle>Chat-Log löschen</AlertDialogTitle>
             <AlertDialogDescription>
-              Möchten Sie wirklich den Chatverlauf für die Session &quot;{selectedChatLog?.sessionId}&quot; löschen?
-              Diese Aktion kann nicht rückgängig gemacht werden.
+              Sind Sie sicher, dass Sie diesen Chat-Verlauf löschen möchten?
+              Dies kann nicht rückgängig gemacht werden.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Abbrechen</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleDeleteChat}
+              onClick={(e) => {
+                e.preventDefault()
+                handleDeleteChat()
+              }}
               disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              className="bg-destructive hover:bg-destructive/90"
             >
-              {isDeleting ? "Löschen..." : "Löschen"}
+              {isDeleting ? (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4 animate-spin" />
+                  Löschen...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Löschen
+                </>
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
