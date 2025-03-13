@@ -3,7 +3,10 @@ services:
     name: dialog-engine-frontend
     env: node
     region: frankfurt
-    buildCommand: cd frontend && chmod +x render-build.sh && ./render-build.sh
+    buildCommand: >
+      cd frontend && chmod +x render-build.sh && 
+      npm install typescript@5.3.2 @types/react @types/react-dom --no-save && 
+      ./render-build.sh
     startCommand: cd frontend && chmod +x render-start.sh && ./render-start.sh
     plan: starter
     envVars:
