@@ -4,7 +4,7 @@ services:
     env: node
     region: frankfurt
     buildCommand: cd frontend && npm install
-    startCommand: cd frontend && npm install --no-save typescript@5.3.2 eslint@8.54.0 && npm run build && npm start -- -p $PORT
+    startCommand: cd frontend && (npm install --no-save typescript@5.3.2 eslint@8.54.0 && npm run build && npm start -- -p $PORT)
     plan: starter
     envVars:
       - key: NODE_ENV
