@@ -49,6 +49,15 @@ async def create_superuser():
         # Datenbankverbindung erstellen
         db = SessionLocal()
         try:
+            # Wichtig: Prüfen, ob Datenbank-Migrationen ausgeführt wurden
+            try:
+                # Testabfrage, um zu prüfen, ob die notwendigen Tabellen existieren
+                db.execute("SELECT 1 FROM tenants LIMIT 1")
+                logger.info("Datenbanktabellen existieren bereits.")
+            except Exception as db_error:
+                logger.error(f"Datenbankfehler: {db_error}. Die Tabellen existieren möglicherweise nicht.")
+                logger.warning("WICHTIG: Stellen Sie sicher, dass die Alembic-Migrationen mit 'alembic upgrade head' ausgeführt wurden!")
+                
             superuser_created = create_initial_superuser(db)
             if superuser_created:
                 logger.info("Superuser erfolgreich erstellt!")
@@ -58,6 +67,7 @@ async def create_superuser():
             db.close()
     except Exception as e:
         logger.error(f"Fehler bei der Überprüfung/Erstellung des Superusers: {e}")
+        logger.warning("WICHTIG: Stellen Sie sicher, dass die Datenbankverbindung funktioniert und Migrationen ausgeführt wurden!")
         # Anwendung nicht beenden, auch wenn die Superuser-Erstellung fehlschlägt
 
 # CORS-Middleware hinzufügen
