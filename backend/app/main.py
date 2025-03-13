@@ -67,7 +67,8 @@ origins = [
     "http://localhost:3001",
     "https://dialog-ai-web.de",
     "https://www.dialog-ai-web.de",
-    "https://api.dialog-ai-web.de"
+    "https://api.dialog-ai-web.de",
+    "https://dialog-engine-frontend.onrender.com"
 ]
 
 logger.info(f"Konfiguriere CORS mit Origins: {origins}")

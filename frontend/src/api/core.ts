@@ -4,9 +4,15 @@ import axios, { AxiosInstance, AxiosHeaders } from 'axios';
 let API_BASE_URL = 'http://localhost:8000/api/v1';
 
 // In Produktionsumgebung die API-Domain verwenden
-if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-  // Neue Domain für Produktion
-  API_BASE_URL = 'https://api.dialog-ai-web.de/api/v1';
+if (typeof window !== 'undefined') {
+  const hostname = window.location.hostname;
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    // Neue Domain für Produktion
+    API_BASE_URL = 'https://api.dialog-ai-web.de/api/v1';
+    console.log('Using production API URL:', API_BASE_URL);
+  } else {
+    console.log('Using development API URL:', API_BASE_URL);
+  }
 }
 
 // Export für Verwendung in anderen Komponenten
