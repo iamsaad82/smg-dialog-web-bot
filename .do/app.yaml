@@ -1,0 +1,47 @@
+name: smg-dialog-web-bot
+static_sites:
+- name: frontend
+  github:
+    repo: # Ihr Repository-Name
+    branch: main
+    deploy_on_push: true
+  source_dir: frontend
+  build_command: npm install && npm run build
+  output_dir: .next
+  routes:
+    - path: /
+  envs:
+    - key: BACKEND_URL
+      value: ${backend.HOSTNAME}
+
+services:
+- name: backend
+  github:
+    repo: # Ihr Repository-Name
+    branch: main
+    deploy_on_push: true
+  source_dir: backend
+  dockerfile_path: backend/Dockerfile
+  http_port: 8000
+  routes:
+    - path: /api
+  envs:
+    - key: OPENAI_API_KEY
+      value: ${openai.api_key}
+    - key: POSTGRES_SERVER
+      value: ${db.HOSTNAME}
+    - key: POSTGRES_USER
+      value: ${db.USERNAME}
+    - key: POSTGRES_PASSWORD
+      value: ${db.PASSWORD}
+    - key: POSTGRES_DB
+      value: ${db.DATABASE}
+    - key: POSTGRES_HOST
+      value: ${db.HOSTNAME}
+    - key: POSTGRES_PORT
+      value: ${db.PORT}
+
+databases:
+- name: db
+  engine: PG
+  production: false 

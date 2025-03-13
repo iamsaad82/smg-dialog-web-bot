@@ -1,0 +1,29 @@
+name: smg-dialog-web-bot
+region: fra
+
+services:
+  - name: frontend
+    github:
+      branch: main
+      repo: # Ihr Repository-Name wird hier automatisch erkannt
+      deploy_on_push: true
+    source_dir: frontend
+    envs:
+      - key: NODE_ENV
+        value: production
+    build_command: npm install && npm run build
+    run_command: npm start
+
+  - name: backend
+    github:
+      branch: main
+      repo: # Ihr Repository-Name wird hier automatisch erkannt
+      deploy_on_push: true
+    source_dir: backend
+    dockerfile_path: Dockerfile
+    http_port: 8000
+
+databases:
+  - name: database
+    engine: pg
+    version: "15" 
