@@ -709,6 +709,7 @@ const SidebarMenuSubButton = React.forwardRef<
       <Tooltip>
         <TooltipTrigger asChild>
           <Comp
+            // @ts-ignore - Ref-Typen-Konflikt zwischen HTMLButtonElement und komponiertem Element
             ref={ref}
             className={cn(
               "group relative flex w-full select-none items-center gap-2 overflow-hidden rounded-md border-none px-3 py-1 text-sm font-normal shadow-none outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground",
