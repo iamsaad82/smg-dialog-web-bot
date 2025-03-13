@@ -213,7 +213,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const userData = {
     name: "Admin",
     email: "admin@example.com",
-    avatar: "/avatars/admin.jpg",
+    avatar: "",  // Leerer Avatar-Pfad, um das Fallback zu verwenden
   }
 
   return (
