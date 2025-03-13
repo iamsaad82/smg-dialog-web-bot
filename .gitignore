@@ -25,6 +25,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+/backend/logs/
 
 # Editor directories and files
 .idea
@@ -62,4 +63,7 @@ var/
 
 # Große Dateien
 *.node
-# Dateien über 50MB werden vermieden 
+# Dateien über 50MB werden vermieden
+
+# Generated files
+/frontend/src/styles/tailwind.css 
