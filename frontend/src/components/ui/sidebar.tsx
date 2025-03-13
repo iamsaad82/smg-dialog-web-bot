@@ -534,11 +534,12 @@ const SidebarMenuButton = React.forwardRef<
     },
     ref
   ) => {
-    const Comp = asChild ? Slot : "button"
+    const Comp = asChild ? Slot : "button" as const
     const { isMobile, state } = useSidebar()
 
     const button = (
       <Comp
+        // @ts-ignore - Ref-Typen-Konflikt zwischen HTMLButtonElement und komponiertem Element
         ref={ref}
         data-sidebar="menu-button"
         data-size={size}
