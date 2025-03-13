@@ -5,6 +5,7 @@ services:
     region: frankfurt
     buildCommand: cd frontend && npm install && npm run build
     startCommand: cd frontend && npm start
+    plan: starter
     envVars:
       - key: NODE_ENV
         value: production
@@ -24,7 +25,7 @@ services:
     name: dialog-engine-backend
     env: python
     region: frankfurt
-    plan: standard
+    plan: starter
     buildCommand: cd backend && pip install -r requirements.txt
     startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -65,7 +66,7 @@ services:
     name: dialog-engine-weaviate
     env: docker
     region: frankfurt
-    plan: standard
+    plan: starter
     dockerfilePath: weaviate.Dockerfile
     dockerContext: .
     envVars:
@@ -91,7 +92,7 @@ services:
     name: dialog-engine-transformer
     env: docker
     region: frankfurt
-    plan: standard
+    plan: starter
     dockerfilePath: transformer.Dockerfile
     dockerContext: .
     envVars:
