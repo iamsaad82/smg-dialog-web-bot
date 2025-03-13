@@ -50,6 +50,56 @@ services:
         fromDatabase:
           name: dialog-engine-db
           property: port
+      - key: POSTGRES_SERVER
+        fromDatabase:
+          name: dialog-engine-db
+          property: host
+      - key: WEAVIATE_URL
+        fromService:
+          name: dialog-engine-weaviate
+          type: web
+          property: host
+    autoDeploy: true
+
+  - type: web
+    name: dialog-engine-weaviate
+    env: docker
+    region: frankfurt
+    plan: standard
+    dockerfilePath: weaviate.Dockerfile
+    dockerContext: .
+    envVars:
+      - key: QUERY_DEFAULTS_LIMIT
+        value: 25
+      - key: AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED
+        value: "true"
+      - key: PERSISTENCE_DATA_PATH
+        value: /var/lib/weaviate
+      - key: DEFAULT_VECTORIZER_MODULE
+        value: text2vec-transformers
+      - key: ENABLE_MODULES
+        value: text2vec-transformers
+      - key: TRANSFORMERS_INFERENCE_API
+        fromService:
+          name: dialog-engine-transformer
+          type: web
+          property: url
+    disk:
+      name: weaviate-data
+      mountPath: /var/lib/weaviate
+      sizeGB: 1
+    autoDeploy: true
+
+  - type: web
+    name: dialog-engine-transformer
+    env: docker
+    region: frankfurt
+    plan: standard
+    dockerfilePath: transformer.Dockerfile
+    dockerContext: .
+    envVars:
+      - key: ENABLE_CUDA
+        value: "0"
     autoDeploy: true
 
 databases:
