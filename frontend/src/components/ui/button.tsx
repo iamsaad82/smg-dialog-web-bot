@@ -46,6 +46,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}
+        // @ts-ignore - Ref-Typen-Konflikt zwischen HTMLButtonElement und komponiertem Element
         ref={ref}
         {...props}
       />

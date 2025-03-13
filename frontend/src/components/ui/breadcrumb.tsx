@@ -49,6 +49,7 @@ const BreadcrumbLink = React.forwardRef<
 
   return (
     <Comp
+      // @ts-ignore - Ref-Typen-Konflikt zwischen HTMLAnchorElement und komponiertem Element
       ref={ref}
       className={cn("transition-colors hover:text-foreground", className)}
       {...props}
