@@ -194,15 +194,38 @@ export default function TenantDetail() {
                     <div>
                       <h4 className="text-md font-medium text-gray-900 dark:text-white">Klassisches Widget</h4>
                       <div className="mt-2 bg-gray-100 dark:bg-gray-700 p-3 rounded-md overflow-x-auto">
-                        <code className="text-sm font-mono">{`<script src="${window.location.origin}/embed.js" data-api-key="${tenant.api_key}" data-mode="classic"></script>`}</code>
+                        <code className="text-sm font-mono">{`<!-- SMG Dialog Chat Widget - Klassischer Modus -->
+<script 
+  src="${window.location.hostname.includes('localhost') ? 'http://localhost:3000' : 'https://dialog-engine-frontend.onrender.com'}/embed.js" 
+  data-api-key="${tenant.api_key}" 
+  data-mode="classic"
+  data-primary-color="#4f46e5"
+  data-secondary-color="#ffffff">
+</script>`}</code>
                       </div>
                     </div>
                     <div>
                       <h4 className="text-md font-medium text-gray-900 dark:text-white">Inline-Widget</h4>
                       <div className="mt-2 bg-gray-100 dark:bg-gray-700 p-3 rounded-md overflow-x-auto">
-                        <code className="text-sm font-mono">{`<script src="${window.location.origin}/embed.js" data-api-key="${tenant.api_key}" data-mode="inline" data-container-id="chat-container"></script>
+                        <code className="text-sm font-mono">{`<!-- SMG Dialog Chat Widget - Inline-Modus -->
+<script 
+  src="${window.location.hostname.includes('localhost') ? 'http://localhost:3000' : 'https://dialog-engine-frontend.onrender.com'}/embed.js" 
+  data-api-key="${tenant.api_key}" 
+  data-mode="inline" 
+  data-container-id="chat-container"
+  data-primary-color="#4f46e5"
+  data-secondary-color="#ffffff">
+</script>
 <div id="chat-container"></div>`}</code>
                       </div>
+                    </div>
+                    <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                      <p className="mb-2">Zusätzliche Parameter:</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li><code>data-bot-name</code>: Benutzerdefinierter Name des Bots</li>
+                        <li><code>data-primary-color</code>: Primärfarbe als HEX-Code (z.B. #4f46e5)</li>
+                        <li><code>data-secondary-color</code>: Sekundärfarbe als HEX-Code (z.B. #ffffff)</li>
+                      </ul>
                     </div>
                   </div>
                 </div>

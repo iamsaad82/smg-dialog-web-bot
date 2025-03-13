@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from .api.v1 import tenants, documents, chat, auth
+from .api.v1 import tenants, documents, chat, auth, embed
 from .core.config import settings
 import os
 import logging
@@ -111,6 +111,13 @@ app.include_router(
     chat.router,
     prefix=f"{settings.API_V1_STR}/chat",
     tags=["chat"]
+)
+
+# Embed-Router für Einbettung auf Websites
+app.include_router(
+    embed.router,
+    prefix=f"{settings.API_V1_STR}/embed",
+    tags=["embed"]
 )
 
 # Willkommensnachricht
