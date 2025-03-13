@@ -3,12 +3,14 @@ services:
     name: dialog-engine-frontend
     env: node
     region: frankfurt
-    buildCommand: cd frontend && npm install --save-dev typescript eslint && npm install && npm run build
+    buildCommand: cd frontend && npm ci && npm run build
     startCommand: cd frontend && npm start
     plan: starter
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: 18
       - key: BACKEND_URL
         fromService:
           name: dialog-engine-backend
