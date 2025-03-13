@@ -43,7 +43,7 @@ echo "Weaviate ist bereit"\n\
 \n\
 # Migrationen ausführen\n\
 echo "Führe Datenbank-Migrationen aus..."\n\
-python run_migrations.py || alembic upgrade head\n\
+python run_migrations_direct.py || python run_migrations.py || alembic upgrade head\n\
 \n\
 # FastAPI-Server starten\n\
 echo "Starte FastAPI-Server..."\n\

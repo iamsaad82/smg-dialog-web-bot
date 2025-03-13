@@ -1,113 +1,54 @@
 services:
   - type: web
-    name: dialog-engine-frontend
-    env: node
-    region: frankfurt
-    buildCommand: >
-      cd frontend && chmod +x render-build.sh && 
-      npm install typescript@5.3.2 @types/react @types/react-dom --no-save && 
-      ./render-build.sh
-    startCommand: cd frontend && chmod +x render-start.sh && ./render-start.sh
-    plan: starter
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: NODE_VERSION
-        value: 18
-      - key: PORT
-        value: 10000
-      - key: BACKEND_URL
-        fromService:
-          name: dialog-engine-backend
-          type: web
-          property: host
-      - key: BACKEND_PORT
-        fromService:
-          name: dialog-engine-backend
-          type: web
-          property: port
-    autoDeploy: true
-
-  - type: web
-    name: dialog-engine-backend
+    name: dialog-ai-web-backend
     env: python
-    region: frankfurt
-    plan: starter
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: >
+      cd backend && 
+      pip install -r requirements.txt &&
+      pip install alembic psycopg2-binary &&
+      alembic upgrade head
+    startCommand: >
+      cd backend &&
+      python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: OPENAI_API_KEY
-        sync: false
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: dialog-ai-db
+          property: host
       - key: POSTGRES_DB
         fromDatabase:
-          name: dialog-engine-db
+          name: dialog-ai-db
           property: database
       - key: POSTGRES_USER
         fromDatabase:
-          name: dialog-engine-db
+          name: dialog-ai-db
           property: user
       - key: POSTGRES_PASSWORD
         fromDatabase:
-          name: dialog-engine-db
+          name: dialog-ai-db
           property: password
-      - key: POSTGRES_HOST
-        fromDatabase:
-          name: dialog-engine-db
-          property: host
       - key: POSTGRES_PORT
         fromDatabase:
-          name: dialog-engine-db
+          name: dialog-ai-db
           property: port
-      - key: POSTGRES_SERVER
-        fromDatabase:
-          name: dialog-engine-db
-          property: host
       - key: WEAVIATE_URL
-        fromService:
-          name: dialog-engine-weaviate
-          type: web
-          property: host
-    autoDeploy: true
+        value: http://weaviate:8080
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USER_EMAIL
+        value: admin@example.com
+      - key: ADMIN_USER_PASSWORD
+        generateValue: true
 
   - type: web
-    name: dialog-engine-weaviate
-    env: docker
-    region: frankfurt
-    plan: starter
-    dockerfilePath: weaviate.Dockerfile
-    dockerContext: .
+    name: dialog-ai-web-frontend
+    env: node
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm start
     envVars:
-      - key: QUERY_DEFAULTS_LIMIT
-        value: 25
-      - key: AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED
-        value: "true"
-      - key: PERSISTENCE_DATA_PATH
-        value: /var/lib/weaviate
-      - key: DEFAULT_VECTORIZER_MODULE
-        value: text2vec-transformers
-      - key: ENABLE_MODULES
-        value: text2vec-transformers
-      - key: TRANSFORMERS_INFERENCE_API
-        value: "http://dialog-engine-transformer:8080"
-    disk:
-      name: weaviate-data
-      mountPath: /var/lib/weaviate
-      sizeGB: 1
-    autoDeploy: true
-
-  - type: web
-    name: dialog-engine-transformer
-    env: docker
-    region: frankfurt
-    plan: starter
-    dockerfilePath: transformer.Dockerfile
-    dockerContext: .
-    envVars:
-      - key: ENABLE_CUDA
-        value: "0"
-    autoDeploy: true
+      - key: NEXT_PUBLIC_API_URL
+        value: https://dialog-ai-web-backend.onrender.com/api/v1
 
 databases:
-  - name: dialog-engine-db
-    region: frankfurt
-    plan: free 
+  - name: dialog-ai-db
+    plan: starter 
