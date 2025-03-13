@@ -13,51 +13,75 @@ export default function JsonDocumentUpload() {
   const { bulkUpload, closeUploadModal, isUploading } = useDocuments();
   
   // Formularfelder
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   
   // Datei-Input-Referenz
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Datei auswählen
+  // Dateien auswählen
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0] || null;
+    const selectedFiles = Array.from(e.target.files || []);
     
-    if (selectedFile) {
-      // Überprüfen, ob es sich um eine JSON-Datei handelt
-      if (!selectedFile.name.toLowerCase().endsWith('.json')) {
-        toast.error('Ungültiges Dateiformat', {
-          description: 'Bitte wählen Sie eine JSON-Datei aus.'
+    if (selectedFiles.length > 0) {
+      // Überprüfen, ob es sich um JSON-Dateien handelt
+      const invalidFiles = selectedFiles.filter(file => !file.name.toLowerCase().endsWith('.json'));
+      
+      if (invalidFiles.length > 0) {
+        toast.error('Ungültige Dateiformate', {
+          description: `${invalidFiles.length} Datei(en) sind keine JSON-Dateien.`
         });
-        setFile(null);
         
-        // Datei-Input zurücksetzen
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+        // Nur gültige JSON-Dateien behalten
+        const validFiles = selectedFiles.filter(file => file.name.toLowerCase().endsWith('.json'));
+        setFiles(validFiles);
+        
+        if (validFiles.length === 0) {
+          // Datei-Input zurücksetzen, wenn keine gültigen Dateien
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
         }
         return;
       }
       
-      setFile(selectedFile);
+      setFiles(selectedFiles);
     } else {
-      setFile(null);
+      setFiles([]);
     }
   };
   
-  // JSON-Datei hochladen
+  // JSON-Dateien hochladen
   const handleUpload = async () => {
-    if (!file) {
-      toast.error('Keine Datei ausgewählt', {
-        description: 'Bitte wählen Sie eine JSON-Datei aus.'
+    if (files.length === 0) {
+      toast.error('Keine Dateien ausgewählt', {
+        description: 'Bitte wählen Sie mindestens eine JSON-Datei aus.'
       });
       return;
     }
     
     try {
-      // Datei hochladen
-      await bulkUpload(file, 'json');
+      // Hochladen jeder Datei nacheinander
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (files.length > 1) {
+          toast.info(`Datei ${i + 1} von ${files.length} wird hochgeladen`, {
+            description: file.name
+          });
+        }
+        
+        // Datei hochladen
+        await bulkUpload(file, 'json');
+      }
+      
+      // Erfolgsmeldung anzeigen
+      if (files.length > 1) {
+        toast.success(`${files.length} JSON-Dateien wurden hochgeladen`, {
+          description: 'Alle Dateien wurden erfolgreich importiert.'
+        });
+      }
       
       // Formular zurücksetzen und Modal schließen
-      setFile(null);
+      setFiles([]);
       
       // Datei-Input zurücksetzen
       if (fileInputRef.current) {
@@ -66,7 +90,7 @@ export default function JsonDocumentUpload() {
       
       closeUploadModal();
     } catch (error) {
-      console.error('Fehler beim Hochladen der JSON-Datei:', error);
+      console.error('Fehler beim Hochladen der JSON-Dateien:', error);
     }
   };
   
@@ -75,7 +99,7 @@ export default function JsonDocumentUpload() {
       {/* JSON-Datei-Upload */}
       <div className="space-y-2">
         <Label htmlFor="json-file">
-          JSON-Datei <span className="text-destructive">*</span>
+          JSON-Datei(en) <span className="text-destructive">*</span>
         </Label>
         <Input
           id="json-file"
@@ -84,10 +108,22 @@ export default function JsonDocumentUpload() {
           onChange={handleFileChange}
           disabled={isUploading}
           ref={fileInputRef}
+          multiple
         />
         <p className="text-sm text-muted-foreground">
-          Wählen Sie eine JSON-Datei mit den Dokumentdaten aus. Die Datei sollte ein Array von Objekten mit "title" und "content" Feldern enthalten.
+          Wählen Sie eine oder mehrere JSON-Dateien mit den Dokumentdaten aus. Jede Datei sollte ein Array von Objekten mit "title" und "content" Feldern enthalten.
         </p>
+        {files.length > 0 && (
+          <div className="text-sm mt-2">
+            <p className="font-medium">Ausgewählte Dateien ({files.length}):</p>
+            <ul className="list-disc pl-5 mt-1">
+              {files.slice(0, 5).map((file, index) => (
+                <li key={index}>{file.name} ({(file.size / 1024).toFixed(1)} KB)</li>
+              ))}
+              {files.length > 5 && <li>... und {files.length - 5} weitere</li>}
+            </ul>
+          </div>
+        )}
       </div>
       
       {/* JSON-Format-Erklärung */}
@@ -119,7 +155,7 @@ export default function JsonDocumentUpload() {
         </Button>
         <Button
           onClick={handleUpload}
-          disabled={isUploading || !file}
+          disabled={isUploading || files.length === 0}
           className="flex items-center gap-2"
         >
           {isUploading ? (
@@ -127,7 +163,7 @@ export default function JsonDocumentUpload() {
           ) : (
             <>
               <Upload className="h-4 w-4" />
-              <span>JSON hochladen</span>
+              <span>{files.length > 1 ? `${files.length} JSON-Dateien hochladen` : "JSON hochladen"}</span>
             </>
           )}
         </Button>

@@ -13,43 +13,55 @@ export default function MarkdownDocumentUpload() {
   const { bulkUpload, closeUploadModal, isUploading } = useDocuments();
   
   // Formularfelder
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [source, setSource] = useState('');
   
   // Datei-Input-Referenz
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Datei auswählen
+  // Dateien auswählen
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0] || null;
+    const selectedFiles = Array.from(e.target.files || []);
     
-    if (selectedFile) {
-      // Überprüfen, ob es sich um eine Markdown-Datei handelt
-      if (!selectedFile.name.toLowerCase().endsWith('.md') && 
-          !selectedFile.name.toLowerCase().endsWith('.markdown')) {
-        toast.error('Ungültiges Dateiformat', {
-          description: 'Bitte wählen Sie eine Markdown-Datei (.md oder .markdown) aus.'
+    if (selectedFiles.length > 0) {
+      // Überprüfen, ob es sich um Markdown-Dateien handelt
+      const invalidFiles = selectedFiles.filter(file => 
+        !file.name.toLowerCase().endsWith('.md') && 
+        !file.name.toLowerCase().endsWith('.markdown')
+      );
+      
+      if (invalidFiles.length > 0) {
+        toast.error('Ungültige Dateiformate', {
+          description: `${invalidFiles.length} Datei(en) sind keine Markdown-Dateien.`
         });
-        setFile(null);
         
-        // Datei-Input zurücksetzen
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+        // Nur gültige Markdown-Dateien behalten
+        const validFiles = selectedFiles.filter(file => 
+          file.name.toLowerCase().endsWith('.md') || 
+          file.name.toLowerCase().endsWith('.markdown')
+        );
+        setFiles(validFiles);
+        
+        if (validFiles.length === 0) {
+          // Datei-Input zurücksetzen, wenn keine gültigen Dateien
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
         }
         return;
       }
       
-      setFile(selectedFile);
+      setFiles(selectedFiles);
     } else {
-      setFile(null);
+      setFiles([]);
     }
   };
   
-  // Markdown-Datei hochladen
+  // Markdown-Dateien hochladen
   const handleUpload = async () => {
-    if (!file) {
-      toast.error('Keine Datei ausgewählt', {
-        description: 'Bitte wählen Sie eine Markdown-Datei aus.'
+    if (files.length === 0) {
+      toast.error('Keine Dateien ausgewählt', {
+        description: 'Bitte wählen Sie mindestens eine Markdown-Datei aus.'
       });
       return;
     }
@@ -60,11 +72,28 @@ export default function MarkdownDocumentUpload() {
         source: source || undefined
       };
       
-      // Datei hochladen
-      await bulkUpload(file, 'markdown', options);
+      // Hochladen jeder Datei nacheinander
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (files.length > 1) {
+          toast.info(`Datei ${i + 1} von ${files.length} wird hochgeladen`, {
+            description: file.name
+          });
+        }
+        
+        // Datei hochladen
+        await bulkUpload(file, 'markdown', options);
+      }
+      
+      // Erfolgsmeldung anzeigen
+      if (files.length > 1) {
+        toast.success(`${files.length} Markdown-Dateien wurden hochgeladen`, {
+          description: 'Alle Dateien wurden erfolgreich importiert.'
+        });
+      }
       
       // Formular zurücksetzen und Modal schließen
-      setFile(null);
+      setFiles([]);
       setSource('');
       
       // Datei-Input zurücksetzen
@@ -74,7 +103,7 @@ export default function MarkdownDocumentUpload() {
       
       closeUploadModal();
     } catch (error) {
-      console.error('Fehler beim Hochladen der Markdown-Datei:', error);
+      console.error('Fehler beim Hochladen der Markdown-Dateien:', error);
     }
   };
   
@@ -83,7 +112,7 @@ export default function MarkdownDocumentUpload() {
       {/* Markdown-Datei-Upload */}
       <div className="space-y-2">
         <Label htmlFor="markdown-file">
-          Markdown-Datei <span className="text-destructive">*</span>
+          Markdown-Datei(en) <span className="text-destructive">*</span>
         </Label>
         <Input
           id="markdown-file"
@@ -92,10 +121,22 @@ export default function MarkdownDocumentUpload() {
           onChange={handleFileChange}
           disabled={isUploading}
           ref={fileInputRef}
+          multiple
         />
         <p className="text-sm text-muted-foreground">
-          Wählen Sie eine Markdown-Datei (.md oder .markdown) aus. Die Datei wird als einzelnes Dokument hochgeladen.
+          Wählen Sie eine oder mehrere Markdown-Dateien (.md oder .markdown) aus. Jede Datei wird als einzelnes Dokument hochgeladen.
         </p>
+        {files.length > 0 && (
+          <div className="text-sm mt-2">
+            <p className="font-medium">Ausgewählte Dateien ({files.length}):</p>
+            <ul className="list-disc pl-5 mt-1">
+              {files.slice(0, 5).map((file, index) => (
+                <li key={index}>{file.name} ({(file.size / 1024).toFixed(1)} KB)</li>
+              ))}
+              {files.length > 5 && <li>... und {files.length - 5} weitere</li>}
+            </ul>
+          </div>
+        )}
       </div>
       
       {/* Quellen-Eingabefeld */}
@@ -105,9 +146,14 @@ export default function MarkdownDocumentUpload() {
           id="source"
           value={source}
           onChange={(e) => setSource(e.target.value)}
-          placeholder="Optionale Quellenangabe für das Dokument"
+          placeholder="Optionale Quellenangabe für alle Dokumente"
           disabled={isUploading}
         />
+        {files.length > 1 && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Hinweis: Die hier angegebene Quelle wird für alle hochgeladenen Dokumente verwendet.
+          </p>
+        )}
       </div>
       
       {/* Markdown-Hinweise */}
@@ -132,7 +178,7 @@ export default function MarkdownDocumentUpload() {
         </Button>
         <Button
           onClick={handleUpload}
-          disabled={isUploading || !file}
+          disabled={isUploading || files.length === 0}
           className="flex items-center gap-2"
         >
           {isUploading ? (
@@ -140,7 +186,7 @@ export default function MarkdownDocumentUpload() {
           ) : (
             <>
               <Upload className="h-4 w-4" />
-              <span>Markdown hochladen</span>
+              <span>{files.length > 1 ? `${files.length} Markdown-Dateien hochladen` : "Markdown hochladen"}</span>
             </>
           )}
         </Button>

@@ -13,7 +13,7 @@ export default function CsvDocumentUpload() {
   const { bulkUpload, closeUploadModal, isUploading } = useDocuments();
   
   // Formularfelder
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [titleColumn, setTitleColumn] = useState('title');
   const [contentColumn, setContentColumn] = useState('content');
   const [sourceColumn, setSourceColumn] = useState('');
@@ -21,36 +21,43 @@ export default function CsvDocumentUpload() {
   // Datei-Input-Referenz
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Datei auswählen
+  // Dateien auswählen
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0] || null;
+    const selectedFiles = Array.from(e.target.files || []);
     
-    if (selectedFile) {
-      // Überprüfen, ob es sich um eine CSV-Datei handelt
-      if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
-        toast.error('Ungültiges Dateiformat', {
-          description: 'Bitte wählen Sie eine CSV-Datei aus.'
+    if (selectedFiles.length > 0) {
+      // Überprüfen, ob es sich um CSV-Dateien handelt
+      const invalidFiles = selectedFiles.filter(file => !file.name.toLowerCase().endsWith('.csv'));
+      
+      if (invalidFiles.length > 0) {
+        toast.error('Ungültige Dateiformate', {
+          description: `${invalidFiles.length} Datei(en) sind keine CSV-Dateien.`
         });
-        setFile(null);
         
-        // Datei-Input zurücksetzen
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+        // Nur gültige CSV-Dateien behalten
+        const validFiles = selectedFiles.filter(file => file.name.toLowerCase().endsWith('.csv'));
+        setFiles(validFiles);
+        
+        if (validFiles.length === 0) {
+          // Datei-Input zurücksetzen, wenn keine gültigen Dateien
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
         }
         return;
       }
       
-      setFile(selectedFile);
+      setFiles(selectedFiles);
     } else {
-      setFile(null);
+      setFiles([]);
     }
   };
   
-  // CSV-Datei hochladen
+  // CSV-Dateien hochladen
   const handleUpload = async () => {
-    if (!file) {
-      toast.error('Keine Datei ausgewählt', {
-        description: 'Bitte wählen Sie eine CSV-Datei aus.'
+    if (files.length === 0) {
+      toast.error('Keine Dateien ausgewählt', {
+        description: 'Bitte wählen Sie mindestens eine CSV-Datei aus.'
       });
       return;
     }
@@ -63,11 +70,28 @@ export default function CsvDocumentUpload() {
         sourceColumn: sourceColumn || undefined
       };
       
-      // Datei hochladen
-      await bulkUpload(file, 'csv', options);
+      // Hochladen jeder Datei nacheinander
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (files.length > 1) {
+          toast.info(`Datei ${i + 1} von ${files.length} wird hochgeladen`, {
+            description: file.name
+          });
+        }
+        
+        // Datei hochladen
+        await bulkUpload(file, 'csv', options);
+      }
+      
+      // Erfolgsmeldung anzeigen
+      if (files.length > 1) {
+        toast.success(`${files.length} CSV-Dateien wurden hochgeladen`, {
+          description: 'Alle Dateien wurden erfolgreich importiert.'
+        });
+      }
       
       // Formular zurücksetzen und Modal schließen
-      setFile(null);
+      setFiles([]);
       setTitleColumn('title');
       setContentColumn('content');
       setSourceColumn('');
@@ -79,7 +103,7 @@ export default function CsvDocumentUpload() {
       
       closeUploadModal();
     } catch (error) {
-      console.error('Fehler beim Hochladen der CSV-Datei:', error);
+      console.error('Fehler beim Hochladen der CSV-Dateien:', error);
     }
   };
   
@@ -88,7 +112,7 @@ export default function CsvDocumentUpload() {
       {/* CSV-Datei-Upload */}
       <div className="space-y-2">
         <Label htmlFor="csv-file">
-          CSV-Datei <span className="text-destructive">*</span>
+          CSV-Datei(en) <span className="text-destructive">*</span>
         </Label>
         <Input
           id="csv-file"
@@ -97,10 +121,22 @@ export default function CsvDocumentUpload() {
           onChange={handleFileChange}
           disabled={isUploading}
           ref={fileInputRef}
+          multiple
         />
         <p className="text-sm text-muted-foreground">
-          Wählen Sie eine CSV-Datei mit den Dokumentdaten aus. Die Datei sollte mindestens eine Spalte für den Titel und eine für den Inhalt enthalten.
+          Wählen Sie eine oder mehrere CSV-Dateien mit den Dokumentdaten aus. Die Dateien sollten mindestens eine Spalte für den Titel und eine für den Inhalt enthalten.
         </p>
+        {files.length > 0 && (
+          <div className="text-sm mt-2">
+            <p className="font-medium">Ausgewählte Dateien ({files.length}):</p>
+            <ul className="list-disc pl-5 mt-1">
+              {files.slice(0, 5).map((file, index) => (
+                <li key={index}>{file.name} ({(file.size / 1024).toFixed(1)} KB)</li>
+              ))}
+              {files.length > 5 && <li>... und {files.length - 5} weitere</li>}
+            </ul>
+          </div>
+        )}
       </div>
       
       {/* Spalten-Konfiguration */}
@@ -159,7 +195,7 @@ export default function CsvDocumentUpload() {
         </Button>
         <Button
           onClick={handleUpload}
-          disabled={isUploading || !file || !titleColumn || !contentColumn}
+          disabled={isUploading || files.length === 0 || !titleColumn || !contentColumn}
           className="flex items-center gap-2"
         >
           {isUploading ? (
@@ -167,7 +203,7 @@ export default function CsvDocumentUpload() {
           ) : (
             <>
               <Upload className="h-4 w-4" />
-              <span>CSV hochladen</span>
+              <span>{files.length > 1 ? `${files.length} CSV-Dateien hochladen` : "CSV hochladen"}</span>
             </>
           )}
         </Button>
