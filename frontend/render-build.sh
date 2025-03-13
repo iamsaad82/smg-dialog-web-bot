@@ -16,8 +16,14 @@ export PORT=${PORT:-10000}
 echo "=== NPM-Pakete installieren ==="
 npm install
 
-echo "=== TypeScript und Abhängigkeiten explizit installieren ==="
-npm install --save-dev typescript@5.3.2 eslint@8.54.0
+echo "=== TypeScript und TypeScript-Typdefinitionen explizit installieren ==="
+npm install --save-dev typescript@5.3.2 @types/react@18.2.38 @types/react-dom@18.2.15 eslint@8.54.0
+
+echo "=== Prüfen, ob TypeScript-Pakete korrekt installiert wurden ==="
+npm list typescript @types/react --depth=0
+
+echo "=== tsconfig.json anzeigen ==="
+cat tsconfig.json
 
 echo "=== Next.js Build ausführen ==="
 npm run build
