@@ -64,7 +64,10 @@ async def create_superuser():
 origins = [
     "http://localhost:3000",
     "http://localhost:8000",
-    "http://localhost:3001"
+    "http://localhost:3001",
+    "https://dialog-ai-web.de",
+    "https://www.dialog-ai-web.de",
+    "https://api.dialog-ai-web.de"
 ]
 
 logger.info(f"Konfiguriere CORS mit Origins: {origins}")

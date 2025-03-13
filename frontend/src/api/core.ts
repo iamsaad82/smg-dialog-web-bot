@@ -1,7 +1,16 @@
 import axios, { AxiosInstance, AxiosHeaders } from 'axios';
 
-// API-Basis-URL - direkter Zugriff auf das Backend
-export const API_BASE_URL = 'http://localhost:8000/api/v1';
+// API-Basis-URL - dynamisch basierend auf der Umgebung
+let API_BASE_URL = 'http://localhost:8000/api/v1';
+
+// In Produktionsumgebung die API-Domain verwenden
+if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+  // Neue Domain für Produktion
+  API_BASE_URL = 'https://api.dialog-ai-web.de/api/v1';
+}
+
+// Export für Verwendung in anderen Komponenten
+export { API_BASE_URL };
 
 // LocalStorage-Key für API-Key
 export const API_KEY_STORAGE_KEY = 'tenant_api_key';
