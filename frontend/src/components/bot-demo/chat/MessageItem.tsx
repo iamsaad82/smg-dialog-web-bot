@@ -34,8 +34,43 @@ interface MessageItemProps {
 }
 
 export function MessageItem({ message, primaryColor, secondaryColor }: MessageItemProps) {
-  // Sicherstellen, dass der Text getrimmt ist
+  // Sicherstellen, dass der Text getrimmt ist und URLs bereinigt sind
   const messageContent = message.content.trim();
+  
+  // Hilfs-Funktion zur URL-Bereinigung
+  const cleanupUrls = (text: string): string => {
+    if (!text) return '';
+    
+    // Bereinigen von Markdown-Links: [text](url)
+    let cleaned = text.replace(
+      /\[(.*?)\]\s*\(\s*(https?:\/\/[^\s)]+[^\s)]*([ \t]+[^\s)]+)*)\s*\)/g, 
+      (match, linkText, url) => {
+        // Leerzeichen in URLs entfernen (nicht im Linktext)
+        const cleanUrl = url.replace(/\s+/g, '');
+        return `[${linkText}](${cleanUrl})`;
+      }
+    );
+    
+    // Bereinigen von URLs in eckigen Klammern: [url]
+    cleaned = cleaned.replace(
+      /\[\s*(https?:\/\/[^\s\]]+[^\s\]]*([ \t]+[^\s\]]+)*)\s*\]/g, 
+      (match, url) => {
+        const cleanUrl = url.replace(/\s+/g, '');
+        return `[${cleanUrl}]`;
+      }
+    );
+    
+    // Bereinigen einfacher URLs
+    cleaned = cleaned.replace(
+      /(https?:\/\/[^\s"'<>]+[^\s"'<>]*([ \t]+[^\s"'<>]+)*)/g, 
+      (match) => match.replace(/\s+/g, '')
+    );
+    
+    return cleaned;
+  };
+  
+  // Für Assistenten-Nachrichten: URLs bereinigen, bevor sie an renderFormattedContent übergeben werden
+  const cleanedContent = message.role === "assistant" ? cleanupUrls(messageContent) : messageContent;
   
   return (
     <div
@@ -83,7 +118,7 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
       >
         <div className="px-3 py-2">
           {message.role === "assistant" ? (
-            renderFormattedContent(messageContent)
+            renderFormattedContent(cleanedContent)
           ) : (
             <p className="text-sm whitespace-pre-wrap">{messageContent}</p>
           )}
