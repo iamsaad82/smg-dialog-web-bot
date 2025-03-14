@@ -53,4 +53,58 @@ export interface BrandenburgEvent {
     email?: string;
     website?: string;
   };
+}
+
+/**
+ * Dienstleistungsdaten für Brandenburg
+ */
+export interface BrandenburgService {
+  name: string;
+  link?: string;
+  office?: string;
+  isPaid?: boolean;
+  isOnline?: boolean;
+  description?: string;
+}
+
+/**
+ * Ortsrechtdaten für Brandenburg
+ */
+export interface BrandenburgLocalLaw {
+  title: string;
+  link?: string;
+  description?: string;
+  text?: string;
+}
+
+/**
+ * Kindergartendaten für Brandenburg
+ */
+export interface BrandenburgKindergarten {
+  name: string;
+  link?: string;
+  address?: string;
+  openingHours?: string;
+  contact?: {
+    phone?: string;
+    email?: string;
+    website?: string;
+  };
+}
+
+/**
+ * Webseiten-Daten für Brandenburg
+ */
+export interface BrandenburgWebpage {
+  title: string;
+  url?: string;
+  content?: string;
+}
+
+/**
+ * Entsorgungsdaten für Brandenburg
+ */
+export interface BrandenburgWasteManagement {
+  name: string;
+  description?: string;
 } 

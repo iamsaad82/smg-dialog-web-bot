@@ -496,7 +496,41 @@ class BrandenburgXMLParser:
         
         schools = []
         
-        # Zuerst nach expliziten <school>-Elementen suchen
+        # Zuerst nach expliziten <schulen>/<schule>-Elementen suchen
+        schule_elements = self.root.findall(".//schulen/schule")
+        
+        # Schulen aus expliziten <schule>-Elementen extrahieren
+        for schule_elem in schule_elements:
+            try:
+                school_data = {
+                    "type": "school",
+                    "data": {
+                        "name": self._get_element_text(schule_elem, "./n"),
+                        "link": self._get_element_text(schule_elem, "./link"),
+                        "schoolId": "",  # Falls verfügbar
+                        "address": "",  # Falls verfügbar
+                        "type": self._get_element_text(schule_elem, "./schulform"),
+                        "management": self._get_element_text(schule_elem, "./schulleitung"),
+                        "contact": {
+                            "phone": "",  # Falls verfügbar
+                            "email": "",  # Falls verfügbar
+                            "website": self._get_element_text(schule_elem, "./link")
+                        },
+                        "details": {
+                            "allDayCare": False,  # Falls verfügbar
+                            "additionalInfo": ""  # Falls verfügbar
+                        }
+                    }
+                }
+                
+                # Null-Werte entfernen
+                school_data = self._clean_empty_values(school_data)
+                schools.append(school_data)
+                
+            except Exception as e:
+                logger.error(f"Fehler beim Extrahieren der Schuldaten: {str(e)}")
+        
+        # Suche auch nach der alten Struktur mit <school>-Elementen
         school_elements = self.root.findall(".//school") or self.root.findall(".//Schule")
         
         # Schulen aus expliziten <school>-Elementen extrahieren
@@ -560,7 +594,64 @@ class BrandenburgXMLParser:
         
         offices = []
         
-        # Zuerst nach expliziten <office>-Elementen suchen
+        # Zuerst nach expliziten <aemter>/<amt>-Elementen suchen
+        amt_elements = self.root.findall(".//aemter/amt")
+        
+        # Ämter aus expliziten <amt>-Elementen extrahieren
+        for amt_elem in amt_elements:
+            try:
+                # Kontaktdaten extrahieren
+                kontakt = amt_elem.find("./kontakt")
+                email = ""
+                telefon = ""
+                if kontakt is not None:
+                    email = self._get_element_text(kontakt, "./email") or ""
+                    telefon = self._get_element_text(kontakt, "./telefon") or ""
+                
+                # Kontaktformular extrahieren
+                kontaktformular = self._get_element_text(amt_elem, "./kontaktformular") or ""
+                
+                # Öffnungszeiten verarbeiten
+                opening_hours = ""
+                oeffnungszeiten_tag = amt_elem.find("./oeffnungszeiten")
+                if oeffnungszeiten_tag is not None:
+                    oeffnungszeiten = []
+                    for tag in oeffnungszeiten_tag.findall("./tag"):
+                        name = tag.get("name", "")
+                        von = self._get_element_text(tag, "./von")
+                        bis = self._get_element_text(tag, "./bis")
+                        if name and von and bis:
+                            # Prüfen, ob es ein gültiger Zeitraum ist (keine 00:00-00:00)
+                            if von != "00:00" or bis != "00:00":
+                                oeffnungszeiten.append(f"{name}: {von} - {bis}")
+                    if oeffnungszeiten:
+                        opening_hours = ", ".join(oeffnungszeiten)
+                
+                office_data = {
+                    "type": "office",
+                    "data": {
+                        "name": self._get_element_text(amt_elem, "./name"),
+                        "link": self._get_element_text(amt_elem, "./link"),
+                        "department": "",  # Falls verfügbar
+                        "address": self._get_element_text(amt_elem, "./standort"),
+                        "openingHours": opening_hours,
+                        "contact": {
+                            "phone": telefon,
+                            "email": email,
+                            "website": kontaktformular or self._get_element_text(amt_elem, "./link")
+                        },
+                        "services": []  # Dienstleistungen, falls verfügbar
+                    }
+                }
+                
+                # Null-Werte entfernen
+                office_data = self._clean_empty_values(office_data)
+                offices.append(office_data)
+                
+            except Exception as e:
+                logger.error(f"Fehler beim Extrahieren der Amtsdaten: {str(e)}")
+        
+        # Auch nach der alten Struktur mit <office>-Elementen suchen
         office_elements = self.root.findall(".//office") or self.root.findall(".//Amt")
         
         # Ämter aus expliziten <office>-Elementen extrahieren
@@ -670,15 +761,33 @@ class BrandenburgXMLParser:
     
     def extract_all_data(self) -> Dict[str, List[Dict[str, Any]]]:
         """
-        Extrahiert alle Daten aus der XML-Datei.
+        Extrahiert alle verfügbaren Daten aus der XML-Datei.
         
         Returns:
-            Dict[str, List[Dict[str, Any]]]: Dictionary mit allen strukturierten Daten
+            Dict[str, List[Dict[str, Any]]]: Dictionary mit allen extrahierten Daten
         """
+        if not self.root:
+            logger.error("XML-Datei nicht geladen")
+            return {}
+        
+        schools = self.extract_schools()
+        offices = self.extract_offices()
+        events = self.extract_events()
+        dienstleistungen = self.extract_dienstleistungen()
+        ortsrecht = self.extract_ortsrecht()
+        kitas = self.extract_kitas()
+        webseiten = self.extract_webseiten()
+        entsorgungen = self.extract_entsorgungen()
+        
         return {
-            "schools": self.extract_schools(),
-            "offices": self.extract_offices(),
-            "events": self.extract_events()
+            "schools": schools,
+            "offices": offices,
+            "events": events,
+            "dienstleistungen": dienstleistungen,
+            "ortsrecht": ortsrecht,
+            "kitas": kitas,
+            "webseiten": webseiten,
+            "entsorgungen": entsorgungen
         }
     
     def save_as_json(self, output_file: str) -> bool:
@@ -750,6 +859,222 @@ class BrandenburgXMLParser:
             return result
         else:
             return data
+    
+    def extract_dienstleistungen(self) -> List[Dict[str, Any]]:
+        """
+        Extrahiert Dienstleistungen aus der XML-Datei.
+        
+        Returns:
+            List[Dict[str, Any]]: Liste von Dienstleistungen im strukturierten Format
+        """
+        if not self.root:
+            logger.error("XML-Datei nicht geladen")
+            return []
+        
+        dienstleistungen = []
+        
+        # Nach <dienstleistungen>/<dienstleistung>-Elementen suchen
+        dienstleistung_elements = self.root.findall(".//dienstleistungen/dienstleistung")
+        
+        for dienstleistung_elem in dienstleistung_elements:
+            try:
+                dienstleistung_data = {
+                    "type": "service",
+                    "data": {
+                        "name": self._get_element_text(dienstleistung_elem, "./n"),
+                        "link": self._get_element_text(dienstleistung_elem, "./link"),
+                        "amt": self._get_element_text(dienstleistung_elem, "./amt"),
+                        "kostenpflichtig": self._get_element_boolean(dienstleistung_elem, "./kostenpflichtig"),
+                        "onlinedienst": self._get_element_boolean(dienstleistung_elem, "./onlinedienst"),
+                        "beschreibung": self._get_element_text(dienstleistung_elem, "./beschreibung"),
+                    }
+                }
+                
+                # Null-Werte entfernen
+                dienstleistung_data = self._clean_empty_values(dienstleistung_data)
+                dienstleistungen.append(dienstleistung_data)
+                
+            except Exception as e:
+                logger.error(f"Fehler beim Extrahieren der Dienstleistungsdaten: {str(e)}")
+        
+        logger.info(f"{len(dienstleistungen)} Dienstleistungen extrahiert")
+        return dienstleistungen
+    
+    def extract_ortsrecht(self) -> List[Dict[str, Any]]:
+        """
+        Extrahiert Ortsrecht-Informationen aus der XML-Datei.
+        
+        Returns:
+            List[Dict[str, Any]]: Liste von Ortsrecht-Daten im strukturierten Format
+        """
+        if not self.root:
+            logger.error("XML-Datei nicht geladen")
+            return []
+        
+        ortsrecht_entries = []
+        
+        # Nach <ortsrecht>/<satzung>-Elementen suchen
+        satzung_elements = self.root.findall(".//ortsrecht/satzung")
+        
+        for satzung_elem in satzung_elements:
+            try:
+                ortsrecht_data = {
+                    "type": "local_law",
+                    "data": {
+                        "title": self._get_element_text(satzung_elem, "./title"),
+                        "link": self._get_element_text(satzung_elem, "./link"),
+                        "beschreibung": self._get_element_text(satzung_elem, "./beschreibung"),
+                        "text": self._get_element_text(satzung_elem, "./text"),
+                    }
+                }
+                
+                # Null-Werte entfernen
+                ortsrecht_data = self._clean_empty_values(ortsrecht_data)
+                ortsrecht_entries.append(ortsrecht_data)
+                
+            except Exception as e:
+                logger.error(f"Fehler beim Extrahieren der Ortsrecht-Daten: {str(e)}")
+        
+        logger.info(f"{len(ortsrecht_entries)} Ortsrecht-Einträge extrahiert")
+        return ortsrecht_entries
+    
+    def extract_kitas(self) -> List[Dict[str, Any]]:
+        """
+        Extrahiert Kita-Informationen aus der XML-Datei.
+        
+        Returns:
+            List[Dict[str, Any]]: Liste von Kita-Daten im strukturierten Format
+        """
+        if not self.root:
+            logger.error("XML-Datei nicht geladen")
+            return []
+        
+        kitas = []
+        
+        # Nach <kitas>/<kita>-Elementen suchen
+        kita_elements = self.root.findall(".//kitas/kita")
+        
+        for kita_elem in kita_elements:
+            try:
+                kita_data = {
+                    "type": "kindergarten",
+                    "data": {
+                        "name": self._get_element_text(kita_elem, "./n"),
+                        "link": self._get_element_text(kita_elem, "./link"),
+                        "address": self._get_element_text(kita_elem, "./adresse"),
+                        "openingHours": "",  # Falls verfügbar
+                        "contact": {
+                            "phone": "",  # Falls verfügbar
+                            "email": "",  # Falls verfügbar
+                            "website": self._get_element_text(kita_elem, "./link")
+                        }
+                    }
+                }
+                
+                # Öffnungszeiten extrahieren, falls vorhanden
+                zeiten_tag = kita_elem.find("./zeiten")
+                if zeiten_tag is not None:
+                    von = self._get_element_text(zeiten_tag, "./von")
+                    bis = self._get_element_text(zeiten_tag, "./bis")
+                    if von and bis:
+                        kita_data["data"]["openingHours"] = f"{von} - {bis}"
+                
+                # Null-Werte entfernen
+                kita_data = self._clean_empty_values(kita_data)
+                kitas.append(kita_data)
+                
+            except Exception as e:
+                logger.error(f"Fehler beim Extrahieren der Kita-Daten: {str(e)}")
+        
+        logger.info(f"{len(kitas)} Kitas extrahiert")
+        return kitas
+    
+    def extract_webseiten(self) -> List[Dict[str, Any]]:
+        """
+        Extrahiert Webseiten-Informationen aus der XML-Datei.
+        
+        Returns:
+            List[Dict[str, Any]]: Liste von Webseiten-Daten im strukturierten Format
+        """
+        if not self.root:
+            logger.error("XML-Datei nicht geladen")
+            return []
+        
+        webseiten = []
+        
+        # Nach <webseiten>/<seite>-Elementen suchen
+        seite_elements = self.root.findall(".//webseiten/seite")
+        
+        for seite_elem in seite_elements:
+            try:
+                webseite_data = {
+                    "type": "webpage",
+                    "data": {
+                        "url": self._get_element_text(seite_elem, "./metadaten/url"),
+                        "title": self._get_element_text(seite_elem, "./inhalt/titel"),
+                        "content": self._get_element_text(seite_elem, "./inhalt/haupttext"),
+                    }
+                }
+                
+                # Null-Werte entfernen
+                webseite_data = self._clean_empty_values(webseite_data)
+                webseiten.append(webseite_data)
+                
+            except Exception as e:
+                logger.error(f"Fehler beim Extrahieren der Webseiten-Daten: {str(e)}")
+        
+        logger.info(f"{len(webseiten)} Webseiten extrahiert")
+        return webseiten
+    
+    def extract_entsorgungen(self) -> List[Dict[str, Any]]:
+        """
+        Extrahiert Entsorgungsinformationen aus der XML-Datei.
+        
+        Returns:
+            List[Dict[str, Any]]: Liste von Entsorgungsdaten im strukturierten Format
+        """
+        if not self.root:
+            logger.error("XML-Datei nicht geladen")
+            return []
+        
+        entsorgungen = []
+        
+        # Nach <entsorgungen>/<entsorgung>-Elementen suchen
+        # Da die Struktur hier komplexer ist, suchen wir nach allen Entsorgungen
+        entsorgung_elements = self.root.findall(".//entsorgungen/entsorgung")
+        
+        # Hilfswörterbuch, um Duplikate zu vermeiden
+        entsorgung_dict = {}
+        
+        for entsorgung_elem in entsorgung_elements:
+            try:
+                name = entsorgung_elem.text
+                if name and name not in entsorgung_dict:
+                    entsorgung_data = {
+                        "type": "waste_management",
+                        "data": {
+                            "name": name,
+                            "description": "",  # Falls verfügbar im übergeordneten Element
+                        }
+                    }
+                    
+                    # Beschreibung aus übergeordnetem Element holen, falls vorhanden
+                    parent = entsorgung_elem.getparent()
+                    if parent is not None:
+                        text_elem = parent.find("./text")
+                        if text_elem is not None and text_elem.text:
+                            entsorgung_data["data"]["description"] = text_elem.text
+                    
+                    # Null-Werte entfernen
+                    entsorgung_data = self._clean_empty_values(entsorgung_data)
+                    entsorgungen.append(entsorgung_data)
+                    entsorgung_dict[name] = True
+                    
+            except Exception as e:
+                logger.error(f"Fehler beim Extrahieren der Entsorgungsdaten: {str(e)}")
+        
+        logger.info(f"{len(entsorgungen)} Entsorgungsmöglichkeiten extrahiert")
+        return entsorgungen
 
 
 # Beispiel für die Verwendung

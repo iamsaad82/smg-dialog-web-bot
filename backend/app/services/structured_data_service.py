@@ -19,15 +19,26 @@ logger = logging.getLogger(__name__)
 
 class StructuredDataService:
     """
-    Service zur Verwaltung strukturierter Daten für verschiedene Tenants.
-    Unterstützt das Importieren, Speichern und Abrufen strukturierter Daten aus verschiedenen Quellen.
+    Service für strukturierte Daten.
+    Ermöglicht das Importieren, Speichern und Abrufen von strukturierten Daten.
     """
+    
+    def __init__(self, weaviate_service: WeaviateService):
+        """
+        Initialisiert den Service.
+        
+        Args:
+            weaviate_service: Der WeaviateService.
+        """
+        self.weaviate_service = weaviate_service
+        # Unterstützte Datentypen
+        self.supported_data_types = [
+            "school", "office", "event", 
+            "service", "local_law", "kindergarten", "webpage", "waste_management"
+        ]
     
     # Weaviate-Klassenpräfix für strukturierte Daten
     STRUCTURED_CLASS_PREFIX = "StructuredData"
-    
-    # Unterstützte Datentypen
-    SUPPORTED_TYPES = ["school", "office", "event"]
     
     @staticmethod
     def get_class_name(tenant_id: str, data_type: str) -> str:
@@ -65,7 +76,7 @@ class StructuredDataService:
                 wvc.config.Property(name="contactPhone", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="contactEmail", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="contactWebsite", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="allDayCare", data_type=wvc.config.DataType.BOOLEAN),
+                wvc.config.Property(name="allDayCare", data_type=wvc.config.DataType.BOOL),
                 wvc.config.Property(name="additionalInfo", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="description", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="link", data_type=wvc.config.DataType.TEXT),
@@ -189,45 +200,108 @@ class StructuredDataService:
             logger.error(f"Fehler beim Speichern von {data_type}-Daten: {e}")
             return None
     
-    @staticmethod
-    def import_brandenburg_data(xml_file_path: str, tenant_id: str) -> Dict[str, int]:
+    def import_brandenburg_data(self, xml_file_path: str, tenant_id: str) -> Dict[str, int]:
         """
         Importiert Brandenburg-Daten aus einer XML-Datei und speichert sie in Weaviate.
         
         Args:
-            xml_file_path: Pfad zur XML-Datei
-            tenant_id: ID des Tenants
+            xml_file_path: Pfad zur XML-Datei.
+            tenant_id: ID des Tenants, zu dem die Daten gehören.
             
         Returns:
-            Dict mit Anzahl der importierten Elemente pro Typ
+            Dict[str, int]: Dictionary mit Anzahl der importierten Elemente pro Typ
         """
         parser = BrandenburgXMLParser(xml_file_path)
-        
-        if not parser.parse_file():
-            logger.error(f"Konnte XML-Datei nicht parsen: {xml_file_path}")
-            return {"schools": 0, "offices": 0, "events": 0}
-        
-        result = {"schools": 0, "offices": 0, "events": 0}
+        try:
+            parser.parse_file()
+        except Exception as e:
+            logger.error(f"Fehler beim Parsen der XML-Datei: {str(e)}")
+            return {"schools": 0, "offices": 0, "events": 0, "dienstleistungen": 0, "ortsrecht": 0, "kitas": 0, "webseiten": 0, "entsorgungen": 0}
+            
+        result = {
+            "schools": 0, 
+            "offices": 0, 
+            "events": 0,
+            "dienstleistungen": 0,
+            "ortsrecht": 0,
+            "kitas": 0,
+            "webseiten": 0,
+            "entsorgungen": 0
+        }
         
         # Schulen importieren
         schools = parser.extract_schools()
         for school in schools:
-            if StructuredDataService.store_structured_data(tenant_id, "school", school["data"]):
+            try:
+                self.store_structured_data(tenant_id, school)
                 result["schools"] += 1
-        
+            except Exception as e:
+                logger.error(f"Fehler beim Speichern einer Schule: {str(e)}")
+                
         # Ämter importieren
         offices = parser.extract_offices()
         for office in offices:
-            if StructuredDataService.store_structured_data(tenant_id, "office", office["data"]):
+            try:
+                self.store_structured_data(tenant_id, office)
                 result["offices"] += 1
-        
+            except Exception as e:
+                logger.error(f"Fehler beim Speichern eines Amtes: {str(e)}")
+                
         # Veranstaltungen importieren
         events = parser.extract_events()
         for event in events:
-            if StructuredDataService.store_structured_data(tenant_id, "event", event["data"]):
+            try:
+                self.store_structured_data(tenant_id, event)
                 result["events"] += 1
+            except Exception as e:
+                logger.error(f"Fehler beim Speichern einer Veranstaltung: {str(e)}")
+                
+        # Dienstleistungen importieren
+        dienstleistungen = parser.extract_dienstleistungen()
+        for dienstleistung in dienstleistungen:
+            try:
+                self.store_structured_data(tenant_id, dienstleistung)
+                result["dienstleistungen"] += 1
+            except Exception as e:
+                logger.error(f"Fehler beim Speichern einer Dienstleistung: {str(e)}")
+                
+        # Ortsrecht importieren
+        ortsrecht_entries = parser.extract_ortsrecht()
+        for ortsrecht in ortsrecht_entries:
+            try:
+                self.store_structured_data(tenant_id, ortsrecht)
+                result["ortsrecht"] += 1
+            except Exception as e:
+                logger.error(f"Fehler beim Speichern eines Ortsrecht-Eintrags: {str(e)}")
+                
+        # Kitas importieren
+        kitas = parser.extract_kitas()
+        for kita in kitas:
+            try:
+                self.store_structured_data(tenant_id, kita)
+                result["kitas"] += 1
+            except Exception as e:
+                logger.error(f"Fehler beim Speichern einer Kita: {str(e)}")
+                
+        # Webseiten importieren
+        webseiten = parser.extract_webseiten()
+        for webseite in webseiten:
+            try:
+                self.store_structured_data(tenant_id, webseite)
+                result["webseiten"] += 1
+            except Exception as e:
+                logger.error(f"Fehler beim Speichern einer Webseite: {str(e)}")
+                
+        # Entsorgungen importieren
+        entsorgungen = parser.extract_entsorgungen()
+        for entsorgung in entsorgungen:
+            try:
+                self.store_structured_data(tenant_id, entsorgung)
+                result["entsorgungen"] += 1
+            except Exception as e:
+                logger.error(f"Fehler beim Speichern einer Entsorgungsmöglichkeit: {str(e)}")
         
-        logger.info(f"Import für Tenant {tenant_id} abgeschlossen: {result}")
+        logger.info(f"Import für Tenant {tenant_id} abgeschlossen.")
         return result
     
     @staticmethod
@@ -401,8 +475,313 @@ class StructuredDataService:
             logger.error(f"Fehler bei der Suche nach {data_type}-Daten: {e}")
             return []
     
-    # Weitere Methoden zur Verwaltung strukturierter Daten...
-
+    def _get_properties_for_data_type(self, data_type: str) -> List[Dict[str, Any]]:
+        """
+        Gibt die Properties für einen Datentyp zurück.
+        
+        Args:
+            data_type: Der Datentyp.
+            
+        Returns:
+            Die Properties für den Datentyp.
+        """
+        properties = []
+        
+        # Allgemeine Properties
+        properties.extend([
+            {
+                "name": "tenant_id",
+                "dataType": ["string"],
+                "description": "ID des Tenants, zu dem die Daten gehören",
+            },
+            {
+                "name": "type",
+                "dataType": ["string"],
+                "description": "Typ der strukturierten Daten",
+            },
+            {
+                "name": "vector_id",
+                "dataType": ["string"],
+                "description": "Ein eindeutiger Identifikator für den Vektor",
+            }
+        ])
+        
+        # Spezifische Properties für Schulen
+        if data_type == "school":
+            properties.extend([
+                {
+                    "name": "name",
+                    "dataType": ["string"],
+                    "description": "Name der Schule",
+                },
+                {
+                    "name": "type",
+                    "dataType": ["string"],
+                    "description": "Typ der Schule (z.B. Grundschule, Gymnasium)",
+                },
+                {
+                    "name": "school_id",
+                    "dataType": ["string"],
+                    "description": "ID der Schule",
+                },
+                {
+                    "name": "address",
+                    "dataType": ["string"],
+                    "description": "Adresse der Schule",
+                },
+                {
+                    "name": "management",
+                    "dataType": ["string"],
+                    "description": "Schulleitung",
+                },
+                {
+                    "name": "phone",
+                    "dataType": ["string"],
+                    "description": "Telefonnummer der Schule",
+                },
+                {
+                    "name": "email",
+                    "dataType": ["string"],
+                    "description": "E-Mail-Adresse der Schule",
+                },
+                {
+                    "name": "website",
+                    "dataType": ["string"],
+                    "description": "Website der Schule",
+                },
+                {
+                    "name": "all_day_care",
+                    "dataType": ["boolean"],
+                    "description": "Gibt an, ob die Schule eine Ganztagsbetreuung anbietet",
+                },
+                {
+                    "name": "additional_info",
+                    "dataType": ["text"],
+                    "description": "Zusätzliche Informationen zur Schule",
+                },
+            ])
+        
+        # Spezifische Properties für Ämter/Behörden
+        elif data_type == "office":
+            properties.extend([
+                {
+                    "name": "name",
+                    "dataType": ["string"],
+                    "description": "Name des Amtes/der Behörde",
+                },
+                {
+                    "name": "department",
+                    "dataType": ["string"],
+                    "description": "Abteilung des Amtes/der Behörde",
+                },
+                {
+                    "name": "address",
+                    "dataType": ["string"],
+                    "description": "Adresse des Amtes/der Behörde",
+                },
+                {
+                    "name": "opening_hours",
+                    "dataType": ["string"],
+                    "description": "Öffnungszeiten des Amtes/der Behörde",
+                },
+                {
+                    "name": "phone",
+                    "dataType": ["string"],
+                    "description": "Telefonnummer des Amtes/der Behörde",
+                },
+                {
+                    "name": "email",
+                    "dataType": ["string"],
+                    "description": "E-Mail-Adresse des Amtes/der Behörde",
+                },
+                {
+                    "name": "website",
+                    "dataType": ["string"],
+                    "description": "Website des Amtes/der Behörde",
+                },
+                {
+                    "name": "services",
+                    "dataType": ["string[]"],
+                    "description": "Angebotene Dienstleistungen des Amtes/der Behörde",
+                },
+            ])
+        
+        # Spezifische Properties für Veranstaltungen
+        elif data_type == "event":
+            properties.extend([
+                {
+                    "name": "title",
+                    "dataType": ["string"],
+                    "description": "Titel der Veranstaltung",
+                },
+                {
+                    "name": "start_date",
+                    "dataType": ["date"],
+                    "description": "Startdatum der Veranstaltung",
+                },
+                {
+                    "name": "end_date",
+                    "dataType": ["date"],
+                    "description": "Enddatum der Veranstaltung",
+                },
+                {
+                    "name": "location",
+                    "dataType": ["string"],
+                    "description": "Ort der Veranstaltung",
+                },
+                {
+                    "name": "description",
+                    "dataType": ["text"],
+                    "description": "Beschreibung der Veranstaltung",
+                },
+                {
+                    "name": "organizer",
+                    "dataType": ["string"],
+                    "description": "Veranstalter",
+                },
+                {
+                    "name": "category",
+                    "dataType": ["string"],
+                    "description": "Kategorie der Veranstaltung",
+                },
+                {
+                    "name": "link",
+                    "dataType": ["string"],
+                    "description": "Link zur Veranstaltung",
+                },
+            ])
+            
+        # Spezifische Properties für Dienstleistungen
+        elif data_type == "service":
+            properties.extend([
+                {
+                    "name": "name",
+                    "dataType": ["string"],
+                    "description": "Name der Dienstleistung",
+                },
+                {
+                    "name": "description",
+                    "dataType": ["text"],
+                    "description": "Beschreibung der Dienstleistung",
+                },
+                {
+                    "name": "office",
+                    "dataType": ["string"],
+                    "description": "Zuständiges Amt",
+                },
+                {
+                    "name": "link",
+                    "dataType": ["string"],
+                    "description": "Link zur Dienstleistung",
+                },
+                {
+                    "name": "is_paid",
+                    "dataType": ["boolean"],
+                    "description": "Gibt an, ob die Dienstleistung kostenpflichtig ist",
+                },
+                {
+                    "name": "is_online",
+                    "dataType": ["boolean"],
+                    "description": "Gibt an, ob die Dienstleistung online verfügbar ist",
+                },
+            ])
+            
+        # Spezifische Properties für Ortsrecht
+        elif data_type == "local_law":
+            properties.extend([
+                {
+                    "name": "title",
+                    "dataType": ["string"],
+                    "description": "Titel des Ortsrechts",
+                },
+                {
+                    "name": "description",
+                    "dataType": ["text"],
+                    "description": "Beschreibung des Ortsrechts",
+                },
+                {
+                    "name": "text",
+                    "dataType": ["text"],
+                    "description": "Text des Ortsrechts",
+                },
+                {
+                    "name": "link",
+                    "dataType": ["string"],
+                    "description": "Link zum Ortsrecht",
+                },
+            ])
+            
+        # Spezifische Properties für Kindergärten
+        elif data_type == "kindergarten":
+            properties.extend([
+                {
+                    "name": "name",
+                    "dataType": ["string"],
+                    "description": "Name des Kindergartens",
+                },
+                {
+                    "name": "address",
+                    "dataType": ["string"],
+                    "description": "Adresse des Kindergartens",
+                },
+                {
+                    "name": "opening_hours",
+                    "dataType": ["string"],
+                    "description": "Öffnungszeiten des Kindergartens",
+                },
+                {
+                    "name": "phone",
+                    "dataType": ["string"],
+                    "description": "Telefonnummer des Kindergartens",
+                },
+                {
+                    "name": "email",
+                    "dataType": ["string"],
+                    "description": "E-Mail-Adresse des Kindergartens",
+                },
+                {
+                    "name": "website",
+                    "dataType": ["string"],
+                    "description": "Website des Kindergartens",
+                },
+            ])
+            
+        # Spezifische Properties für Webseiten
+        elif data_type == "webpage":
+            properties.extend([
+                {
+                    "name": "title",
+                    "dataType": ["string"],
+                    "description": "Titel der Webseite",
+                },
+                {
+                    "name": "url",
+                    "dataType": ["string"],
+                    "description": "URL der Webseite",
+                },
+                {
+                    "name": "content",
+                    "dataType": ["text"],
+                    "description": "Inhalt der Webseite",
+                },
+            ])
+            
+        # Spezifische Properties für Entsorgung
+        elif data_type == "waste_management":
+            properties.extend([
+                {
+                    "name": "name",
+                    "dataType": ["string"],
+                    "description": "Name der Entsorgungsmöglichkeit",
+                },
+                {
+                    "name": "description",
+                    "dataType": ["text"],
+                    "description": "Beschreibung der Entsorgungsmöglichkeit",
+                },
+            ])
+                
+        return properties
 
 # Singleton-Instanz für direkten Zugriff
 structured_data_service = StructuredDataService() 
