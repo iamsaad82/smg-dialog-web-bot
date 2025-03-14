@@ -12,7 +12,7 @@ from datetime import datetime
 from .xml_parser_service import BrandenburgXMLParser
 from .weaviate.client import weaviate_client
 from .weaviate.schema_manager import SchemaManager
-from .weaviate import WeaviateService
+from .weaviate import WeaviateService, weaviate_service
 
 # Logger konfigurieren
 logging.basicConfig(level=logging.INFO)
@@ -785,4 +785,4 @@ class StructuredDataService:
         return properties
 
 # Singleton-Instanz für direkten Zugriff
-structured_data_service = StructuredDataService() 
+structured_data_service = StructuredDataService(weaviate_service) 

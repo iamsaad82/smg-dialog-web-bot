@@ -6,8 +6,7 @@ Implementiert die Initialisierung und Konfiguration des Weaviate-Clients.
 import weaviate
 import logging
 from typing import Optional, Dict, Any
-# Aktualisierter Import für Weaviate 3.x
-# from weaviate.classes.init import AdditionalConfig, Timeout, Auth
+from weaviate.classes.config import ConnectionConfig
 from ...core.config import settings
 
 def get_weaviate_client():
@@ -22,7 +21,6 @@ def get_weaviate_client():
         http_host = "weaviate"
         http_port = 8080
         http_secure = False
-        grpc_port = 50051
         
         # URL parsen
         if weaviate_url:
@@ -37,17 +35,21 @@ def get_weaviate_client():
                     except ValueError:
                         pass
         
-        # Auth-Konfiguration
-        auth_config = None
-        if settings.WEAVIATE_API_KEY:
-            # Bei Weaviate 3.x verwenden wir direkt die AuthApiKey-Klasse
-            auth_config = weaviate.auth.AuthApiKey(api_key=settings.WEAVIATE_API_KEY)
-            
-        # Client mit verbesserten Timeout-Einstellungen erstellen
-        client = weaviate.Client(
+        # Verbindungskonfiguration für v4
+        connection_params = weaviate.connect.ConnectionParams.with_http(
             url=weaviate_url or f"{'https' if http_secure else 'http'}://{http_host}:{http_port}",
-            auth_client_secret=auth_config,
-            timeout_config=(30, 60, 120)  # in Version 3.x werden Timeouts direkt als Tuple (init, query, insert) übergeben
+        )
+        
+        # Auth-Konfiguration
+        if settings.WEAVIATE_API_KEY:
+            connection_params = connection_params.with_api_key(settings.WEAVIATE_API_KEY)
+            
+        # Client mit verbesserten Timeout-Einstellungen erstellen (v4)
+        client = weaviate.WeaviateClient(
+            connection_params=connection_params,
+            additional_config=weaviate.classes.init.AdditionalConfig(
+                timeout=weaviate.classes.init.Timeout(init=30, query=60)
+            )
         )
         
         # Bei Bedarf Header für Modellintegration hinzufügen
@@ -57,11 +59,13 @@ def get_weaviate_client():
             })
         
         # Bereitschaft überprüfen
-        if client.is_ready():
+        # In v4 gibt es keine direkte is_ready()-Methode, stattdessen verwenden wir die Schemaabfrage
+        try:
+            client.schema.get()
             logging.info("Weaviate-Client erfolgreich initialisiert")
             return client
-        else:
-            logging.error("Weaviate-Client nicht bereit")
+        except Exception as e:
+            logging.error(f"Weaviate-Client nicht bereit: {e}")
             return None
             
     except Exception as e:
