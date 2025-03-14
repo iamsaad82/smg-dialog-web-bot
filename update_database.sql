@@ -84,28 +84,42 @@ END;
 $$;
 
 -- Tabelle für interaktive Konfigurationen erstellen, falls sie nicht existiert
-CREATE TABLE IF NOT EXISTS interactive_configs (
-    id VARCHAR(255) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    tenant_id VARCHAR(255) REFERENCES tenants(id) ON DELETE CASCADE,
-    config JSONB NOT NULL DEFAULT '{}'::jsonb,
-    CONSTRAINT unique_tenant_id UNIQUE (tenant_id)
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'interactive_configs') THEN
+        CREATE TABLE interactive_configs (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+            config JSONB NOT NULL DEFAULT '{}'::jsonb,
+            CONSTRAINT unique_tenant_id UNIQUE (tenant_id)
+        );
+        RAISE NOTICE 'Tabelle interactive_configs erstellt';
+    END IF;
+END;
+$$;
 
 -- Tabelle für UI-Komponenten-Konfigurationen erstellen, falls sie nicht existiert
-CREATE TABLE IF NOT EXISTS ui_components_configs (
-    id VARCHAR(255) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    tenant_id VARCHAR(255) REFERENCES tenants(id) ON DELETE CASCADE,
-    prompt TEXT NOT NULL DEFAULT 'Du bist ein hilfreicher Assistent.',
-    rules JSONB NOT NULL DEFAULT '[]'::jsonb,
-    default_examples JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT unique_tenant_id_component UNIQUE (tenant_id)
-);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'ui_components_configs') THEN
+        CREATE TABLE ui_components_configs (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+            prompt TEXT NOT NULL DEFAULT 'Du bist ein hilfreicher Assistent.',
+            rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+            default_examples JSONB,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            CONSTRAINT unique_tenant_id_component UNIQUE (tenant_id)
+        );
+        RAISE NOTICE 'Tabelle ui_components_configs erstellt';
+    END IF;
+END;
+$$;
 
 -- Tabelle für UI-Komponenten-Definitionen erstellen, falls sie nicht existiert
 CREATE TABLE IF NOT EXISTS ui_component_definitions (
-    id VARCHAR(255) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
     example_format TEXT NOT NULL,
