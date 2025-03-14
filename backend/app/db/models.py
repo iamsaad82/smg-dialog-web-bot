@@ -1,10 +1,11 @@
 from pydantic import BaseModel, Field, EmailStr
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 import uuid
 from sqlalchemy import Column, String, DateTime, JSON, ForeignKey, Integer, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from pydantic.types import UUID4
 
 Base = declarative_base()
 
@@ -119,7 +120,7 @@ class TenantUpdate(BaseModel):
 
 class Tenant(TenantBase):
     """Vollständiges Tenant-Modell mit allen Feldern."""
-    id: str
+    id: Union[str, UUID4]
     api_key: str
     created_at: datetime
     updated_at: datetime
@@ -143,8 +144,8 @@ class DocumentCreate(DocumentBase):
 
 class Document(DocumentBase):
     """Vollständiges Dokument-Modell mit allen Feldern."""
-    id: str
-    tenant_id: str
+    id: Union[str, UUID4]
+    tenant_id: Union[str, UUID4]
     created_at: datetime
     
     class Config:
@@ -268,8 +269,8 @@ class BotComponentResponse(BaseModel):
 
 class UIComponentsConfigResponse(BaseModel):
     """Antwortmodell für UI-Komponenten-Konfiguration."""
-    id: str
-    tenant_id: str
+    id: Union[str, UUID4]  # Akzeptiert sowohl String als auch UUID
+    tenant_id: Union[str, UUID4]  # Akzeptiert sowohl String als auch UUID
     prompt: str
     rules: List[ComponentRule]
     defaultExamples: Optional[Dict[str, str]] = None
