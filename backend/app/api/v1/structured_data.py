@@ -64,33 +64,22 @@ async def search_structured_data(
 async def import_brandenburg_data(
     file: UploadFile = File(...),
     tenant_id: Optional[str] = Form(None),
-    current_user: Optional[User] = Depends(get_current_user),
+    api_tenant_id: str = Depends(get_tenant_id_from_api_key),
     db: Session = Depends(get_db)
 ):
     """
     Importiert strukturierte Daten aus einer Brandenburg-XML-Datei.
-    Erfordert Admin-Rechte.
+    Authentifizierung erfolgt über API-Key.
     
     - **file**: XML-Datei mit Brandenburg-Daten
     - **tenant_id**: Optional - ID eines spezifischen Tenants für den Import
     """
     # Debug-Log für die Anfrage
-    print(f"[import_brandenburg_data] Anfrage erhalten: file={file.filename}, tenant_id={tenant_id}, current_user={current_user}")
+    print(f"[import_brandenburg_data] Anfrage erhalten: file={file.filename}, tenant_id={tenant_id}, api_tenant_id={api_tenant_id}")
     
-    # Im Entwicklungsmodus Benutzerauthentifizierung überspringen
+    # Im Entwicklungsmodus erweiterte Logs ausgeben
     env = os.getenv("ENV", "dev")
     print(f"[import_brandenburg_data] Umgebung: {env}")
-    
-    if env == "dev" and current_user is None:
-        print("[import_brandenburg_data] DEV-MODUS: Überspringe Benutzerauthentifizierung")
-    # In Produktionsumgebung Admin-Rechte prüfen
-    elif not current_user or not current_user.is_admin:
-        error_message = f"Nur Administratoren können diese Funktion nutzen. current_user={current_user}"
-        print(f"[import_brandenburg_data] FEHLER: {error_message}")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_message
-        )
     
     # Prüfen, ob der Dateiname auf .xml endet
     if not file.filename or not file.filename.endswith('.xml'):
@@ -104,31 +93,42 @@ async def import_brandenburg_data(
     # Spezifischer Tenant oder alle Brandenburg-Tenants
     brandenburg_tenants = []
     
-    if tenant_id:
+    # Wenn tenant_id angegeben wurde, diese verwenden, sonst api_tenant_id
+    effective_tenant_id = tenant_id or api_tenant_id
+    print(f"[import_brandenburg_data] Effektive Tenant-ID: {effective_tenant_id}")
+    
+    if effective_tenant_id:
         # Nur den angegebenen Tenant verwenden, wenn er Brandenburg aktiviert hat
-        tenant = tenant_service.get_tenant_by_id(db, tenant_id)
+        tenant = tenant_service.get_tenant_by_id(db, effective_tenant_id)
         if not tenant:
+            error_message = f"Tenant mit ID {effective_tenant_id} nicht gefunden"
+            print(f"[import_brandenburg_data] FEHLER: {error_message}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Tenant mit ID {tenant_id} nicht gefunden"
+                detail=error_message
             )
         
-        if not getattr(tenant, 'is_brandenburg', False):
+        # Im Entwicklungsmodus Brandenburg-Prüfung überspringen
+        if env == "dev" or getattr(tenant, 'is_brandenburg', False):
+            brandenburg_tenants = [tenant]
+        else:
+            error_message = f"Tenant {tenant.name} hat die Brandenburg-Integration nicht aktiviert"
+            print(f"[import_brandenburg_data] FEHLER: {error_message}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tenant {tenant.name} hat die Brandenburg-Integration nicht aktiviert"
+                detail=error_message
             )
-        
-        brandenburg_tenants = [tenant]
     else:
         # Alle Tenants mit Brandenburg-Konfiguration holen
         tenants = tenant_service.get_all_tenants(db)
         brandenburg_tenants = [t for t in tenants if getattr(t, 'is_brandenburg', False)]
     
     if not brandenburg_tenants:
+        error_message = "Keine Brandenburg-Tenants gefunden"
+        print(f"[import_brandenburg_data] FEHLER: {error_message}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Keine Brandenburg-Tenants gefunden"
+            detail=error_message
         )
     
     try:
@@ -143,6 +143,7 @@ async def import_brandenburg_data(
         results = {}
         for tenant in brandenburg_tenants:
             tenant_id = str(tenant.id)
+            print(f"[import_brandenburg_data] Importiere Daten für Tenant: {tenant.name} (ID: {tenant_id})")
             result = structured_data_service.import_brandenburg_data(
                 xml_file_path=temp_filename,
                 tenant_id=tenant_id
@@ -152,6 +153,7 @@ async def import_brandenburg_data(
         # Temp-Datei löschen
         os.unlink(temp_filename)
         
+        print(f"[import_brandenburg_data] Import erfolgreich. Ergebnisse: {results}")
         return {"message": "Import erfolgreich", "results": results}
     
     except Exception as e:
@@ -162,9 +164,11 @@ async def import_brandenburg_data(
             except:
                 pass
                 
+        error_message = f"Fehler beim Importieren der Daten: {str(e)}"
+        print(f"[import_brandenburg_data] FEHLER: {error_message}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Fehler beim Importieren der Daten: {str(e)}"
+            detail=error_message
         )
 
 
@@ -177,62 +181,62 @@ class ImportFromUrlRequest(BaseModel):
 @router.post("/import/brandenburg/url")
 async def import_brandenburg_data_from_url(
     request: ImportFromUrlRequest,
-    current_user: Optional[User] = Depends(get_current_user),
+    api_tenant_id: str = Depends(get_tenant_id_from_api_key),
     db: Session = Depends(get_db)
 ):
     """
     Importiert strukturierte Daten von einer URL mit Brandenburg-XML.
-    Erfordert Admin-Rechte.
+    Authentifizierung erfolgt über API-Key.
     
     - **url**: URL der XML-Datei mit Brandenburg-Daten
     - **tenant_id**: Optional - ID eines spezifischen Tenants für den Import
     """
     # Debug-Log für die Anfrage
-    print(f"[import_brandenburg_data_from_url] Anfrage erhalten: url={request.url}, tenant_id={request.tenant_id}, current_user={current_user}")
+    print(f"[import_brandenburg_data_from_url] Anfrage erhalten: url={request.url}, request.tenant_id={request.tenant_id}, api_tenant_id={api_tenant_id}")
     
-    # Im Entwicklungsmodus Benutzerauthentifizierung überspringen
+    # Im Entwicklungsmodus erweiterte Logs ausgeben
     env = os.getenv("ENV", "dev")
     print(f"[import_brandenburg_data_from_url] Umgebung: {env}")
-    
-    if env == "dev" and current_user is None:
-        print("[import_brandenburg_data_from_url] DEV-MODUS: Überspringe Benutzerauthentifizierung")
-    # In Produktionsumgebung Admin-Rechte prüfen
-    elif not current_user or not current_user.is_admin:
-        error_message = f"Nur Administratoren können diese Funktion nutzen. current_user={current_user}"
-        print(f"[import_brandenburg_data_from_url] FEHLER: {error_message}")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_message
-        )
     
     # Spezifischer Tenant oder alle Brandenburg-Tenants
     brandenburg_tenants = []
     
-    if request.tenant_id:
+    # Wenn tenant_id in der Anfrage angegeben wurde, diese verwenden, sonst api_tenant_id
+    effective_tenant_id = request.tenant_id or api_tenant_id
+    print(f"[import_brandenburg_data_from_url] Effektive Tenant-ID: {effective_tenant_id}")
+    
+    if effective_tenant_id:
         # Nur den angegebenen Tenant verwenden, wenn er Brandenburg aktiviert hat
-        tenant = tenant_service.get_tenant_by_id(db, request.tenant_id)
+        tenant = tenant_service.get_tenant_by_id(db, effective_tenant_id)
         if not tenant:
+            error_message = f"Tenant mit ID {effective_tenant_id} nicht gefunden"
+            print(f"[import_brandenburg_data_from_url] FEHLER: {error_message}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Tenant mit ID {request.tenant_id} nicht gefunden"
+                detail=error_message
             )
         
-        if not getattr(tenant, 'is_brandenburg', False):
+        # Im Entwicklungsmodus Brandenburg-Prüfung überspringen
+        if env == "dev" or getattr(tenant, 'is_brandenburg', False):
+            brandenburg_tenants = [tenant]
+        else:
+            error_message = f"Tenant {tenant.name} hat die Brandenburg-Integration nicht aktiviert"
+            print(f"[import_brandenburg_data_from_url] FEHLER: {error_message}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tenant {tenant.name} hat die Brandenburg-Integration nicht aktiviert"
+                detail=error_message
             )
-        
-        brandenburg_tenants = [tenant]
     else:
         # Alle Tenants mit Brandenburg-Konfiguration holen
         tenants = tenant_service.get_all_tenants(db)
         brandenburg_tenants = [t for t in tenants if getattr(t, 'is_brandenburg', False)]
     
     if not brandenburg_tenants:
+        error_message = "Keine Brandenburg-Tenants gefunden"
+        print(f"[import_brandenburg_data_from_url] FEHLER: {error_message}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Keine Brandenburg-Tenants gefunden"
+            detail=error_message
         )
     
     try:
@@ -240,16 +244,20 @@ async def import_brandenburg_data_from_url(
         results = {}
         for tenant in brandenburg_tenants:
             tenant_id = str(tenant.id)
+            print(f"[import_brandenburg_data_from_url] Importiere Daten für Tenant: {tenant.name} (ID: {tenant_id})")
             result = structured_data_service.import_brandenburg_data_from_url(
                 url=request.url,
                 tenant_id=tenant_id
             )
             results[tenant.name] = result
             
+        print(f"[import_brandenburg_data_from_url] Import erfolgreich. Ergebnisse: {results}")
         return {"message": "Import erfolgreich", "results": results}
     
     except Exception as e:
+        error_message = f"Fehler beim Importieren der Daten von URL: {str(e)}"
+        print(f"[import_brandenburg_data_from_url] FEHLER: {error_message}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Fehler beim Importieren der Daten von URL: {str(e)}"
+            detail=error_message
         ) 
