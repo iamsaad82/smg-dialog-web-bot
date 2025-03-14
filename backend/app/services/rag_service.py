@@ -3,6 +3,7 @@ from ..services.weaviate_service import weaviate_service
 from ..services.llm_service import llm_service
 from ..services.interactive.factory import interactive_factory
 from ..services.structured_data_service import structured_data_service
+from ..db.models import Tenant
 import json
 import re
 
