@@ -10,51 +10,100 @@ import { formatTextWithBold } from './formatting';
 export const formatTextWithLinks = (text: string): React.ReactNode => {
   if (!text) return null;
   
-  // Verbesserte URL-Erkennung (unterstützt auch Links in Klammern, etc.)
-  const urlRegex = /\[?(?:https?:\/\/|www\.)[^\s\]()<>"']+(?:\([^\s()]*\)|[^\s()[\]<>"']*)/g;
+  // Behandlung von Markdown-Links [text](url)
+  const markdownLinkRegex = /\[(.*?)\]\s*\(\s*(https?:\/\/[^\s)]+)\s*\)/g;
+  let lastIndex = 0;
+  const result: React.ReactNode[] = [];
+  let match;
   
-  // Text in Teile zerlegen: normaler Text und Links
-  const parts = text.split(urlRegex);
-  const matches = text.match(urlRegex) || [];
+  // Temporäre Kopie des Textes erstellen, um Leerzeichen in URLs zu entfernen
+  let processedText = text;
   
-  // Zusammenfügen der Teile mit formatierten Links
-  return parts.reduce((result: React.ReactNode[], part, i) => {
-    result.push(<React.Fragment key={`text-${i}`}>{part}</React.Fragment>);
+  // Alle Markdown-Links durch bereinigte Versionen ersetzen
+  processedText = processedText.replace(markdownLinkRegex, (match, linkText, url) => {
+    // Leerzeichen in URLs entfernen
+    const cleanUrl = url.replace(/\s+/g, '');
+    return `[${linkText}](${cleanUrl})`;
+  });
+  
+  // Einfache URLs bereinigen (außerhalb von Markdown-Links)
+  processedText = processedText.replace(
+    /(?<!\]\()(https?:\/\/[^\s\)\]"',<>]+)/g, 
+    (match) => match.replace(/\s+/g, '')
+  );
+  
+  // Markdown-Links verarbeiten
+  while ((match = markdownLinkRegex.exec(processedText)) !== null) {
+    // Text bis zum aktuellen Match hinzufügen
+    if (match.index > lastIndex) {
+      result.push(processedText.substring(lastIndex, match.index));
+    }
     
-    if (matches[i]) {
-      // URL bereinigen
-      let href = matches[i];
-      
-      // Klammern entfernen, falls vorhanden
-      href = href.replace(/^\(|\)$/g, '');
-      
-      // Wenn URL mit [ oder ] beginnt oder endet, entfernen
-      href = href.replace(/^\[|\]$/g, '');
-      
-      // Wenn URL nicht mit http oder https beginnt, aber mit www, dann https hinzufügen
-      if (href.startsWith('www.')) {
-        href = `https://${href}`;
+    // Link-Text und URL extrahieren
+    const [fullMatch, linkText, url] = match;
+    const cleanUrl = url.replace(/\s+/g, ''); // Sicherstellen, dass keine Leerzeichen in der URL sind
+    
+    // Link-Element erstellen
+    result.push(
+      <a 
+        key={`mdlink-${match.index}`} 
+        href={cleanUrl} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="text-blue-600 hover:text-blue-800 underline hover:opacity-90 dark:text-blue-400 dark:hover:text-blue-300"
+        aria-label={`${linkText} - Öffnet in einem neuen Tab`}
+      >
+        {linkText}
+      </a>
+    );
+    
+    lastIndex = match.index + fullMatch.length;
+  }
+  
+  // Restlichen Text hinzufügen
+  if (lastIndex < processedText.length) {
+    // Einfache URLs im restlichen Text finden
+    const plainText = processedText.substring(lastIndex);
+    const plainUrlRegex = /(?<!\]\()(https?:\/\/[^\s\)\]"',<>]+)/g;
+    
+    let plainLastIndex = 0;
+    let plainMatch;
+    const plainResult: React.ReactNode[] = [];
+    
+    while ((plainMatch = plainUrlRegex.exec(plainText)) !== null) {
+      // Text bis zum aktuellen Match hinzufügen
+      if (plainMatch.index > plainLastIndex) {
+        plainResult.push(plainText.substring(plainLastIndex, plainMatch.index));
       }
       
-      result.push(
+      const url = plainMatch[0].replace(/\s+/g, ''); // Leerzeichen entfernen
+      
+      // Link-Element erstellen
+      plainResult.push(
         <a 
-          key={`link-${i}`} 
-          href={href} 
+          key={`plainlink-${plainMatch.index}`} 
+          href={url} 
           target="_blank" 
           rel="noopener noreferrer" 
           className="text-blue-600 hover:text-blue-800 underline hover:opacity-90 dark:text-blue-400 dark:hover:text-blue-300"
-          aria-label={`Externer Link: ${href} - Öffnet in einem neuen Tab`}
+          aria-label={`Externer Link - Öffnet in einem neuen Tab`}
         >
-          {/* Klammer-Formatierung beibehalten, wenn im Original vorhanden */}
-          {matches[i].startsWith('(') ? '(' : ''}
-          {matches[i].replace(/^\(|\)$/g, '')}
-          {matches[i].endsWith(')') ? ')' : ''}
+          {url}
         </a>
       );
+      
+      plainLastIndex = plainMatch.index + plainMatch[0].length;
     }
     
-    return result;
-  }, []);
+    // Restlichen Text hinzufügen
+    if (plainLastIndex < plainText.length) {
+      plainResult.push(plainText.substring(plainLastIndex));
+    }
+    
+    result.push(...plainResult);
+  }
+  
+  return result.length === 0 ? processedText : result;
 };
 
 /**
