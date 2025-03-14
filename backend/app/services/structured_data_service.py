@@ -450,10 +450,10 @@ class StructuredDataService:
         try:
             # Suche durchführen mit Weaviate v4 API
             collection = weaviate_client.collections.get(class_name)
+            # Hybrid-Suche ohne expliziten fusion_type Parameter
             results = collection.query.hybrid(
                 query=query,
-                limit=limit,
-                fusion_type="relative_score",  # "relative_score" statt "alpha"
+                limit=limit
             )
             
             # Ergebnisse in das einheitliche Format konvertieren
