@@ -38,8 +38,18 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
   const cleanupUrls = (text: string): string => {
     if (!text) return '';
     
-    // Bereinigen von Markdown-Links: [text](url)
-    let cleaned = text.replace(
+    // Bekannte Label-Typen, die URLs enthalten können
+    const urlLabels = ['Website', 'Webseite', 'URL', 'Link', 'E-Mail', 'Homepage'];
+    
+    let cleaned = text;
+    
+    // 1. Bestimmte Muster, die doppelte Inhalte enthalten, bereinigen
+    // z.B. "Gymnasium - Gymnasium" zu "Gymnasium"
+    const duplicatePattern = /(\w+)(\s+[-:]\s+\1|[-:]\s+\1)/gi;
+    cleaned = cleaned.replace(duplicatePattern, '$1');
+    
+    // 2. Bereinigen von Markdown-Links: [text](url)
+    cleaned = cleaned.replace(
       /\[(.*?)\]\s*\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g, 
       (match, linkText, url) => {
         // Leerzeichen in URLs entfernen (nicht im Linktext)
@@ -48,46 +58,37 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
       }
     );
     
-    // Bereinigen von URLs in eckigen Klammern: [url]
+    // 3. Bereinigen von URLs in eckigen Klammern: [url] oder runden Klammern: (url)
     cleaned = cleaned.replace(
-      /\[\s*((?:https?:\/\/|www\.)[^\s\]]+(?:\s+[^\s\]]+)*)\s*\]/g, 
+      /[\[\(]\s*((?:https?:\/\/|www\.)[^\s\]\)]+(?:\s+[^\s\]\)]+)*)\s*[\]\)]/g, 
       (match, url) => {
         const cleanUrl = url.replace(/\s+/g, '');
-        return `[${cleanUrl}]`;
+        return match.charAt(0) + cleanUrl + match.charAt(match.length - 1);
       }
     );
     
-    // Bereinigen von URL in runden Klammern: (url)
-    cleaned = cleaned.replace(
-      /\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g,
-      (match, url) => {
+    // 4. Bereinigen von URLs in Label-Kontext (z.B. "Website: https://...")
+    urlLabels.forEach(label => {
+      const pattern = new RegExp(`(${label}):\\s*((?:https?:\/\/|www\.)[^\\s\\n]+(?:\\s+[^\\s\\n]+)*)`, 'gi');
+      cleaned = cleaned.replace(pattern, (match, labelText, url) => {
         const cleanUrl = url.replace(/\s+/g, '');
-        return `(${cleanUrl})`;
-      }
-    );
+        return `${labelText}: ${cleanUrl}`;
+      });
+    });
     
-    // Bereinigen von URLs in Schulinformationen (z.B. "Website: https://...")
-    cleaned = cleaned.replace(
-      /(Website|E-Mail|Homepage|Webseite|URL):\s*((?:https?:\/\/|www\.)[^\s\n]+(?:\s+[^\s\n]+)*)/gi,
-      (match, label, url) => {
-        const cleanUrl = url.replace(/\s+/g, '');
-        return `${label}: ${cleanUrl}`;
-      }
-    );
-    
-    // Bereinigen einfacher URLs - auch solche mit Leerzeichen
+    // 5. Bereinigen einfacher URLs
     cleaned = cleaned.replace(
       /(https?:\/\/[^\s"'<>]+(?:\s+[^\s"'<>]+)*)/g, 
       (match) => match.replace(/\s+/g, '')
     );
     
-    // Bereinigen von Website-URLs ohne http/https
+    // 6. Bereinigen von Website-URLs ohne http/https
     cleaned = cleaned.replace(
       /\b(www\.[^\s"'<>]+(?:\s+[^\s"'<>]+)*)/g,
       (match) => match.replace(/\s+/g, '')
     );
     
-    // Sicherstellen, dass www.-URLs ein Protokoll haben
+    // 7. Sicherstellen, dass www.-URLs ein Protokoll haben
     cleaned = cleaned.replace(
       /\b(www\.[^\s"'<>]+)\b/g,
       (match) => {
@@ -98,9 +99,12 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
       }
     );
     
-    // Doppelte Doppelpunkte in strukturierten Daten entfernen (z.B. "Schulform: Schulform: Gymnasium")
-    const knownLabels = ['Schulform', 'Schultyp', 'Adresse', 'Telefon', 'E-Mail', 'Website', 
-                         'Schulname', 'Schulleitung', 'Träger', 'Öffnungszeiten'];
+    // 8. Doppelte Doppelpunkte in strukturierten Daten entfernen (z.B. "Schulform: Schulform: Gymnasium")
+    const knownLabels = [
+      'Schulform', 'Schultyp', 'Adresse', 'Telefon', 'E-Mail', 'Website', 
+      'Schulname', 'Schulleitung', 'Träger', 'Öffnungszeiten', 'Kontakt',
+      'Standort', 'Beschreibung', 'Information', 'Hinweis', 'Details'
+    ];
     
     knownLabels.forEach(label => {
       const regex = new RegExp(`(${label}):\\s*${label}:\\s*`, 'gi');

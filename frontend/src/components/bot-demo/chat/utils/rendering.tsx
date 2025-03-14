@@ -4,82 +4,105 @@ import { formatTextWithBoldReact as formatTextWithBold } from './formatters';
 import { NumberedStructuredContent } from '../components/NumberedStructuredContent';
 import { StructuredContent } from '../components/StructuredContent';
 import { LinkCardSlider } from '../components/LinkCardSlider';
+import { ExternalLink } from 'lucide-react';
 import { LinkItem } from './types';
 
 /**
- * Erkennt und formatiert strukturierte Informationen wie Schuldaten
+ * Bereinigt einen Titel oder Wert
+ */
+const cleanupValue = (value: string): string => {
+  if (!value) return '';
+  
+  // Doppelte Angaben entfernen (z.B. "Gymnasium - Gymnasium")
+  const duplicatePattern = /(\w+)(\s+[-:]\s+\1|[-:]\s+\1)/gi;
+  let cleanValue = value.replace(duplicatePattern, '$1');
+  
+  // Führende oder nachfolgende Trennzeichen entfernen
+  cleanValue = cleanValue.replace(/^[-:\s]+|[-:\s]+$/g, '');
+  
+  return cleanValue.trim();
+};
+
+/**
+ * Erkennt und formatiert allgemeine strukturierte Informationen
  */
 const formatStructuredInfo = (text: string): React.ReactNode => {
   // Prüfen, ob es sich um einen strukturierten Informationsblock handelt
-  if (text.includes('###') || 
-      (text.includes('Schulform:') && text.includes('Adresse:')) ||
-      (text.includes('Gymnasium') && text.includes('Website:')) ||
-      (text.includes('Schule') && text.includes('Adresse:')) ||
-      (text.includes('Schulname:') || text.includes('Schultyp:'))) {
-    
+  const hasKeyValuePairs = text.split('\n').filter(line => line.includes(':')).length >= 3;
+  const hasHeaderMarker = text.includes('###');
+  const hasTitleAtStart = text.split('\n')[0] && !text.split('\n')[0].includes(':');
+  
+  if ((hasKeyValuePairs && (hasHeaderMarker || hasTitleAtStart)) || text.includes('###')) {
     // Format mit sauberen Key-Value-Paaren erstellen
     const lines = text.split('\n');
     const structuredData: Record<string, string> = {};
     let title = '';
     
-    // Titel aus den ersten Zeilen extrahieren (falls vorhanden)
+    // Titel aus den ersten Zeilen extrahieren
     if (text.startsWith('###')) {
-      const titleMatch = text.match(/^###\s+(.+?)(?:\s+-\s+|$)/);
+      const titleMatch = text.match(/^###\s+(.+?)(?:\s*[-:]\s*|$)/);
       if (titleMatch) {
-        title = titleMatch[1].trim();
+        title = cleanupValue(titleMatch[1]);
       }
-    } else {
-      // Wenn kein expliziter Titel, erste Zeile vor einem Doppelpunkt als Titel verwenden
+    } else if (hasTitleAtStart) {
       const firstLine = lines[0].trim();
-      if (firstLine && !firstLine.includes(':')) {
-        title = firstLine;
-      } else if (text.includes('Schulname:')) {
-        // Schulname als Titel verwenden, wenn vorhanden
-        const schulnameMatch = text.match(/Schulname:\s*(.+?)(?:\n|$)/);
-        if (schulnameMatch) {
-          title = schulnameMatch[1].trim();
-        }
-      }
+      title = cleanupValue(firstLine);
+      // Titel-Zeile aus den zu verarbeitenden Zeilen entfernen
+      lines.shift();
     }
     
-    // Bekannte Schlüssel für Schulinformationen
-    const knownSchoolKeys = [
+    // Bekannte Schlüssel für Informationsstrukturen
+    const knownKeys = [
       'Schulform', 'Schultyp', 'Adresse', 'Telefon', 'E-Mail', 'Website', 
-      'Schulname', 'Schulleitung', 'Träger', 'Öffnungszeiten', 'Ansprechpartner'
+      'Schulname', 'Schulleitung', 'Träger', 'Öffnungszeiten', 'Ansprechpartner', 
+      'Kontakt', 'Standort', 'Beschreibung', 'Information', 'Hinweis', 'Details',
+      'Leistungen', 'Anmeldung', 'Gebühren', 'Kosten', 'Öffnungszeit'
     ];
     
     // Key-Value-Paare erkennen und doppelte Schlüssel vermeiden
     lines.forEach(line => {
+      if (!line.trim()) return;
+      
       const keyValueMatch = line.match(/([^:]+):\s*(.+)/);
       if (keyValueMatch) {
-        let key = keyValueMatch[1].trim();
-        const value = keyValueMatch[2].trim();
+        let key = cleanupValue(keyValueMatch[1]);
+        let value = keyValueMatch[2].trim();
         
         // Doppelte Schlüssel im Wert erkennen und entfernen
-        // z.B. "Schulform: Schulform: Gymnasium" -> "Schulform: Gymnasium"
-        let cleanValue = value;
-        knownSchoolKeys.forEach(knownKey => {
+        knownKeys.forEach(knownKey => {
           const duplicateKeyRegex = new RegExp(`^${knownKey}:\\s*`, 'i');
-          if (duplicateKeyRegex.test(cleanValue)) {
-            cleanValue = cleanValue.replace(duplicateKeyRegex, '');
+          if (duplicateKeyRegex.test(value)) {
+            value = value.replace(duplicateKeyRegex, '');
           }
         });
         
+        value = cleanupValue(value);
+        
         // Wenn der Schlüssel bereits existiert, Werte zusammenführen
         if (structuredData[key]) {
-          if (!structuredData[key].includes(cleanValue)) {
-            structuredData[key] += ` - ${cleanValue}`;
+          if (!structuredData[key].includes(value)) {
+            structuredData[key] += ` - ${value}`;
           }
         } else {
-          structuredData[key] = cleanValue;
+          structuredData[key] = value;
         }
+      } else if (!title && line.trim() && !line.startsWith('-') && !line.startsWith('*')) {
+        // Wenn noch kein Titel gesetzt wurde und die Zeile kein Key-Value-Paar ist,
+        // verwenden wir sie als Titel
+        title = cleanupValue(line);
       }
     });
     
-    // Wenn kein Titel gefunden wurde, aber ein Schulname in den Daten ist, diesen als Titel verwenden
-    if (!title && structuredData['Schulname']) {
-      title = structuredData['Schulname'];
-      delete structuredData['Schulname']; // Vermeiden von Duplikaten
+    // Wenn ein passender Schlüssel existiert, der als Titel verwendet werden kann
+    const titleCandidateKeys = ['Name', 'Titel', 'Schulname', 'Einrichtung', 'Bezeichnung'];
+    if (!title) {
+      for (const candidateKey of titleCandidateKeys) {
+        if (structuredData[candidateKey]) {
+          title = structuredData[candidateKey];
+          delete structuredData[candidateKey];
+          break;
+        }
+      }
     }
     
     // Formatiertes JSX erstellen
@@ -91,14 +114,32 @@ const formatStructuredInfo = (text: string): React.ReactNode => {
           </h3>
         )}
         
-        <div className="grid grid-cols-1 gap-2">
+        <div className="grid grid-cols-1 gap-3">
           {Object.entries(structuredData).map(([key, value], index) => (
             <div key={index} className="flex flex-col sm:flex-row sm:items-start gap-1">
-              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-[120px]">
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 min-w-[120px] sm:text-right">
                 {key}:
               </div>
               <div className="text-sm text-gray-800 dark:text-gray-200 flex-1">
-                {formatTextWithBold(value)}
+                {key.toLowerCase() === 'website' || key.toLowerCase() === 'webseite' || value.includes('http') ? (
+                  <a 
+                    href={value.startsWith('http') ? value : `https://${value}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1 hover:underline dark:text-blue-400"
+                  >
+                    {value} <ExternalLink className="h-3 w-3 ml-1" />
+                  </a>
+                ) : key.toLowerCase() === 'e-mail' || value.includes('@') ? (
+                  <a 
+                    href={`mailto:${value}`}
+                    className="text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400"
+                  >
+                    {value}
+                  </a>
+                ) : (
+                  formatTextWithBold(value)
+                )}
               </div>
             </div>
           ))}
@@ -117,7 +158,7 @@ export const renderFormattedContent = (content: string) => {
   // Whitespace am Anfang und Ende des Inhalts trimmen
   const trimmedContent = content.trim();
   
-  // Prüfen, ob es sich um strukturierte Schulinformationen handelt
+  // Prüfen, ob es sich um strukturierte Informationen handelt
   const structuredInfoRendering = formatStructuredInfo(trimmedContent);
   if (structuredInfoRendering) {
     return structuredInfoRendering;

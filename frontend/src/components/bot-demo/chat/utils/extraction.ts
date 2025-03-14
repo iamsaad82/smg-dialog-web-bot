@@ -71,188 +71,162 @@ export const extractBulletPoints = (text: string): string[] => {
   return items;
 };
 
+/**
+ * Bereinigt eine URL von Leerzeichen und fügt ggf. ein Protokoll hinzu
+ */
+const cleanupUrl = (url: string): string => {
+  if (!url) return '';
+  
+  // Leerzeichen in URLs entfernen
+  let cleanUrl = url.replace(/\s+/g, '');
+  
+  // Klammern am Anfang und Ende entfernen
+  cleanUrl = cleanUrl.replace(/^\(|\)$|\[$|\]$/g, '');
+  
+  // Sicherstellen, dass www.-URLs ein Protokoll haben
+  if (cleanUrl.startsWith('www.') && !cleanUrl.startsWith('http')) {
+    cleanUrl = 'https://' + cleanUrl;
+  }
+  
+  return cleanUrl;
+};
+
+/**
+ * Generiert einen aussagekräftigen Titel für einen Link
+ */
+const generateLinkTitle = (url: string, context: string = ''): string => {
+  try {
+    // Domänenbasierten Titel erstellen
+    const domain = new URL(url).hostname.replace(/^www\./, '');
+    const domainParts = domain.split('.');
+    
+    // Bekannte Domains
+    if (domain.includes('brandenburg')) {
+      if (context.toLowerCase().includes('schule') || context.toLowerCase().includes('gymnasium')) {
+        return 'Schulwebseite Brandenburg';
+      } else if (context.toLowerCase().includes('wohngeld')) {
+        return 'Wohngeld Brandenburg';
+      } else {
+        return 'Brandenburg Informationen';
+      }
+    }
+    
+    // Standard-Titel basierend auf Domain
+    const readableDomain = domainParts[0].charAt(0).toUpperCase() + domainParts[0].slice(1);
+    return `${readableDomain} Webseite`;
+  } catch (e) {
+    // Fallback-Titel
+    return 'Webseite';
+  }
+};
+
 // Extrahiert Links aus dem Text
 export const extractLinks = (text: string): LinkItem[] => {
   const links: LinkItem[] = [];
   
   try {
-    // Vorverarbeitung: Leerzeichen in URLs entfernen und spezielle Strukturen erkennen
-    let processedText = text;
+    // Pattern zum Erkennen von URLs (mit und ohne Protokoll)
+    const urlPattern = '(?:https?:\\/\\/|www\\.)[^\\s\\]\\)>"\']+'
     
-    // Spezialfall: Links in Schulinformationen erkennen (z.B. "Website: https://...")
-    const schoolInfoLinkRegex = /(Website|E-Mail|Homepage|Webseite|URL):\s*((?:https?:\/\/|www\.)[^\s\n]+(?:\s+[^\s\n]+)*)/gi;
-    let schoolInfoMatch;
+    // 1. Erkennung von Links in Schlüssel-Wert-Paaren (z.B. "Website: https://...")
+    const keyValueLinkRegex = new RegExp(`(Website|E-Mail|Homepage|Webseite|URL|Link):\\s*(${urlPattern})`, 'gi');
+    let keyValueMatch;
     
-    while ((schoolInfoMatch = schoolInfoLinkRegex.exec(text)) !== null) {
-      if (schoolInfoMatch[2]) {
-        // URL bereinigen (Leerzeichen entfernen)
-        const url = schoolInfoMatch[2].replace(/\s+/g, '');
-        const cleanUrl = url.startsWith('www.') && !url.startsWith('http') ? 'https://' + url : url;
+    while ((keyValueMatch = keyValueLinkRegex.exec(text)) !== null) {
+      if (keyValueMatch[2]) {
+        const url = cleanupUrl(keyValueMatch[2]);
         
         // Prüfen, ob dieser Link bereits erkannt wurde
-        if (!links.some(link => link.url === cleanUrl)) {
+        if (!links.some(link => link.url === url)) {
           // Titel basierend auf dem Label generieren
           let title = 'Webseite';
           
-          switch (schoolInfoMatch[1].toLowerCase()) {
+          switch (keyValueMatch[1].toLowerCase()) {
             case 'website':
             case 'webseite':
             case 'homepage':
             case 'url':
-              title = 'Schulwebseite';
+              title = text.toLowerCase().includes('schule') ? 'Schulwebseite' : 'Offizielle Webseite';
               break;
             case 'e-mail':
               title = 'E-Mail-Kontakt';
               break;
+            case 'link':
+              title = generateLinkTitle(url, text);
+              break;
           }
           
-          links.push({ url: cleanUrl, title });
+          links.push({ url, title });
         }
       }
     }
     
-    // Spezialfall: Links im Format [URL](URL) erkennen
-    const markdownSelfLinkRegex = /\[\s*((?:https?:\/\/|www\.)[^\s\]]+(?:\s+[^\s\]]+)*)\s*\]\s*\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g;
-    let selfLinkMatch;
-    
-    while ((selfLinkMatch = markdownSelfLinkRegex.exec(text)) !== null) {
-      if (selfLinkMatch[1] && selfLinkMatch[2]) {
-        // URLs bereinigen (Leerzeichen entfernen)
-        const displayUrl = selfLinkMatch[1].replace(/\s+/g, '');
-        const targetUrl = selfLinkMatch[2].replace(/\s+/g, '');
-        
-        // Protokoll hinzufügen, falls nötig
-        const cleanUrl = targetUrl.startsWith('www.') && !targetUrl.startsWith('http') 
-          ? 'https://' + targetUrl 
-          : targetUrl;
-        
-        // Prüfen, ob dieser Link bereits erkannt wurde
-        if (!links.some(link => link.url === cleanUrl)) {
-          // Titel generieren
-          let title = 'Link';
-          
-          // Kontextbasierte Titel-Extraktion
-          if (text.toLowerCase().includes('wohngeld') && cleanUrl.includes('brandenburg')) {
-            title = 'Wohngeld-Informationen Brandenburg';
-          } else if (cleanUrl.includes('stadt-brandenburg')) {
-            title = 'Stadt Brandenburg Dienstleistung';
-          } else if (text.toLowerCase().includes('schule') && cleanUrl.includes('brandenburg')) {
-            title = 'Schulinformationen Brandenburg';
-          } else {
-            // Domain als Titel verwenden
-            try {
-              const domain = new URL(cleanUrl).hostname.replace(/^www\./, '');
-              title = domain.charAt(0).toUpperCase() + domain.slice(1) + ' Webseite';
-            } catch (e) {
-              // Fallback-Titel
-              title = 'Externe Webseite';
-            }
-          }
-          
-          links.push({ url: cleanUrl, title });
-        }
-      }
-    }
-    
-    // Links in eckigen Klammern erkennen: [https://example.com]
-    const bracketLinkRegex = /\[\s*((?:https?:\/\/|www\.)[^\s\]]+(?:\s+[^\s\]]+)*)\s*\]/g;
-    let bracketMatch;
-    
-    while ((bracketMatch = bracketLinkRegex.exec(text)) !== null) {
-      if (bracketMatch[1]) {
-        const url = bracketMatch[1].replace(/\s+/g, '');
-        const cleanUrl = url.startsWith('www.') && !url.startsWith('http') ? 'https://' + url : url;
-        
-        // Prüfen, ob dieser Link bereits erkannt wurde
-        if (!links.some(link => link.url === cleanUrl)) {
-          // Titel generieren
-          let title = 'Link';
-          
-          // Kontextbasierte Titel-Extraktion
-          if (text.toLowerCase().includes('wohngeld') && cleanUrl.includes('brandenburg')) {
-            title = 'Wohngeld-Informationen Brandenburg';
-          } else if (cleanUrl.includes('stadt-brandenburg')) {
-            title = 'Stadt Brandenburg Dienstleistung';
-          } else if (text.toLowerCase().includes('schule') && cleanUrl.includes('brandenburg')) {
-            title = 'Schulinformationen Brandenburg';
-          } else {
-            // Domain als Titel verwenden
-            try {
-              const domain = new URL(cleanUrl).hostname.replace(/^www\./, '');
-              title = domain.charAt(0).toUpperCase() + domain.slice(1) + ' Webseite';
-            } catch (e) {
-              // Fallback-Titel
-              title = 'Externe Webseite';
-            }
-          }
-          
-          links.push({ url: cleanUrl, title });
-        }
-      }
-    }
-    
-    // Normale Markdown-Links erkennen: [text](url)
-    const markdownLinkRegex = /\[(.*?)\]\s*\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g;
+    // 2. Erkennung von Markdown-Links: [text](url)
+    const markdownLinkRegex = new RegExp(`\\[(.*?)\\]\\s*\\(\\s*(${urlPattern})\\s*\\)`, 'g');
     let markdownMatch;
     
     while ((markdownMatch = markdownLinkRegex.exec(text)) !== null) {
-      // Wenn es kein Selbst-Link ist (bereits oben behandelt)
-      if (markdownMatch[1] && markdownMatch[2] && !markdownMatch[1].startsWith('http')) {
-        const url = markdownMatch[2].replace(/\s+/g, '');
-        const cleanUrl = url.startsWith('www.') && !url.startsWith('http') ? 'https://' + url : url;
-        
-        // Link-Text als Titel verwenden
-        const title = markdownMatch[1].trim() || 'Link';
-        
-        // Prüfen, ob dieser Link bereits erkannt wurde
-        if (!links.some(link => link.url === cleanUrl)) {
-          links.push({ url: cleanUrl, title });
-        }
+      const linkText = markdownMatch[1].trim();
+      const url = cleanupUrl(markdownMatch[2]);
+      
+      // Nur hinzufügen, wenn der Link noch nicht vorhanden ist
+      if (!links.some(link => link.url === url)) {
+        links.push({ 
+          url, 
+          title: linkText || generateLinkTitle(url, text) 
+        });
       }
     }
     
-    // Einfache URLs ohne Markdown-Formatierung erkennen
-    const plainUrlRegex = /(?<!\]\()((?:https?:\/\/|www\.)[^\s\)\]"',<>]+(?:\s+[^\s\)\]"',<>]+)*)/g;
-    let urlMatch;
+    // 3. Erkennung von URLs in eckigen Klammern: [url]
+    const bracketLinkRegex = new RegExp(`\\[\\s*(${urlPattern})\\s*\\]`, 'g');
+    let bracketMatch;
     
-    while ((urlMatch = plainUrlRegex.exec(text)) !== null) {
-      if (urlMatch[0]) {
-        const url = urlMatch[0].replace(/\s+/g, '');
-        const cleanUrl = url.startsWith('www.') && !url.startsWith('http') ? 'https://' + url : url;
-        
-        // Prüfen, ob dieser Link bereits erkannt wurde
-        if (!links.some(link => link.url === cleanUrl)) {
-          // Versuchen, einen aussagekräftigen Titel zu extrahieren
-          let title = `Link ${links.length + 1}`;
-          
-          // Kontextbasierte Titel-Extraktion
-          if (text.toLowerCase().includes('wohngeld') && cleanUrl.includes('brandenburg')) {
-            title = 'Wohngeld-Informationen Brandenburg';
-          } else if (cleanUrl.includes('stadt-brandenburg')) {
-            title = 'Stadt Brandenburg Dienstleistung';
-          } else if (text.toLowerCase().includes('schule') && cleanUrl.includes('brandenburg')) {
-            title = 'Schulinformationen Brandenburg';
-          } else {
-            // Domain als Titel verwenden
-            try {
-              const domain = new URL(cleanUrl).hostname.replace(/^www\./, '');
-              title = domain.charAt(0).toUpperCase() + domain.slice(1) + ' Webseite';
-            } catch (e) {
-              // Fallback-Titel
-              title = 'Externe Webseite';
-            }
-          }
-          
-          links.push({ url: cleanUrl, title });
-        }
+    while ((bracketMatch = bracketLinkRegex.exec(text)) !== null) {
+      const url = cleanupUrl(bracketMatch[1]);
+      
+      // Nur hinzufügen, wenn der Link noch nicht vorhanden ist
+      if (!links.some(link => link.url === url)) {
+        links.push({ 
+          url, 
+          title: generateLinkTitle(url, text) 
+        });
       }
     }
     
-    // Normalisieren der URLs (sicherstellen, dass keine Leerzeichen enthalten sind)
-    return links.map(link => ({
-      url: link.url.replace(/\s+/g, ''), // Leerzeichen in URLs entfernen
-      title: link.title
-    }));
+    // 4. Erkennung von URLs in runden Klammern: (url)
+    const parenLinkRegex = new RegExp(`\\(\\s*(${urlPattern})\\s*\\)`, 'g');
+    let parenMatch;
+    
+    while ((parenMatch = parenLinkRegex.exec(text)) !== null) {
+      const url = cleanupUrl(parenMatch[1]);
+      
+      // Nur hinzufügen, wenn der Link noch nicht vorhanden ist
+      if (!links.some(link => link.url === url)) {
+        links.push({ 
+          url, 
+          title: generateLinkTitle(url, text) 
+        });
+      }
+    }
+    
+    // 5. Erkennung von einfachen URLs im Text
+    const plainUrlRegex = new RegExp(`(?<![\\]\\(])\\b(${urlPattern})\\b`, 'g');
+    let plainMatch;
+    
+    while ((plainMatch = plainUrlRegex.exec(text)) !== null) {
+      const url = cleanupUrl(plainMatch[1]);
+      
+      // Nur hinzufügen, wenn der Link noch nicht vorhanden ist
+      if (!links.some(link => link.url === url)) {
+        links.push({ 
+          url, 
+          title: generateLinkTitle(url, text) 
+        });
+      }
+    }
+    
+    return links;
   } catch (error) {
     console.error("Fehler beim Extrahieren von Links:", error);
     return [];
