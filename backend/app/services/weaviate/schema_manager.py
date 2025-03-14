@@ -48,17 +48,17 @@ class SchemaManager:
             return True
         
         try:
-            # Standard-Schema erstellen
+            # Standard-Schema erstellen mit Weaviate v4 API
             weaviate_client.collections.create(
                 name=schema_class_name,
                 description="Standard-Klasse für Weaviate-Initialisierung",
-                vectorizer_config=wvc.config.Configure.Vectorizer.text2vec_transformers(),
+                vectorizer_config={"vectorizer": "text2vec-transformers"},
                 properties=[
-                    wvc.config.Property(
-                        name="text",
-                        data_type=wvc.config.DataType.TEXT,
-                        description="Ein Textfeld"
-                    )
+                    {
+                        "name": "text",
+                        "data_type": ["text"],
+                        "description": "Ein Textfeld"
+                    }
                 ]
             )
             
@@ -82,34 +82,32 @@ class SchemaManager:
             return True
         
         try:
-            # Schema mit Text- und Metadatenfeldern erstellen
+            # Schema mit Text- und Metadatenfeldern erstellen mit Weaviate v4 API
             weaviate_client.collections.create(
                 name=class_name,
                 description=f"Wissensbasis für Tenant {tenant_id}",
-                vectorizer_config=wvc.config.Configure.Vectorizer.text2vec_transformers(
-                    vectorize_collection_name=False
-                ),
+                vectorizer_config={"vectorizer": "text2vec-transformers"},
                 properties=[
-                    wvc.config.Property(
-                        name="title",
-                        data_type=wvc.config.DataType.TEXT,
-                        description="Der Titel des Dokuments"
-                    ),
-                    wvc.config.Property(
-                        name="content",
-                        data_type=wvc.config.DataType.TEXT,
-                        description="Der Inhalt des Dokuments"
-                    ),
-                    wvc.config.Property(
-                        name="metadata",
-                        data_type=wvc.config.DataType.TEXT,
-                        description="Zusätzliche Metadaten zum Dokument"
-                    ),
-                    wvc.config.Property(
-                        name="source",
-                        data_type=wvc.config.DataType.TEXT,
-                        description="Die Quelle des Dokuments"
-                    )
+                    {
+                        "name": "title",
+                        "data_type": ["text"],
+                        "description": "Der Titel des Dokuments"
+                    },
+                    {
+                        "name": "content",
+                        "data_type": ["text"],
+                        "description": "Der Inhalt des Dokuments"
+                    },
+                    {
+                        "name": "metadata",
+                        "data_type": ["text"],
+                        "description": "Zusätzliche Metadaten zum Dokument"
+                    },
+                    {
+                        "name": "source",
+                        "data_type": ["text"],
+                        "description": "Die Quelle des Dokuments"
+                    }
                 ]
             )
             

@@ -83,96 +83,96 @@ class StructuredDataService:
         
         if data_type == "school":
             properties = [
-                {"name": "name", "dataType": ["text"]},
-                {"name": "type", "dataType": ["text"]},
-                {"name": "schoolId", "dataType": ["text"]},
-                {"name": "address", "dataType": ["text"]},
-                {"name": "management", "dataType": ["text"]},
-                {"name": "contactPhone", "dataType": ["text"]},
-                {"name": "contactEmail", "dataType": ["text"]},
-                {"name": "contactWebsite", "dataType": ["text"]},
-                {"name": "allDayCare", "dataType": ["boolean"]},
-                {"name": "additionalInfo", "dataType": ["text"]},
-                {"name": "description", "dataType": ["text"]},
-                {"name": "link", "dataType": ["text"]},
+                {"name": "name", "data_type": ["text"]},
+                {"name": "type", "data_type": ["text"]},
+                {"name": "schoolId", "data_type": ["text"]},
+                {"name": "address", "data_type": ["text"]},
+                {"name": "management", "data_type": ["text"]},
+                {"name": "contactPhone", "data_type": ["text"]},
+                {"name": "contactEmail", "data_type": ["text"]},
+                {"name": "contactWebsite", "data_type": ["text"]},
+                {"name": "allDayCare", "data_type": ["boolean"]},
+                {"name": "additionalInfo", "data_type": ["text"]},
+                {"name": "description", "data_type": ["text"]},
+                {"name": "link", "data_type": ["text"]},
                 # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "dataType": ["text"]}
+                {"name": "fullTextSearch", "data_type": ["text"]}
             ]
         elif data_type == "office":
             properties = [
-                {"name": "name", "dataType": ["text"]},
-                {"name": "department", "dataType": ["text"]},
-                {"name": "address", "dataType": ["text"]},
-                {"name": "openingHours", "dataType": ["text"]},
-                {"name": "contactPhone", "dataType": ["text"]},
-                {"name": "contactEmail", "dataType": ["text"]},
-                {"name": "contactWebsite", "dataType": ["text"]},
-                {"name": "services", "dataType": ["text[]"]},
-                {"name": "description", "dataType": ["text"]},
-                {"name": "content", "dataType": ["text"]},
-                {"name": "link", "dataType": ["text"]},
+                {"name": "name", "data_type": ["text"]},
+                {"name": "department", "data_type": ["text"]},
+                {"name": "address", "data_type": ["text"]},
+                {"name": "openingHours", "data_type": ["text"]},
+                {"name": "contactPhone", "data_type": ["text"]},
+                {"name": "contactEmail", "data_type": ["text"]},
+                {"name": "contactWebsite", "data_type": ["text"]},
+                {"name": "services", "data_type": ["text[]"]},
+                {"name": "description", "data_type": ["text"]},
+                {"name": "content", "data_type": ["text"]},
+                {"name": "link", "data_type": ["text"]},
                 # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "dataType": ["text"]}
+                {"name": "fullTextSearch", "data_type": ["text"]}
             ]
         elif data_type == "event":
             properties = [
-                {"name": "title", "dataType": ["text"]},
-                {"name": "date", "dataType": ["text"]},
-                {"name": "time", "dataType": ["text"]},
-                {"name": "location", "dataType": ["text"]},
-                {"name": "description", "dataType": ["text"]},
-                {"name": "content", "dataType": ["text"]},
-                {"name": "organizer", "dataType": ["text"]},
-                {"name": "contactPhone", "dataType": ["text"]},
-                {"name": "contactEmail", "dataType": ["text"]},
-                {"name": "contactWebsite", "dataType": ["text"]},
-                {"name": "link", "dataType": ["text"]},
+                {"name": "title", "data_type": ["text"]},
+                {"name": "date", "data_type": ["text"]},
+                {"name": "time", "data_type": ["text"]},
+                {"name": "location", "data_type": ["text"]},
+                {"name": "description", "data_type": ["text"]},
+                {"name": "content", "data_type": ["text"]},
+                {"name": "organizer", "data_type": ["text"]},
+                {"name": "contactPhone", "data_type": ["text"]},
+                {"name": "contactEmail", "data_type": ["text"]},
+                {"name": "contactWebsite", "data_type": ["text"]},
+                {"name": "link", "data_type": ["text"]},
                 # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "dataType": ["text"]}
+                {"name": "fullTextSearch", "data_type": ["text"]}
             ]
         elif data_type == "service":
             properties = [
-                {"name": "name", "dataType": ["text"]},
-                {"name": "description", "dataType": ["text"]},
-                {"name": "content", "dataType": ["text"]},
-                {"name": "link", "dataType": ["text"]},
+                {"name": "name", "data_type": ["text"]},
+                {"name": "description", "data_type": ["text"]},
+                {"name": "content", "data_type": ["text"]},
+                {"name": "link", "data_type": ["text"]},
                 # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "dataType": ["text"]}
+                {"name": "fullTextSearch", "data_type": ["text"]}
             ]
         elif data_type == "local_law":
             properties = [
-                {"name": "title", "dataType": ["text"]},
-                {"name": "description", "dataType": ["text"]},
-                {"name": "content", "dataType": ["text"]},
-                {"name": "link", "dataType": ["text"]},
+                {"name": "title", "data_type": ["text"]},
+                {"name": "description", "data_type": ["text"]},
+                {"name": "content", "data_type": ["text"]},
+                {"name": "link", "data_type": ["text"]},
                 # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "dataType": ["text"]}
+                {"name": "fullTextSearch", "data_type": ["text"]}
             ]
         elif data_type == "kindergarten":
             properties = [
-                {"name": "name", "dataType": ["text"]},
-                {"name": "address", "dataType": ["text"]},
-                {"name": "contact", "dataType": ["text"]},
-                {"name": "description", "dataType": ["text"]},
-                {"name": "link", "dataType": ["text"]},
+                {"name": "name", "data_type": ["text"]},
+                {"name": "address", "data_type": ["text"]},
+                {"name": "contact", "data_type": ["text"]},
+                {"name": "description", "data_type": ["text"]},
+                {"name": "link", "data_type": ["text"]},
                 # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "dataType": ["text"]}
+                {"name": "fullTextSearch", "data_type": ["text"]}
             ]
         elif data_type == "webpage":
             properties = [
-                {"name": "title", "dataType": ["text"]},
-                {"name": "url", "dataType": ["text"]},
-                {"name": "content", "dataType": ["text"]},
+                {"name": "title", "data_type": ["text"]},
+                {"name": "url", "data_type": ["text"]},
+                {"name": "content", "data_type": ["text"]},
                 # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "dataType": ["text"]}
+                {"name": "fullTextSearch", "data_type": ["text"]}
             ]
         elif data_type == "waste_management":
             properties = [
-                {"name": "name", "dataType": ["text"]},
-                {"name": "description", "dataType": ["text"]},
-                {"name": "content", "dataType": ["text"]},
+                {"name": "name", "data_type": ["text"]},
+                {"name": "description", "data_type": ["text"]},
+                {"name": "content", "data_type": ["text"]},
                 # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "dataType": ["text"]}
+                {"name": "fullTextSearch", "data_type": ["text"]}
             ]
         
         try:
@@ -181,7 +181,7 @@ class StructuredDataService:
                 name=class_name,
                 description=f"Strukturierte {data_type.capitalize()}-Daten für Tenant {tenant_id}",
                 properties=properties,
-                vectorizer_config={"text2vec-transformers": {"vectorize_collection_name": False}}
+                vectorizer_config={"vectorizer": "text2vec-transformers"}
             )
             
             logger.info(f"Schema für {data_type}-Daten von Tenant {tenant_id} erstellt")
@@ -248,8 +248,8 @@ class StructuredDataService:
             # Daten speichern mit Weaviate v4 API
             collection = weaviate_client.collections.get(class_name)
             collection.data.insert(
-                uuid=data_id,
-                properties=flattened_data
+                properties=flattened_data,
+                uuid=data_id
             )
             logger.info(f"{data_type.capitalize()}-Daten mit ID {data_id} zu Tenant {tenant_id} hinzugefügt")
             return data_id
@@ -448,12 +448,12 @@ class StructuredDataService:
             return []
         
         try:
-            # Suche durchführen
+            # Suche durchführen mit Weaviate v4 API
             collection = weaviate_client.collections.get(class_name)
             results = collection.query.hybrid(
                 query=query,
                 limit=limit,
-                alpha=0.5  # Balance zwischen Vektor- und Keyword-Suche
+                fusion_type="relative_score",  # "relative_score" statt "alpha"
             )
             
             # Ergebnisse in das einheitliche Format konvertieren
