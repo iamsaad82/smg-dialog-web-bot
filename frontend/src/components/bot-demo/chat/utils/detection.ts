@@ -53,10 +53,11 @@ export const detectStructuredContent = (text: string): StructuredContent => {
         let restOfLine = '';
         
         if (hasBoldTitle) {
-          const titleMatch = line.match(/\*\*([^*:]+):\s*\*\*/);
+          const titleMatch = line.match(/\*\*([^*:]+)(?::\s*)?\*\*/);
           if (titleMatch && titleMatch[1]) {
             newTitle = titleMatch[1].trim();
-            restOfLine = line.split('**').pop()?.trim() || '';
+            const textAfterBold = line.split('**').slice(2).join('**').trim();
+            restOfLine = textAfterBold.startsWith(':') ? textAfterBold.substring(1).trim() : textAfterBold;
           }
         } else if (hasColonTitle) {
           const parts = line.split(':');
