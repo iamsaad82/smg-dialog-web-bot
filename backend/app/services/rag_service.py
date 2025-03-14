@@ -3,7 +3,7 @@ from ..services.weaviate_service import weaviate_service
 from ..services.llm_service import llm_service
 from ..services.interactive.factory import interactive_factory
 from ..services.structured_data_service import structured_data_service
-from ..db.models import Tenant
+from ..db.models import Tenant, TenantModel
 import json
 import re
 
@@ -434,7 +434,7 @@ class RAGService:
                         context += "\n"
             
             # Tenant-spezifische Komponenten-Konfiguration laden und Anweisungen generieren
-            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            tenant = db.query(TenantModel).filter(TenantModel.id == tenant_id).first()
             
             if tenant and tenant.ui_components_config:
                 try:
