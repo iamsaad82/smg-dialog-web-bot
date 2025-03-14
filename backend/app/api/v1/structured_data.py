@@ -7,7 +7,8 @@ import tempfile
 from pydantic import BaseModel
 from ...services.structured_data_service import structured_data_service
 from ...services.tenant_service import tenant_service
-from ...core.security import get_tenant_id_from_api_key, get_current_user
+from ...core.security import get_tenant_id_from_api_key
+from ...core.deps import get_current_user
 from sqlalchemy.orm import Session
 from ...db.session import get_db
 from ...db.models import User
