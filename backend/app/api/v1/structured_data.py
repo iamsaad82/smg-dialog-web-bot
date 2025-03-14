@@ -74,22 +74,31 @@ async def import_brandenburg_data(
     - **file**: XML-Datei mit Brandenburg-Daten
     - **tenant_id**: Optional - ID eines spezifischen Tenants für den Import
     """
+    # Debug-Log für die Anfrage
+    print(f"[import_brandenburg_data] Anfrage erhalten: file={file.filename}, tenant_id={tenant_id}, current_user={current_user}")
+    
     # Im Entwicklungsmodus Benutzerauthentifizierung überspringen
     env = os.getenv("ENV", "dev")
+    print(f"[import_brandenburg_data] Umgebung: {env}")
+    
     if env == "dev" and current_user is None:
         print("[import_brandenburg_data] DEV-MODUS: Überspringe Benutzerauthentifizierung")
     # In Produktionsumgebung Admin-Rechte prüfen
     elif not current_user or not current_user.is_admin:
+        error_message = f"Nur Administratoren können diese Funktion nutzen. current_user={current_user}"
+        print(f"[import_brandenburg_data] FEHLER: {error_message}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Nur Administratoren können diese Funktion nutzen"
+            detail=error_message
         )
     
     # Prüfen, ob der Dateiname auf .xml endet
     if not file.filename or not file.filename.endswith('.xml'):
+        error_message = f"Nur XML-Dateien werden unterstützt. Erhaltener Dateiname: {file.filename}"
+        print(f"[import_brandenburg_data] FEHLER: {error_message}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Nur XML-Dateien werden unterstützt"
+            detail=error_message
         )
     
     # Spezifischer Tenant oder alle Brandenburg-Tenants
@@ -178,15 +187,22 @@ async def import_brandenburg_data_from_url(
     - **url**: URL der XML-Datei mit Brandenburg-Daten
     - **tenant_id**: Optional - ID eines spezifischen Tenants für den Import
     """
+    # Debug-Log für die Anfrage
+    print(f"[import_brandenburg_data_from_url] Anfrage erhalten: url={request.url}, tenant_id={request.tenant_id}, current_user={current_user}")
+    
     # Im Entwicklungsmodus Benutzerauthentifizierung überspringen
     env = os.getenv("ENV", "dev")
+    print(f"[import_brandenburg_data_from_url] Umgebung: {env}")
+    
     if env == "dev" and current_user is None:
         print("[import_brandenburg_data_from_url] DEV-MODUS: Überspringe Benutzerauthentifizierung")
     # In Produktionsumgebung Admin-Rechte prüfen
     elif not current_user or not current_user.is_admin:
+        error_message = f"Nur Administratoren können diese Funktion nutzen. current_user={current_user}"
+        print(f"[import_brandenburg_data_from_url] FEHLER: {error_message}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Nur Administratoren können diese Funktion nutzen"
+            detail=error_message
         )
     
     # Spezifischer Tenant oder alle Brandenburg-Tenants
