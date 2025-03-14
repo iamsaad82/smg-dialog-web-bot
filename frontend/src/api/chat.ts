@@ -28,13 +28,64 @@ export class ChatApi {
     const { signal } = controller;
     let streamActive = true;
     
-    // Tipp-Verarbeitungsstatus
-    let insideTip = false;
-    let tipBuffer = '';
+    // Puffer-Status und Intelligente URL-Erkennung
+    let bufferMode = false;
+    let structureBuffer = '';
     
-    // Kontaktdaten-Verarbeitungsstatus
-    let insideContact = false;
-    let contactBuffer = '';
+    // Regex für begrenzte Strukturen, die nicht in Teilen gestreamt werden sollten
+    const startStructureRegexes = [
+      /\[\s*https?:\/\//,          // URL in eckigen Klammern [http
+      /\(\s*https?:\/\//,          // URL in runden Klammern (http
+      /(\[\w+\])?\(\s*https?:\/\// // Markdown-Link [text](http
+    ];
+    
+    const endStructureRegexes = [
+      /\]\s*(?!\()/, // Ende eckiger Klammern, kein '(' danach
+      /\)/,          // Ende runder Klammern
+      /\)\s*$/       // Ende eines Markdown-Links
+    ];
+    
+    // Funktion zum Prüfen, ob ein Strukturanfang vorliegt
+    const isStructureStart = (text: string): boolean => {
+      return startStructureRegexes.some(regex => regex.test(text));
+    };
+    
+    // Funktion zum Prüfen, ob ein Strukturende vorliegt
+    const isStructureEnd = (text: string): boolean => {
+      return endStructureRegexes.some(regex => regex.test(text));
+    };
+    
+    // Hilfsfunktion zum Bereinigen von URLs in einem Text
+    const cleanupUrls = (text: string): string => {
+      // Leerzeichen in URLs entfernen
+      let processedText = text;
+      
+      // URLs in Markdown-Links [text](url) bereinigen
+      processedText = processedText.replace(
+        /\[(.*?)\]\s*\(\s*(https?:\/\/[^\s)]+)\s*\)/g, 
+        (match, text, url) => {
+          const cleanUrl = url.replace(/\s+/g, '');
+          return `[${text}](${cleanUrl})`;
+        }
+      );
+      
+      // URLs in eckigen Klammern [url] bereinigen
+      processedText = processedText.replace(
+        /\[\s*(https?:\/\/[^\s\]]+)\s*\]/g, 
+        (match, url) => {
+          const cleanUrl = url.replace(/\s+/g, '');
+          return `[${cleanUrl}]`;
+        }
+      );
+      
+      // Einfache URLs bereinigen
+      processedText = processedText.replace(
+        /(https?:\/\/[^\s"'<>]+)/g, 
+        (match) => match.replace(/\s+/g, '')
+      );
+      
+      return processedText;
+    };
     
     // Stream-Funktion mit Fetch
     (async () => {
@@ -89,20 +140,72 @@ export class ChatApi {
                 
                 // Eventuellen Text trotzdem verarbeiten
                 if (parsedData.text !== undefined) {
-                  onChunk(parsedData.text);
+                  // Text senden - aber zuerst URLs bereinigen
+                  onChunk(cleanupUrls(parsedData.text));
                 }
               } else {
                 // Regulärer Text-Chunk
-                onChunk(content);
+                
+                // Intelligente Strukturverarbeitung für URLs und Markdown-Links
+                if (bufferMode) {
+                  // Bereits im Buffer-Modus - Text zum Buffer hinzufügen
+                  structureBuffer += content;
+                  
+                  // Prüfen, ob wir nun ein Strukturende haben
+                  if (isStructureEnd(structureBuffer)) {
+                    // Struktur abgeschlossen
+                    console.log("Struktur vollständig:", structureBuffer);
+                    
+                    // URLs im Buffer bereinigen und senden
+                    onChunk(cleanupUrls(structureBuffer));
+                    
+                    // Buffer zurücksetzen
+                    structureBuffer = '';
+                    bufferMode = false;
+                  }
+                } else {
+                  // Prüfen, ob dieser Chunk eine Struktur beginnt
+                  if (isStructureStart(content)) {
+                    console.log("Struktur beginnt:", content);
+                    // Buffer-Modus starten
+                    bufferMode = true;
+                    structureBuffer = content;
+                  } else {
+                    // Normalen Text senden - URLs bereinigen
+                    onChunk(cleanupUrls(content));
+                  }
+                }
               }
             } catch (e) {
               // Wenn kein gültiges JSON, dann als normalen Text behandeln
               console.log("Kein JSON, verarbeite als Text:", content);
-              onChunk(content);
+              
+              // Gleiche Intelligente Strukturverarbeitung wie oben
+              if (bufferMode) {
+                structureBuffer += content;
+                if (isStructureEnd(structureBuffer)) {
+                  onChunk(cleanupUrls(structureBuffer));
+                  structureBuffer = '';
+                  bufferMode = false;
+                }
+              } else {
+                if (isStructureStart(content)) {
+                  bufferMode = true;
+                  structureBuffer = content;
+                } else {
+                  onChunk(cleanupUrls(content));
+                }
+              }
             }
           } else if (line === '[DONE]' || line === 'event: done') {
             // Ende des Streams
             console.log('Stream beendet über Event');
+            
+            // Wenn noch Daten im Buffer sind, diese jetzt senden
+            if (bufferMode && structureBuffer) {
+              onChunk(cleanupUrls(structureBuffer));
+            }
+            
             streamActive = false;
             onDone();
           } else if (line.startsWith(':')) {
@@ -119,6 +222,12 @@ export class ChatApi {
           
           if (done) {
             console.log('Stream-Lesung beendet');
+            
+            // Wenn noch Daten im Buffer sind, diese jetzt senden
+            if (bufferMode && structureBuffer) {
+              onChunk(cleanupUrls(structureBuffer));
+            }
+            
             streamActive = false;
             onDone();
             break;
