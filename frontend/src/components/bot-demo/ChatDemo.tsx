@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react"
-import { SendHorizontal, RefreshCw, Bot, User } from "lucide-react"
+import { SendHorizontal, RefreshCw, Bot } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -7,27 +7,15 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tenant, ChatMessage as ApiChatMessage } from "@/types/api"
 import { apiClient } from "@/utils/api"
 import { parseBotResponse } from "@/utils/botResponseParser"
-import { InteractiveElement, InfoElement } from "@/types/interactive"
-import { renderComponent } from "@/utils/component-registry"
+import { InteractiveElement } from "@/types/interactive"
+import { MessageItem } from "./chat/MessageItem"
 
-interface ChatMessage {
-  id: string
-  role: "user" | "assistant"
-  content: string
-  timestamp: string
-  interactiveElements?: InteractiveElement[]
-}
+// Import der MessageItem-Komponente
+import { ChatMessage } from "./chat/utils/types"
 
 interface ChatDemoProps {
   tenant: Tenant
 }
-
-// Custom InfoComponent für die Anzeige von Info-Elementen
-const InfoComponent = ({ content }: { content: string }) => (
-  <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-blue-800 dark:text-blue-300">
-    <strong>Info:</strong> {content}
-  </div>
-);
 
 export function ChatDemo({ tenant }: ChatDemoProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -266,88 +254,20 @@ export function ChatDemo({ tenant }: ChatDemoProps) {
   }
 
   return (
-    <div className="flex flex-col w-full max-w-3xl mx-auto h-full">
-      {/* Header mit Reset-Button */}
-      <div className="flex justify-end p-4">
-        <Button 
-          variant="outline" 
-          size="icon" 
-          onClick={handleResetChat} 
-          title="Chat zurücksetzen"
-          className="rounded-full h-9 w-9"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      </div>
-      
-      {/* Chat-Bereich mit Nachrichten */}
-      <div className="flex-1 p-4 overflow-auto">
-        <ScrollArea className="h-full">
-          <div className="space-y-4 pb-20">
+    <div className="flex flex-col w-full h-full">
+      <div className="relative flex-1">
+        <ScrollArea className="h-full w-full">
+          <div className="space-y-4 p-4 pb-20">
             {messages.map((message) => (
-              <div
+              <MessageItem
                 key={message.id}
-                className={`flex items-start gap-2 ${
-                  message.role === "user" ? "flex-row-reverse" : ""
-                }`}
-              >
-                <div
-                  className={`flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full ${
-                    message.role === "assistant"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
-                  style={
-                    message.role === "assistant" && tenant.primary_color
-                      ? { backgroundColor: tenant.primary_color, color: tenant.secondary_color }
-                      : {}
-                  }
-                >
-                  {message.role === "assistant" ? (
-                    <Bot className="h-4 w-4" />
-                  ) : (
-                    <User className="h-4 w-4" />
-                  )}
-                </div>
-                <div
-                  className={`rounded-lg px-3 py-2 max-w-[80%] ${
-                    message.role === "assistant"
-                      ? "bg-muted"
-                      : "bg-primary text-primary-foreground"
-                  }`}
-                  style={
-                    message.role === "user" && tenant.primary_color
-                      ? { backgroundColor: tenant.primary_color, color: tenant.secondary_color }
-                      : {}
-                  }
-                >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  <p className="text-xs opacity-50 mt-1">{message.timestamp}</p>
-                  
-                  {/* Interaktive Elemente anzeigen, falls vorhanden */}
-                  {message.interactiveElements && message.interactiveElements.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
-                      {message.interactiveElements.map((element, index) => (
-                        <div key={index} className="mt-1 text-sm">
-                          {/* Info-Element mit expliziter Komponente rendern */}
-                          {element.type === 'info' ? (
-                            <InfoComponent content={(element as InfoElement).content} />
-                          ) : (
-                            /* Alle anderen Komponenten dynamisch aus der Registry laden */
-                            renderComponent(
-                              element, 
-                              index,
-                              tenant.primary_color,
-                              tenant.secondary_color
-                            )
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+                message={message}
+                primaryColor={tenant.primary_color}
+                secondaryColor={tenant.secondary_color}
+              />
             ))}
+            
+            {/* Ladeindikator für ausstehende Antwort */}
             {isLoading && !messages[messages.length - 1]?.content && (
               <div className="flex items-start gap-2">
                 <div className="flex h-8 w-8 shrink-0 select-none items-center justify-center rounded-full bg-primary text-primary-foreground" style={{ backgroundColor: tenant.primary_color, color: tenant.secondary_color }}>
@@ -362,6 +282,7 @@ export function ChatDemo({ tenant }: ChatDemoProps) {
                 </div>
               </div>
             )}
+            
             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
