@@ -34,16 +34,13 @@ interface MessageItemProps {
 }
 
 export function MessageItem({ message, primaryColor, secondaryColor }: MessageItemProps) {
-  // Sicherstellen, dass der Text getrimmt ist und URLs bereinigt sind
-  const messageContent = message.content.trim();
-  
-  // Hilfs-Funktion zur URL-Bereinigung
+  // Verbesserte Hilfs-Funktion zur URL-Bereinigung
   const cleanupUrls = (text: string): string => {
     if (!text) return '';
     
     // Bereinigen von Markdown-Links: [text](url)
     let cleaned = text.replace(
-      /\[(.*?)\]\s*\(\s*(https?:\/\/[^\s)]+[^\s)]*([ \t]+[^\s)]+)*)\s*\)/g, 
+      /\[(.*?)\]\s*\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g, 
       (match, linkText, url) => {
         // Leerzeichen in URLs entfernen (nicht im Linktext)
         const cleanUrl = url.replace(/\s+/g, '');
@@ -53,21 +50,68 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
     
     // Bereinigen von URLs in eckigen Klammern: [url]
     cleaned = cleaned.replace(
-      /\[\s*(https?:\/\/[^\s\]]+[^\s\]]*([ \t]+[^\s\]]+)*)\s*\]/g, 
+      /\[\s*((?:https?:\/\/|www\.)[^\s\]]+(?:\s+[^\s\]]+)*)\s*\]/g, 
       (match, url) => {
         const cleanUrl = url.replace(/\s+/g, '');
         return `[${cleanUrl}]`;
       }
     );
     
-    // Bereinigen einfacher URLs
+    // Bereinigen von URL in runden Klammern: (url)
     cleaned = cleaned.replace(
-      /(https?:\/\/[^\s"'<>]+[^\s"'<>]*([ \t]+[^\s"'<>]+)*)/g, 
+      /\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g,
+      (match, url) => {
+        const cleanUrl = url.replace(/\s+/g, '');
+        return `(${cleanUrl})`;
+      }
+    );
+    
+    // Bereinigen von URLs in Schulinformationen (z.B. "Website: https://...")
+    cleaned = cleaned.replace(
+      /(Website|E-Mail|Homepage|Webseite|URL):\s*((?:https?:\/\/|www\.)[^\s\n]+(?:\s+[^\s\n]+)*)/gi,
+      (match, label, url) => {
+        const cleanUrl = url.replace(/\s+/g, '');
+        return `${label}: ${cleanUrl}`;
+      }
+    );
+    
+    // Bereinigen einfacher URLs - auch solche mit Leerzeichen
+    cleaned = cleaned.replace(
+      /(https?:\/\/[^\s"'<>]+(?:\s+[^\s"'<>]+)*)/g, 
       (match) => match.replace(/\s+/g, '')
     );
     
+    // Bereinigen von Website-URLs ohne http/https
+    cleaned = cleaned.replace(
+      /\b(www\.[^\s"'<>]+(?:\s+[^\s"'<>]+)*)/g,
+      (match) => match.replace(/\s+/g, '')
+    );
+    
+    // Sicherstellen, dass www.-URLs ein Protokoll haben
+    cleaned = cleaned.replace(
+      /\b(www\.[^\s"'<>]+)\b/g,
+      (match) => {
+        if (!match.startsWith('http')) {
+          return 'https://' + match;
+        }
+        return match;
+      }
+    );
+    
+    // Doppelte Doppelpunkte in strukturierten Daten entfernen (z.B. "Schulform: Schulform: Gymnasium")
+    const knownLabels = ['Schulform', 'Schultyp', 'Adresse', 'Telefon', 'E-Mail', 'Website', 
+                         'Schulname', 'Schulleitung', 'Träger', 'Öffnungszeiten'];
+    
+    knownLabels.forEach(label => {
+      const regex = new RegExp(`(${label}):\\s*${label}:\\s*`, 'gi');
+      cleaned = cleaned.replace(regex, `$1: `);
+    });
+    
     return cleaned;
   };
+  
+  // Sicherstellen, dass der Text getrimmt ist und URLs bereinigt sind
+  const messageContent = message.content.trim();
   
   // Für Assistenten-Nachrichten: URLs bereinigen, bevor sie an renderFormattedContent übergeben werden
   const cleanedContent = message.role === "assistant" ? cleanupUrls(messageContent) : messageContent;

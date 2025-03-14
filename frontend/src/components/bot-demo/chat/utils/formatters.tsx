@@ -3,6 +3,23 @@ import { LinkItem } from './types';
 import { formatTextWithBold } from './formatting';
 
 /**
+ * Bereinigt URLs von Leerzeichen und anderen Problemen
+ */
+const cleanupUrl = (url: string): string => {
+  if (!url) return '';
+  
+  // Leerzeichen in URLs entfernen
+  let cleanUrl = url.replace(/\s+/g, '');
+  
+  // Sicherstellen, dass www. URLs ein Protokoll haben
+  if (cleanUrl.startsWith('www.') && !cleanUrl.startsWith('http')) {
+    cleanUrl = 'https://' + cleanUrl;
+  }
+  
+  return cleanUrl;
+};
+
+/**
  * Formatiert Text und ersetzt Links mit anklickbaren Elementen.
  * @param text Der zu formatierende Text
  * @returns Formatierter Text mit Links als React-Elemente
@@ -13,24 +30,42 @@ export const formatTextWithLinks = (text: string): React.ReactNode => {
   // Vorverarbeitung: Leerzeichen in URLs entfernen und eckige Klammern bereinigen
   let preprocessedText = text;
   
+  // Spezialfall: Links in Schulinformationen erkennen (z.B. "Website: https://...")
+  preprocessedText = preprocessedText.replace(
+    /(Website|E-Mail|Homepage|Webseite|URL):\s*((?:https?:\/\/|www\.)[^\s\n]+(?:\s+[^\s\n]+)*)/gi,
+    (match, label, url) => {
+      const cleanUrl = cleanupUrl(url);
+      return `${label}: <a href="${cleanUrl}">${cleanUrl}</a>`;
+    }
+  );
+  
   // Spezialfall: Link im Format [URL](URL) behandeln
   preprocessedText = preprocessedText.replace(
-    /\[\s*(https?:\/\/[^\s\]]+)\s*\]\s*\(\s*(https?:\/\/[^\s)]+)\s*\)/g, 
+    /\[\s*((?:https?:\/\/|www\.)[^\s\]]+(?:\s+[^\s\]]+)*)\s*\]\s*\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g, 
     (_, url1, url2) => {
-      const cleanUrl1 = url1.replace(/\s+/g, '');
-      const cleanUrl2 = url2.replace(/\s+/g, '');
+      const cleanUrl1 = cleanupUrl(url1);
+      const cleanUrl2 = cleanupUrl(url2);
       return `<a href="${cleanUrl2}">${cleanUrl1}</a>`;
+    }
+  );
+  
+  // Website-URLs ohne Protokoll behandeln (www.example.com)
+  preprocessedText = preprocessedText.replace(
+    /(\s|^)(www\.[^\s<>"']+[^\s<>"']*([ \t]+[^\s<>"']+)*)/g,
+    (match, prefix, url) => {
+      const cleanUrl = cleanupUrl(url);
+      return `${prefix}${cleanUrl}`;
     }
   );
   
   // Leerzeichen in allen URLs entfernen
   preprocessedText = preprocessedText.replace(
-    /(https?:\/\/[^\s<>"']+)/g, 
-    (match) => match.replace(/\s+/g, '')
+    /(https?:\/\/[^\s<>"']+[^\s<>"']*([ \t]+[^\s<>"']+)*)/g, 
+    (match) => cleanupUrl(match)
   );
   
   // Behandlung von Markdown-Links [text](url)
-  const markdownLinkRegex = /\[(.*?)\]\s*\(\s*(https?:\/\/[^\s)]+)\s*\)/g;
+  const markdownLinkRegex = /\[(.*?)\]\s*\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g;
   let lastIndex = 0;
   const result: React.ReactNode[] = [];
   let match;
@@ -49,7 +84,7 @@ export const formatTextWithLinks = (text: string): React.ReactNode => {
     
     // Link-Text und URL extrahieren
     const [fullMatch, linkText, url] = match;
-    const cleanUrl = url.replace(/\s+/g, ''); // Sicherstellen, dass keine Leerzeichen in der URL sind
+    const cleanUrl = cleanupUrl(url); // Sicherstellen, dass keine Leerzeichen in der URL sind
     
     // Link-Element erstellen
     result.push(
@@ -72,8 +107,8 @@ export const formatTextWithLinks = (text: string): React.ReactNode => {
   if (lastIndex < preprocessedText.length) {
     const plainText = preprocessedText.substring(lastIndex);
     
-    // Erkennung von URLs mit und ohne eckige Klammern
-    const plainUrlRegex = /(?:\[(https?:\/\/[^\s\]]+)\])|(?<!\]\()(https?:\/\/[^\s\)\]"',<>]+)/g;
+    // Erkennung von URLs mit und ohne eckige Klammern - verbesserte Regex
+    const plainUrlRegex = /(?:\[((?:https?:\/\/|www\.)[^\s\]]+(?:\s+[^\s\]]+)*)\])|(?<!\]\()((?:https?:\/\/|www\.)[^\s\)\]"',<>]+(?:\s+[^\s\)\]"',<>]+)*)/g;
     
     let plainLastIndex = 0;
     let plainMatch;
@@ -86,19 +121,20 @@ export const formatTextWithLinks = (text: string): React.ReactNode => {
       }
       
       // URL extrahieren (entweder aus den Klammern oder direkt)
-      const url = (plainMatch[1] || plainMatch[0]).replace(/\s+/g, '');
+      const url = (plainMatch[1] || plainMatch[2] || plainMatch[0]);
+      const cleanUrl = cleanupUrl(url);
       
       // Link-Element erstellen
       plainResult.push(
         <a 
           key={`plainlink-${plainMatch.index}`} 
-          href={url} 
+          href={cleanUrl} 
           target="_blank" 
           rel="noopener noreferrer" 
           className="text-blue-600 hover:text-blue-800 underline hover:opacity-90 dark:text-blue-400 dark:hover:text-blue-300"
           aria-label={`Externer Link - Öffnet in einem neuen Tab`}
         >
-          {url}
+          {cleanUrl.replace(/^https?:\/\//, '')}
         </a>
       );
       
