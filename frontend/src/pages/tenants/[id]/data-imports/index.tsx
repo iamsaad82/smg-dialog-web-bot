@@ -40,10 +40,14 @@ export default function TenantDataImportsPage() {
         setIsLoading(true);
         console.log("Anfrage an API wird gesendet:", `/api/v1/tenants/${tenantId}/details`);
         
+        // Admin-API-Key direkt verwenden (nur für Entwicklung)
+        const adminApiKey = "admin-secret-key-12345";
+        
         const response = await fetch(`/api/v1/tenants/${tenantId}/details`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'X-API-Key': adminApiKey, // Admin-API-Key zur Authentifizierung
           },
           // Stelle sicher, dass Cookies für die Authentifizierung gesendet werden
           credentials: 'include'
@@ -54,7 +58,7 @@ export default function TenantDataImportsPage() {
         if (!response.ok) {
           const errorText = await response.text();
           console.error("API-Fehlerdetails:", errorText);
-          throw new Error(`Fehler beim Laden der Tenant-Informationen: ${response.status} ${errorText}`);
+          throw new Error(`Fehler beim Laden der Tenant-Informationen: ${response.status} ${response.status === 500 ? "Internal Server Error" : errorText}`);
         }
         
         const data = await response.json();
@@ -62,7 +66,7 @@ export default function TenantDataImportsPage() {
         setTenant(data);
       } catch (err) {
         console.error("Fehler beim Laden des Tenants:", err);
-        setError(`Fehler beim Laden des Tenants: ${err}`);
+        setError(`${err}`);
         toast.error("Fehler beim Laden des Tenants", {
           description: `${err}`,
         });
