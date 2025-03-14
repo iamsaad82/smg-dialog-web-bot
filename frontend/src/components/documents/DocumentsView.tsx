@@ -177,6 +177,12 @@ export default function DocumentsView() {
             <CardTitle>Dokumenten-Liste</CardTitle>
             <CardDescription>
               {filteredDocuments.length} Dokumente gefunden
+              {filteredDocuments.length >= 1000 && (
+                <div className="mt-2 text-amber-500">
+                  <AlertCircle className="inline-block h-3 w-3 mr-1" />
+                  Hinweis: Es werden maximal 1000 Dokumente angezeigt. Falls Sie mehr Dokumente haben, verwenden Sie bitte die Filter, um Ihre Suche einzugrenzen.
+                </div>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent>

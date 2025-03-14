@@ -63,7 +63,7 @@ async def options_documents():
 @router.get("/", response_model=List[Document])
 async def get_documents(
     tenant_id: str,
-    limit: int = 100,
+    limit: int = 1000,
     offset: int = 0,
     api_key: str = Depends(get_api_key),
     db: Session = Depends(get_db)

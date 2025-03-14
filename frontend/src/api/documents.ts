@@ -10,7 +10,7 @@ export class DocumentApi {
     return response.data;
   }
 
-  async getDocuments(tenantId: string, limit = 100, offset = 0): Promise<Document[]> {
+  async getDocuments(tenantId: string, limit = 1000, offset = 0): Promise<Document[]> {
     try {
       if (!apiCore.getApiKey()) {
         throw new Error('API-Key ist nicht gesetzt');
