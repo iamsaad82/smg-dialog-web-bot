@@ -23,6 +23,9 @@ import {
   FileBarChart,
   DollarSign,
   Users,
+  LayoutDashboard,
+  Package,
+  Database,
 } from "lucide-react"
 
 import { NavUser } from "@/components/nav-user"
@@ -63,8 +66,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     {
       title: "Dashboard",
       url: "/",
-      icon: Home,
-      isActive: mounted && (router.pathname === "/" || router.pathname === "/admin"),
+      icon: LayoutDashboard,
+      isActive: mounted && router.pathname === "/",
+    },
+    {
+      title: "Tenants",
+      url: "/tenants",
+      icon: Package,
+      isActive: mounted && router.pathname.includes("/tenants") && !tenantId,
+    },
+    {
+      title: "Nutzer",
+      url: "/users",
+      icon: Users,
+      isActive: mounted && router.pathname.includes("/users"),
+    },
+    {
+      title: "Agenturen",
+      url: "/agencies",
+      icon: Building,
+      isActive: mounted && router.pathname.includes("/agencies"),
+    },
+    {
+      title: "Strukturierte Daten",
+      url: "/structured-data",
+      icon: Database,
+      isActive: mounted && router.pathname.includes("/structured-data"),
     },
     {
       title: "Kunden",
@@ -80,22 +107,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         {
           title: "Neuen Kunden anlegen",
           url: "/tenants/create",
-        },
-      ],
-    },
-    {
-      title: "Agenturen",
-      url: "/agencies",
-      icon: Building,
-      isActive: mounted && (router.pathname === "/agencies" || router.pathname === "/agencies/create"),
-      items: [
-        {
-          title: "Alle Agenturen",
-          url: "/agencies",
-        },
-        {
-          title: "Neue Agentur anlegen",
-          url: "/agencies/create",
         },
       ],
     },
