@@ -1,6 +1,103 @@
 import { InteractiveElement, BotComponentResponse } from '../types/interactive';
 
 /**
+ * Erkennt Öffnungszeiten-Muster in einem Text und konvertiert sie in ein strukturiertes Format
+ * @param text Text, der Öffnungszeiten enthalten könnte
+ * @returns Strukturierte Öffnungszeiten oder null, wenn keine erkannt wurden
+ */
+function detectAndStructureOpeningHours(text: string): {[key: string]: { open: string; close: string } | { closed: boolean }} | null {
+  // Typische Öffnungszeitmuster suchen
+  const patterns = [
+    // "Dienstag: 09:00 - 12:00 Uhr und 13:00 - 18:00 Uhr"
+    /([A-Za-zäöüÄÖÜß]+)(?:tag)?s?:?\s+(\d{1,2}[:\.]\d{2})\s*(?:-|–|bis)\s*(\d{1,2}[:\.]\d{2})(?:\s*Uhr)?(?:\s*und\s*(\d{1,2}[:\.]\d{2})\s*(?:-|–|bis)\s*(\d{1,2}[:\.]\d{2})(?:\s*Uhr)?)?/g,
+    // "Dienstag: 09 - 12 Uhr und 13 - 18 Uhr"
+    /([A-Za-zäöüÄÖÜß]+)(?:tag)?s?:?\s+(\d{1,2})\s*(?:-|–|bis)\s*(\d{1,2})(?:\s*Uhr)?(?:\s*und\s*(\d{1,2})\s*(?:-|–|bis)\s*(\d{1,2})(?:\s*Uhr)?)?/g
+  ];
+
+  // Erkennung von Wochentagen
+  const dayMap: {[key: string]: string} = {
+    'mo': 'Montag',
+    'di': 'Dienstag',
+    'mi': 'Mittwoch',
+    'do': 'Donnerstag',
+    'fr': 'Freitag',
+    'sa': 'Samstag',
+    'so': 'Sonntag',
+    'mon': 'Montag',
+    'die': 'Dienstag',
+    'mit': 'Mittwoch',
+    'don': 'Donnerstag',
+    'fre': 'Freitag',
+    'sam': 'Samstag',
+    'son': 'Sonntag'
+  };
+
+  const structuredHours: {[key: string]: { open: string; close: string } | { closed: boolean }} = {};
+  let foundMatches = false;
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      foundMatches = true;
+      let [_, day, openHour1, closeHour1, openHour2, closeHour2] = match;
+      
+      // Wochentag normalisieren
+      const dayPrefix = day.toLowerCase().substring(0, 3);
+      const normalizedDay = dayMap[dayPrefix] || day;
+      
+      // Format mit oder ohne Doppelpunkt normalisieren (09:00 oder 9 -> 09:00)
+      const normalizeTime = (time: string): string => {
+        if (!time) return '';
+        if (time.includes(':') || time.includes('.')) {
+          // Vorhandenen Doppelpunkt/Punkt beibehalten, aber Format vereinheitlichen
+          return time.padStart(5, '0').replace('.', ':');
+        } else {
+          // Nur Stunde -> Stunde:00 Format
+          return time.padStart(2, '0') + ':00';
+        }
+      };
+
+      // Erste Zeitspanne hinzufügen
+      if (openHour1 && closeHour1) {
+        // Wenn wir bereits einen Eintrag für diesen Tag haben, erstellen wir einen neuen mit Suffix
+        if (structuredHours[normalizedDay]) {
+          structuredHours[`${normalizedDay} (vormittags)`] = {
+            open: normalizeTime(openHour1),
+            close: normalizeTime(closeHour1)
+          };
+        } else {
+          structuredHours[normalizedDay] = {
+            open: normalizeTime(openHour1),
+            close: normalizeTime(closeHour1)
+          };
+        }
+      }
+
+      // Zweite Zeitspanne hinzufügen (wenn vorhanden)
+      if (openHour2 && closeHour2) {
+        structuredHours[`${normalizedDay} (nachmittags)`] = {
+          open: normalizeTime(openHour2),
+          close: normalizeTime(closeHour2)
+        };
+      }
+    }
+  }
+
+  // Suche nach "geschlossen"
+  const closedPattern = /([A-Za-zäöüÄÖÜß]+)(?:tag)?s?:?\s+(?:ist\s+)?geschlossen/gi;
+  let match;
+  while ((match = closedPattern.exec(text)) !== null) {
+    foundMatches = true;
+    const [_, day] = match;
+    const dayPrefix = day.toLowerCase().substring(0, 3);
+    const normalizedDay = dayMap[dayPrefix] || day;
+    structuredHours[normalizedDay] = { closed: true };
+  }
+
+  return foundMatches ? structuredHours : null;
+}
+
+/**
  * Versucht, eine JSON-Antwort vom Bot zu parsen,
  * die eine UI-Komponente enthalten könnte.
  * 
@@ -17,8 +114,21 @@ export function parseBotResponse(responseText: string): {
   };
 
   try {
-    // Wenn der Text kein JSON zu sein scheint, gib den Originaltext zurück
+    // Wenn der Text kein JSON zu sein scheint, versuchen wir Öffnungszeiten zu erkennen
     if (!responseText.trim().startsWith('{')) {
+      // Versuche, Öffnungszeiten im Text zu erkennen
+      const openingHours = detectAndStructureOpeningHours(responseText);
+      if (openingHours && Object.keys(openingHours).length > 0) {
+        console.log("Öffnungszeiten im Text erkannt:", openingHours);
+        return {
+          text: responseText,
+          interactiveElements: [{
+            type: 'opening_hours_table',
+            title: 'Öffnungszeiten',
+            data: openingHours
+          }]
+        };
+      }
       return defaultResponse;
     }
 
@@ -40,9 +150,38 @@ export function parseBotResponse(responseText: string): {
           jsonResponse = JSON.parse(jsonMatch[0]) as BotComponentResponse;
         } catch (nestedError) {
           console.error('Konnte kein gültiges JSON aus der Antwort extrahieren');
+          
+          // Versuche, Öffnungszeiten im Text zu erkennen
+          const openingHours = detectAndStructureOpeningHours(responseText);
+          if (openingHours && Object.keys(openingHours).length > 0) {
+            console.log("Öffnungszeiten im Text erkannt nach fehlgeschlagenem JSON-Parsing:", openingHours);
+            return {
+              text: responseText,
+              interactiveElements: [{
+                type: 'opening_hours_table',
+                title: 'Öffnungszeiten',
+                data: openingHours
+              }]
+            };
+          }
+          
           return defaultResponse;
         }
       } else {
+        // Versuche, Öffnungszeiten im Text zu erkennen
+        const openingHours = detectAndStructureOpeningHours(responseText);
+        if (openingHours && Object.keys(openingHours).length > 0) {
+          console.log("Öffnungszeiten im Text erkannt nach fehlgeschlagenem JSON-Matching:", openingHours);
+          return {
+            text: responseText,
+            interactiveElements: [{
+              type: 'opening_hours_table',
+              title: 'Öffnungszeiten',
+              data: openingHours
+            }]
+          };
+        }
+        
         return defaultResponse;
       }
     }
@@ -146,6 +285,21 @@ export function parseBotResponse(responseText: string): {
   } catch (error) {
     // Wenn beim Parsen ein Fehler auftritt, den Originaltext zurückgeben
     console.error('Fehler beim Parsen der Bot-Antwort:', error);
+    
+    // Letzte Chance: Versuche, Öffnungszeiten im Text zu erkennen
+    const openingHours = detectAndStructureOpeningHours(responseText);
+    if (openingHours && Object.keys(openingHours).length > 0) {
+      console.log("Öffnungszeiten im Text erkannt nach allgemeinem Fehler:", openingHours);
+      return {
+        text: responseText,
+        interactiveElements: [{
+          type: 'opening_hours_table',
+          title: 'Öffnungszeiten',
+          data: openingHours
+        }]
+      };
+    }
+    
     return defaultResponse;
   }
 } 
