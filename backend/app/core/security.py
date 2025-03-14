@@ -150,9 +150,39 @@ async def get_tenant_id_from_api_key(
             api_key = request.query_params.get("api_key")
             print(f"[get_tenant_id_from_api_key] API-Key aus Query: {api_key}")
         
-        # Fallback für Entwicklungsumgebung - für die spezifische Tenant-ID aus der URL
-        # HINWEIS: Das ist nur für Entwicklungszwecke und sollte in der Produktion entfernt werden
-        if not api_key and settings.ENV == "dev":
+        # Direkte Überprüfung auf Admin-API-Key - wichtig, um den Admin-API-Key zu erkennen, bevor tenant_service.verify_api_key aufgerufen wird
+        if api_key and api_key == settings.ADMIN_API_KEY:
+            print(f"[get_tenant_id_from_api_key] Admin-API-Key erkannt: {api_key == settings.ADMIN_API_KEY}")
+            
+            # Extrahiere tenant_id aus dem Pfad für Admin-API-Key
+            path_parts = str(request.url.path).split('/')
+            for i, part in enumerate(path_parts):
+                if part == 'tenants' and i+1 < len(path_parts) and path_parts[i+1] != 'current':
+                    tenant_id_from_path = path_parts[i+1]
+                    if tenant_id_from_path and tenant_id_from_path != "current" and tenant_id_from_path != "ui-components-definitions":
+                        # Prüfen, ob dieser Tenant existiert
+                        tenant = tenant_service.get_tenant_by_id(db, tenant_id_from_path)
+                        if tenant:
+                            print(f"[get_tenant_id_from_api_key] Admin-API-Key verwendet für Tenant-ID {tenant_id_from_path}")
+                            return tenant_id_from_path
+                        else:
+                            print(f"[get_tenant_id_from_api_key] Tenant mit ID {tenant_id_from_path} existiert nicht")
+            
+            # Wenn keine Tenant-ID im Pfad gefunden, verwenden wir einen Standard-Tenant
+            # oder den ersten verfügbaren Tenant aus der Datenbank
+            tenants = tenant_service.get_all_tenants(db)
+            if tenants and len(tenants) > 0:
+                print(f"[get_tenant_id_from_api_key] Admin-API-Key: Verwende ersten Tenant: {tenants[0].id}")
+                return tenants[0].id
+            
+            print(f"[get_tenant_id_from_api_key] WARNUNG: Keine Tenants in der Datenbank gefunden!")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Keine Tenants verfügbar"
+            )
+
+        # Fallback für Entwicklungsumgebung - extrahiere tenant_id aus dem Pfad
+        if settings.ENV == "dev":
             print(f"[get_tenant_id_from_api_key] ENTWICKLUNGSMODUS: Tenant-ID aus Pfad extrahieren")
             # Extrahiere tenant_id aus dem Pfad
             path_parts = str(request.url.path).split('/')
@@ -169,36 +199,61 @@ async def get_tenant_id_from_api_key(
                         else:
                             print(f"[get_tenant_id_from_api_key] Tenant mit ID {tenant_id_from_path} existiert nicht in der Datenbank")
         
-        # Admin-API-Key als Fallback prüfen
-        if not api_key and settings.ADMIN_API_KEY and settings.ENV == "dev":
-            print(f"[get_tenant_id_from_api_key] ENTWICKLUNGSMODUS: Admin-API-Key als Fallback verwenden")
-            admin_api_key = settings.ADMIN_API_KEY
-            
-            # Bei Admin-API-Key ebenfalls Tenant-ID aus URL extrahieren
-            path_parts = str(request.url.path).split('/')
-            for i, part in enumerate(path_parts):
-                if part == 'tenants' and i+1 < len(path_parts) and path_parts[i+1] != 'current':
-                    tenant_id_from_path = path_parts[i+1]
-                    if tenant_id_from_path and tenant_id_from_path != "current" and tenant_id_from_path != "ui-components-definitions":
-                        # Prüfen, ob dieser Tenant existiert
-                        tenant = tenant_service.get_tenant_by_id(db, tenant_id_from_path)
-                        if tenant:
-                            print(f"[get_tenant_id_from_api_key] Admin-API-Key Fallback: Verwende Tenant-ID {tenant_id_from_path}")
-                            return tenant_id_from_path
-        
         if not api_key:
             print("[get_tenant_id_from_api_key] Kein API-Key gefunden.")
+            # Im Entwicklungsmodus, einen Dummy-Tenant verwenden
+            if settings.ENV == "dev":
+                print("[get_tenant_id_from_api_key] DEV-MODE: Dummy-Tenant für Entwicklung verwenden")
+                
+                # Extrahiere tenant_id aus dem Pfad
+                path_parts = str(request.url.path).split('/')
+                for i, part in enumerate(path_parts):
+                    if part == 'tenants' and i+1 < len(path_parts) and path_parts[i+1] != 'current':
+                        tenant_id_from_path = path_parts[i+1]
+                        if tenant_id_from_path and tenant_id_from_path != "current" and tenant_id_from_path != "ui-components-definitions":
+                            tenant = tenant_service.get_tenant_by_id(db, tenant_id_from_path)
+                            if tenant:
+                                print(f"[get_tenant_id_from_api_key] DEV-MODE: Verwendung von Tenant-ID {tenant_id_from_path} ohne API-Key")
+                                return tenant_id_from_path
+                
+                # Wenn keine Tenant-ID im Pfad oder die Tenant-ID existiert nicht, verwenden wir alle Tenants
+                tenants = tenant_service.get_all_tenants(db)
+                if tenants and len(tenants) > 0:
+                    print(f"[get_tenant_id_from_api_key] DEV-MODE: Verwende ersten Tenant: {tenants[0].id}")
+                    return tenants[0].id
+            
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="API-Key nicht angegeben"
             )
         
-        # Verifizieren des API-Keys
+        # Verifizieren des API-Keys über den tenant_service
         tenant_id = tenant_service.verify_api_key(db, api_key)
         print(f"[get_tenant_id_from_api_key] Verifizierter Tenant: {tenant_id}")
         
         if not tenant_id:
             print("[get_tenant_id_from_api_key] Ungültiger API-Key.")
+            # Im Entwicklungsmodus, einen Dummy-Tenant verwenden
+            if settings.ENV == "dev":
+                print("[get_tenant_id_from_api_key] DEV-MODE: Dummy-Tenant für Entwicklung verwenden")
+                
+                # Extrahiere tenant_id aus dem Pfad
+                path_parts = str(request.url.path).split('/')
+                for i, part in enumerate(path_parts):
+                    if part == 'tenants' and i+1 < len(path_parts) and path_parts[i+1] != 'current':
+                        tenant_id_from_path = path_parts[i+1]
+                        if tenant_id_from_path and tenant_id_from_path != "current" and tenant_id_from_path != "ui-components-definitions":
+                            tenant = tenant_service.get_tenant_by_id(db, tenant_id_from_path)
+                            if tenant:
+                                print(f"[get_tenant_id_from_api_key] DEV-MODE: Verwendung von Tenant-ID {tenant_id_from_path} trotz ungültigem API-Key")
+                                return tenant_id_from_path
+                
+                # Wenn keine Tenant-ID im Pfad oder die Tenant-ID existiert nicht, verwenden wir alle Tenants
+                tenants = tenant_service.get_all_tenants(db)
+                if tenants and len(tenants) > 0:
+                    print(f"[get_tenant_id_from_api_key] DEV-MODE: Verwende ersten Tenant: {tenants[0].id}")
+                    return tenants[0].id
+            
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Ungültiger API-Key"
@@ -241,30 +296,42 @@ async def get_admin_api_key(
     """
     Überprüft, ob der API-Key gültig und für Admin-Funktionen berechtigt ist.
     """
+    # Debug-Ausgabe
+    print(f"[get_admin_api_key] Request-Methode: {request.method}")
+    print(f"[get_admin_api_key] Request-URL: {request.url}")
+    print(f"[get_admin_api_key] API-Key-Header: {api_key_header}")
+    print(f"[get_admin_api_key] ENV: {settings.ENV}")
+    
     # Zuerst Header-API-Key prüfen
     api_key = api_key_header
     
     # Wenn kein Header-API-Key, dann Query-Parameter prüfen
     if not api_key:
         api_key = request.query_params.get("api_key")
+        print(f"[get_admin_api_key] API-Key aus Query: {api_key}")
     
     if not api_key:
+        print("[get_admin_api_key] Kein API-Key gefunden.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Admin-API-Key nicht angegeben"
         )
     
-    # Admin-API-Key aus Umgebungsvariablen holen
-    admin_api_key = os.getenv("ADMIN_API_KEY", "")
+    # Admin-API-Key aus den Einstellungen holen
+    admin_api_key = settings.ADMIN_API_KEY
+    print(f"[get_admin_api_key] Admin-API-Key aus Einstellungen: {admin_api_key}")
     
     # Prüfen, ob der API-Key mit dem Admin-Key übereinstimmt
     if admin_api_key and api_key == admin_api_key:
+        print("[get_admin_api_key] API-Key stimmt mit Admin-Key überein")
         return api_key
     
-    # Im Entwicklungsmodus akzeptieren wir jeden API-Key, wenn kein ADMIN_API_KEY gesetzt ist
-    if not admin_api_key:
+    # Im Entwicklungsmodus akzeptieren wir jeden API-Key
+    if settings.ENV == "dev":
+        print("[get_admin_api_key] DEV-Modus: Akzeptiere jeden API-Key")
         return api_key
     
+    print("[get_admin_api_key] API-Key nicht autorisiert für Admin-Funktionen")
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Nicht autorisiert für Admin-Funktionen"

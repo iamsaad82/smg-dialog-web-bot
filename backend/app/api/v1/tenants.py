@@ -395,12 +395,24 @@ async def get_tenant_details(
         print(f"[get_tenant_details] Umgebung (ENV): {settings.ENV}")
         
         # Im Dev-Modus erlauben wir direkten Zugriff ohne API-Key-Prüfung
-        if settings.ENV == "dev" and current_tenant_id != tenant_id:
+        if settings.ENV == "dev":
             print(f"[get_tenant_details] DEV-MODUS: Erlaube direkten Zugriff ohne API-Key-Prüfung")
-            # Im Dev-Modus setzen wir current_tenant_id = tenant_id
-            current_tenant_id = tenant_id
+            # Alternative Implementierung: Tenant direkt abrufen ohne weitere Prüfungen
+            tenant = tenant_service.get_tenant_by_id(db, tenant_id)
+            if not tenant:
+                print(f"[get_tenant_details] Tenant mit ID {tenant_id} nicht gefunden")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Tenant nicht gefunden"
+                )
             
-        # Sicherheitsabfrage: Stellen Sie sicher, dass der Benutzer zum angeforderten Tenant gehört
+            # Debugging-Informationen
+            print(f"[get_tenant_details] Tenant mit ID {tenant_id} gefunden")
+            
+            # Erfolgreiche Rückgabe
+            return tenant
+        
+        # Sicherheitsabfrage für Produktionsumgebungen
         if current_tenant_id != tenant_id:
             print(f"[get_tenant_details] Zugriff verweigert: Anfragender Tenant ({current_tenant_id}) ≠ Angeforderter Tenant ({tenant_id})")
             raise HTTPException(
@@ -419,7 +431,6 @@ async def get_tenant_details(
         
         # Debugging-Informationen
         print(f"[get_tenant_details] Tenant mit ID {tenant_id} gefunden")
-        print(f"[get_tenant_details] Tenant-Daten: {tenant.model_dump()}")
         
         # Erfolgreiche Rückgabe
         return tenant

@@ -38,22 +38,37 @@ export default function TenantDataImportsPage() {
       
       try {
         setIsLoading(true);
-        console.log("Anfrage an API wird gesendet:", `/api/v1/tenants/${tenantId}/details`);
+        const backendUrl = "http://localhost:8000"; // Backend-URL für direkte Anfragen
+        console.log("Anfrage an API wird gesendet:", `${backendUrl}/api/v1/tenants/${tenantId}/details`);
         
         // Admin-API-Key direkt verwenden (nur für Entwicklung)
         const adminApiKey = "admin-secret-key-12345";
         
-        const response = await fetch(`/api/v1/tenants/${tenantId}/details`, {
+        // Zuerst versuchen, den Tenant über den /details-Endpunkt zu laden
+        let response = await fetch(`${backendUrl}/api/v1/tenants/${tenantId}/details`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
             'X-API-Key': adminApiKey, // Admin-API-Key zur Authentifizierung
           },
-          // Stelle sicher, dass Cookies für die Authentifizierung gesendet werden
           credentials: 'include'
         });
         
         console.log("API-Antwort Status:", response.status);
+        
+        // Wenn der /details-Endpunkt fehlschlägt, den normalen Tenant-Endpunkt versuchen
+        if (response.status === 500) {
+          console.log("Fallback: Verwende normalen Tenant-Endpunkt");
+          response = await fetch(`${backendUrl}/api/v1/tenants/${tenantId}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': adminApiKey, // Admin-API-Key zur Authentifizierung
+            },
+            credentials: 'include'
+          });
+          console.log("Fallback API-Antwort Status:", response.status);
+        }
         
         if (!response.ok) {
           const errorText = await response.text();

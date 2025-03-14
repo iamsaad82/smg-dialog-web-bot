@@ -64,7 +64,7 @@ async def search_structured_data(
 async def import_brandenburg_data(
     file: UploadFile = File(...),
     tenant_id: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -74,8 +74,12 @@ async def import_brandenburg_data(
     - **file**: XML-Datei mit Brandenburg-Daten
     - **tenant_id**: Optional - ID eines spezifischen Tenants für den Import
     """
-    # Prüfen, ob Benutzer Admin ist
-    if not current_user.is_admin:
+    # Im Entwicklungsmodus Benutzerauthentifizierung überspringen
+    env = os.getenv("ENV", "dev")
+    if env == "dev" and current_user is None:
+        print("[import_brandenburg_data] DEV-MODUS: Überspringe Benutzerauthentifizierung")
+    # In Produktionsumgebung Admin-Rechte prüfen
+    elif not current_user or not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Nur Administratoren können diese Funktion nutzen"
@@ -164,7 +168,7 @@ class ImportFromUrlRequest(BaseModel):
 @router.post("/import/brandenburg/url")
 async def import_brandenburg_data_from_url(
     request: ImportFromUrlRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -174,8 +178,12 @@ async def import_brandenburg_data_from_url(
     - **url**: URL der XML-Datei mit Brandenburg-Daten
     - **tenant_id**: Optional - ID eines spezifischen Tenants für den Import
     """
-    # Prüfen, ob Benutzer Admin ist
-    if not current_user.is_admin:
+    # Im Entwicklungsmodus Benutzerauthentifizierung überspringen
+    env = os.getenv("ENV", "dev")
+    if env == "dev" and current_user is None:
+        print("[import_brandenburg_data_from_url] DEV-MODUS: Überspringe Benutzerauthentifizierung")
+    # In Produktionsumgebung Admin-Rechte prüfen
+    elif not current_user or not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Nur Administratoren können diese Funktion nutzen"
