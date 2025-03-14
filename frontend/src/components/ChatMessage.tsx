@@ -4,6 +4,7 @@ import { ChatMessage as ChatMessageType } from '../types/api';
 import { InteractiveElement } from '../types/interactive';
 import InteractiveElementRenderer from './interactive/InteractiveElementRenderer';
 import { Box, Flex, Text } from '@chakra-ui/react';
+import { renderFormattedContent } from './bot-demo/chat/utils/rendering';
 
 // Custom CSS für die richtige Textformatierung
 const markdownStyles = {
@@ -44,27 +45,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     return message.content;
   }, [message.content, isUser]);
   
-  // Funktion zum sicheren Rendern von HTML
-  const createMarkup = () => {
-    const lines = processedContent.split('\n');
-    const formattedLines = lines.map(line => {
-      // Wenn die Zeile bereits HTML enthält
-      if (line.includes('<div class="tip-line">')) {
-        return line;
-      }
-      
-      // Links in klickbare Links umwandeln
-      let processedLine = line;
-      const linkRegex = /\[(.*?)\]\((.*?)\)/g;
-      processedLine = processedLine.replace(linkRegex, '<a href="$2" target="_blank" rel="noopener noreferrer" class="chat-link">$1</a>');
-      
-      // Normale Zeilen
-      return processedLine;
-    });
-    
-    return { __html: formattedLines.join('\n') };
-  };
-
   // Animation-Varianten
   const variants = {
     hidden: { opacity: 0, y: 20, scale: 0.95 },
@@ -141,7 +121,6 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
           ) : (
             <Box
               className="prose prose-sm max-w-none dark:prose-invert"
-              dangerouslySetInnerHTML={createMarkup()}
               sx={{
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
@@ -153,7 +132,9 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                   }
                 }
               }}
-            />
+            >
+              {renderFormattedContent(processedContent)}
+            </Box>
           )}
         </Box>
         
