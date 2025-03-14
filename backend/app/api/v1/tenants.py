@@ -376,4 +376,35 @@ async def delete_ui_component_definition(
     db.delete(db_definition)
     db.commit()
     
-    return None 
+    return None
+
+@router.get("/{tenant_id}/details", response_model=Tenant)
+async def get_tenant_details(
+    tenant_id: str,
+    db: Session = Depends(get_db),
+    current_tenant_id: str = Depends(get_tenant_id_from_api_key)
+):
+    """
+    Ruft Details eines Tenants ab, wenn der Benutzer authentifiziert ist.
+    Diese Route erlaubt authentifizierten Benutzern, Tenant-Details für UI-Zwecke abzurufen,
+    ohne Admin-Rechte zu benötigen.
+    """
+    # Sicherheitsabfrage: Stellen Sie sicher, dass der Benutzer zum angeforderten Tenant gehört
+    if current_tenant_id != tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Nur Benutzer des Tenants können die Details einsehen"
+        )
+    
+    tenant = tenant_service.get_tenant_by_id(db, tenant_id)
+    if not tenant:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tenant nicht gefunden"
+        )
+    
+    # Logging für Debugging
+    print(f"[get_tenant_details] Tenant mit ID {tenant_id} angefordert")
+    print(f"[get_tenant_details] is_brandenburg Wert: {tenant.is_brandenburg}")
+    
+    return tenant 

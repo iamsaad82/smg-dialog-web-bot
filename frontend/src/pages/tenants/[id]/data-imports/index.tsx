@@ -38,7 +38,7 @@ export default function TenantDataImportsPage() {
       
       try {
         setIsLoading(true);
-        const response = await fetch(`/api/v1/tenants/${tenantId}`);
+        const response = await fetch(`/api/v1/tenants/${tenantId}/details`);
         if (!response.ok) {
           throw new Error("Fehler beim Laden der Tenant-Informationen");
         }
