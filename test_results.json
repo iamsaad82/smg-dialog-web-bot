@@ -1,0 +1,54 @@
+[
+  {
+    "type": "school",
+    "data": {
+      "name": "Grundschule Am Beispiel - Tag der offenen Tür",
+      "type": "Grundschule",
+      "address": "Schulstraße 123",
+      "contact": {
+        "email": "grundschule@beispiel.de",
+        "website": "https://www.grundschule-beispiel.de"
+      },
+      "additionalInfo": "Die Grundschule Am Beispiel lädt zum Tag der offenen Tür ein",
+      "details": {
+        "description": "Die Grundschule Am Beispiel in der Schulstraße 123 lädt am 15.03.2024 von 10:00 bis 15:00 Uhr zum Tag der offenen Tür ein. Interessierte Eltern und zukünftige Schüler können die Schule besichtigen und mit den Lehrern sprechen. Für Fragen steht die Schulleitung unter der Telefonnummer 03381-12345 oder per E-Mail an grundschule@beispiel.de zur Verfügung. Weitere Informationen finden Sie auf der Website www.grundschule-beispiel.de",
+        "link": "https://www.grundschule-beispiel.de/tag-der-offenen-tuer"
+      }
+    }
+  },
+  {
+    "type": "office",
+    "data": {
+      "name": "Bürgeramt informiert über neue Öffnungszeiten",
+      "department": "",
+      "address": "Rathausstraße 45",
+      "openingHours": "ab dem 1",
+      "contact": {
+        "phone": "03381-98765",
+        "email": "buergeramt@stadt.de"
+      },
+      "services": [],
+      "description": "Neue Sprechzeiten des Bürgeramts ab Mai 2024",
+      "details": {
+        "content": "Das Bürgeramt in der Rathausstraße 45 informiert über neue Öffnungszeiten ab dem 1. Mai 2024. Die neuen Öffnungszeiten sind: Montag bis Freitag von 9:00 bis 18:00 Uhr, Donnerstag bis 20:00 Uhr. Samstags bleibt das Amt geschlossen. Zu den Dienstleistungen gehören: Beantragung von Personalausweisen, Reisepässen, Meldebescheinigungen und weiteren Dokumenten. Bei Fragen steht das Bürgeramt unter Tel. 03381-98765 oder per E-Mail an buergeramt@stadt.de zur Verfügung.",
+        "link": "https://www.stadt-brandenburg.de/buergeramt"
+      }
+    }
+  },
+  {
+    "type": "event",
+    "data": {
+      "title": "Stadtfest 2024 - Ein Fest für die ganze Familie",
+      "date": "",
+      "time": "15:00 Uhr",
+      "location": "",
+      "description": "Vom 12. bis 14. Juli 2024 findet das große Stadtfest in Brandenburg an der Havel statt",
+      "content": "Vom 12. bis 14. Juli 2024 findet das große Stadtfest in Brandenburg an der Havel statt. Der Marktplatz wird zur Festmeile mit Bühnen, Ständen und Attraktionen für die ganze Familie. Am Freitag beginnt das Fest um 15:00 Uhr mit einem Konzert der lokalen Musikschule, am Samstag gibt es ab 11:00 Uhr ein buntes Programm mit Künstlern aus der Region, und der Sonntag steht ab 10:00 Uhr ganz im Zeichen der Familien mit speziellen Angeboten für Kinder. Veranstaltet wird das Fest vom Kulturamt der Stadt in Zusammenarbeit mit lokalen Vereinen. Für Rückfragen steht das Organisationsteam unter stadtfest@brandenburg.de zur Verfügung.",
+      "organizer": "",
+      "contact": {
+        "email": "stadtfest@brandenburg.de"
+      },
+      "link": "https://www.stadtfest-brandenburg.de"
+    }
+  }
+]

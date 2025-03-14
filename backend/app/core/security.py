@@ -86,6 +86,44 @@ def decode_token(token: str) -> Dict[str, Any]:
     return jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
 
 
+# Benutzerauthentifizierung mit JWT
+async def get_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+) -> Any:
+    """
+    Authentifiziert einen Benutzer anhand des JWT-Tokens und gibt den Benutzer zurück.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Ungültige Anmeldeinformationen",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    if not token:
+        raise credentials_exception
+    
+    try:
+        payload = decode_token(token)
+        user_id = payload.get("sub")
+        token_type = payload.get("type")
+        
+        if user_id is None or token_type != "access":
+            raise credentials_exception
+        
+        # Hier müsste der Benutzer aus der Datenbank geholt werden
+        # In diesem Beispiel nehmen wir an, dass ein User-Modell existiert
+        from ..db.models import UserModel
+        
+        user = db.query(UserModel).filter(UserModel.id == user_id).first()
+        if user is None:
+            raise credentials_exception
+            
+        return user
+    except JWTError:
+        raise credentials_exception
+
+
 # API-Key-Funktionen
 async def get_tenant_id_from_api_key(
     request: Request,

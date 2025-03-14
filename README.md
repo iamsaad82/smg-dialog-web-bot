@@ -287,3 +287,92 @@ Nach erfolgreichem Deployment:
 - Aktivieren Sie die 2-Faktor-Authentifizierung, wenn verfügbar
 - Beschränken Sie Zugriffe auf Backend-APIs über eine Firewall
 - Überprüfen Sie regelmäßig die Logs auf verdächtige Aktivitäten
+
+## Brandenburg XML-Integration
+
+Die Brandenburg XML-Integration unterstützt den Import strukturierter Daten aus dem Chatbot der Stadt Brandenburg. 
+
+### Datenquelle
+
+Die XML-Daten werden von folgender URL bezogen:
+- URL: `https://www.stadt-brandenburg.de/_/a/chatbot/daten.xml`
+
+### Datenkategorien
+
+Die Daten umfassen folgende strukturierte Informationen:
+- **Schulen**: Bildungseinrichtungen mit Kontaktdaten und Standortinformationen
+- **Ämter**: Behörden und städtische Einrichtungen mit Öffnungszeiten und Zuständigkeiten
+- **Veranstaltungen**: Termine und Events mit zeitlichen und örtlichen Angaben
+
+### Tenant-Einrichtung
+
+1. Markieren Sie einen Tenant mit dem Flag `is_brandenburg = true` in der Datenbank
+2. Wählen Sie eine der folgenden Optionen:
+   - Manueller Import über die API
+   - Automatischer Import über einen Cronjob (empfohlen)
+
+### Automatischer Import (Cronjob)
+
+Für die Produktivumgebung empfehlen wir die Einrichtung eines Cronjobs auf Render.
+Eine detaillierte Anleitung finden Sie in der [Cronjob-Dokumentation](docs/brandenburg-xml-cronjob.md).
+
+### Manueller Test des Imports
+
+Der Import kann manuell getestet werden mit:
+
+```bash
+docker exec -it smg-dialog-web-bot-backend-1 python /app/scripts/brandenburg_xml_import.py
+```
+
+Oder über die API:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/structured-data/import/brandenburg/url" \
+  -H "Authorization: Bearer $ADMIN_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.stadt-brandenburg.de/_/a/chatbot/daten.xml"}'
+```
+
+### Deployment auf Render
+
+Um das Brandenburg XML-Import-Feature auf Render zu deployen, sollten Sie folgende Schritte ausführen:
+
+1. **Admin-Token generieren**:
+   ```bash
+   cd backend
+   python scripts/create_admin_token.py
+   ```
+   Speichern Sie das Token sicher für die Verwendung in den Cronjob-Umgebungsvariablen.
+
+2. **Cronjob einrichten**:
+   - Folgen Sie der [Anleitung zur Cronjob-Einrichtung](docs/brandenburg-xml-cronjob.md)
+   - Stellen Sie sicher, dass alle erforderlichen Umgebungsvariablen gesetzt sind
+
+3. **Post-Deployment-Test**:
+   - Führen Sie nach dem Deployment ein Test-Skript aus, um die korrekte Funktion zu überprüfen:
+   ```bash
+   python scripts/test_brandenburg_import_deployment.py
+   ```
+   - Das Skript überprüft die XML-URL, Tenant-Konfiguration, XML-Parsing und Weaviate-Schemas
+
+### Fehlerbehandlung
+
+Häufige Probleme und deren Lösungen:
+
+1. **403 Forbidden**: Der XML-Zugriff wird vom Server verweigert
+   - Lösung: Überprüfen Sie den User-Agent im Skript oder kontaktieren Sie den XML-Provider
+
+2. **Keine Tenants gefunden**: Es sind keine Tenants mit `is_brandenburg = true` konfiguriert
+   - Lösung: Aktualisieren Sie die Tenant-Konfiguration in der Datenbank
+
+3. **Parsing-Fehler**: Die XML-Struktur hat sich möglicherweise geändert
+   - Lösung: Überprüfen Sie die XML-Struktur und passen Sie den Parser an
+
+4. **Import-Fehler**: Probleme beim Import in Weaviate
+   - Lösung: Überprüfen Sie die Weaviate-Verbindung und Schema-Konfiguration
+
+### Weiterführende Dokumentation
+
+- [Technische Details zur XML-Struktur](docs/brandenburg-xml-structure.md)
+- [Cronjob-Einrichtung auf Render](docs/brandenburg-xml-cronjob.md)
+- [Admin-Leitfaden für das Brandenburg-Feature](docs/brandenburg-admin-guide.md)

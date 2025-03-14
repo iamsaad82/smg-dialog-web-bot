@@ -18,7 +18,8 @@ export default function EditTenant() {
     bot_welcome_message: '',
     primary_color: '#4f46e5',
     secondary_color: '#ffffff',
-    use_mistral: false
+    use_mistral: false,
+    is_brandenburg: false
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +51,8 @@ export default function EditTenant() {
             secondary_color: tenantData.secondary_color,
             use_mistral: tenantData.use_mistral,
             custom_instructions: tenantData.custom_instructions || '',
-            logo_url: tenantData.logo_url || ''
+            logo_url: tenantData.logo_url || '',
+            is_brandenburg: tenantData.is_brandenburg || false
           });
           
           setError(null);
@@ -85,8 +87,59 @@ export default function EditTenant() {
     
     try {
       setSaving(true);
-      await apiClient.updateTenant(id as string, formData);
+      
+      console.log("Edit page - Original formData:", JSON.stringify(formData));
+      
+      // Stelle sicher, dass boolesche Werte korrekt gesetzt sind
+      const sanitizedFormData = {
+        ...formData,
+      };
+      
+      // Explizit testen und konvertieren für is_brandenburg
+      if (formData.hasOwnProperty('is_brandenburg')) {
+        const boolValue = formData.is_brandenburg === true;
+        console.log(`Converting is_brandenburg from ${formData.is_brandenburg} (${typeof formData.is_brandenburg}) to ${boolValue}`);
+        sanitizedFormData.is_brandenburg = boolValue;
+      }
+      
+      // Explizit testen und konvertieren für use_mistral
+      if (formData.hasOwnProperty('use_mistral')) {
+        const boolValue = formData.use_mistral === true;
+        console.log(`Converting use_mistral from ${formData.use_mistral} (${typeof formData.use_mistral}) to ${boolValue}`);
+        sanitizedFormData.use_mistral = boolValue;
+      }
+      
+      console.log("Edit page - Sending sanitized data:", JSON.stringify(sanitizedFormData));
+      const savedTenant = await apiClient.updateTenant(id as string, sanitizedFormData);
+      console.log("Edit page - API response:", JSON.stringify(savedTenant));
+      
       setSavedMessage('Änderungen erfolgreich gespeichert');
+      
+      // Nach dem Speichern den Tenant neu laden, um sicherzustellen, dass die aktuellen Werte angezeigt werden
+      if (tenant) {
+        const updatedTenant = await apiClient.getTenant(id as string);
+        console.log("Edit page - Fetched updated tenant:", JSON.stringify(updatedTenant));
+        console.log("is_brandenburg in fetched data:", updatedTenant.is_brandenburg);
+        console.log("is_brandenburg type in fetched data:", typeof updatedTenant.is_brandenburg);
+        
+        setTenant(updatedTenant);
+        
+        // Aktualisiere auch formData mit den neuen Werten
+        setFormData({
+          name: updatedTenant.name || "",
+          description: updatedTenant.description || "",
+          contact_email: updatedTenant.contact_email || "",
+          bot_name: updatedTenant.bot_name || "",
+          bot_welcome_message: updatedTenant.bot_welcome_message || "",
+          primary_color: updatedTenant.primary_color || "#4f46e5",
+          secondary_color: updatedTenant.secondary_color || "#ffffff",
+          logo_url: updatedTenant.logo_url || "",
+          use_mistral: updatedTenant.use_mistral === true,
+          custom_instructions: updatedTenant.custom_instructions || "",
+          is_brandenburg: updatedTenant.is_brandenburg === true,
+        });
+      }
+      
       setTimeout(() => setSavedMessage(null), 3000);
     } catch (err) {
       console.error('Fehler beim Speichern:', err);
@@ -263,6 +316,20 @@ export default function EditTenant() {
                       />
                       <label htmlFor="use_mistral" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
                         Mistral anstelle von OpenAI verwenden
+                      </label>
+                    </div>
+                    
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="is_brandenburg"
+                        name="is_brandenburg"
+                        checked={formData.is_brandenburg}
+                        onChange={handleCheckboxChange}
+                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="is_brandenburg" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                        Brandenburg-Integration aktivieren
                       </label>
                     </div>
                   </div>

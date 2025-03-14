@@ -1,0 +1,30 @@
+[
+  {
+    "data": {
+      "name": "Bürgeramt",
+      "department": "Bürgerservice",
+      "address": "Rathaus-Platz 1, 14770 Brandenburg an der Havel",
+      "openingHours": "Montag: 09:00 - 12:00 Uhr, Montag: 13:00 - 16:00 Uhr, Dienstag: 09:00 - 18:00 Uhr, Mittwoch: 09:00 - 12:00 Uhr, Donnerstag: 09:00 - 18:00 Uhr, Freitag: 09:00 - 12:00 Uhr",
+      "services": [
+        "Personalausweis beantragen",
+        "Reisepass beantragen",
+        "Meldebestätigung"
+      ]
+    },
+    "type": "office"
+  },
+  {
+    "data": {
+      "name": "Standesamt",
+      "department": "Personenstandswesen",
+      "address": "Rathaus-Platz 2, 14770 Brandenburg an der Havel",
+      "openingHours": "Montag: 09:00 - 12:00 Uhr, Dienstag: 09:00 - 12:00 Uhr, Dienstag: 14:00 - 18:00 Uhr, Donnerstag: 09:00 - 12:00 Uhr, Donnerstag: 14:00 - 16:00 Uhr",
+      "services": [
+        "Geburtsurkunde",
+        "Eheschließung",
+        "Sterbeurkunde"
+      ]
+    },
+    "type": "office"
+  }
+]

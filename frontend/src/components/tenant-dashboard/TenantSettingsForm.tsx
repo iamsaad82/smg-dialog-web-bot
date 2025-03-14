@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Tenant } from "@/types/api"
 
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,12 @@ interface TenantSettingsFormProps {
 }
 
 export function TenantSettingsForm({ tenant, onSave, isSaving }: TenantSettingsFormProps) {
+  // Debug: Log tenant object with Types
+  useEffect(() => {
+    console.log("TenantSettingsForm - tenant received:", tenant);
+    console.log("TenantSettingsForm - is_brandenburg type:", typeof tenant.is_brandenburg);
+  }, [tenant]);
+
   const [formData, setFormData] = useState({
     name: tenant.name || "",
     bot_name: tenant.bot_name || "",
@@ -21,20 +27,66 @@ export function TenantSettingsForm({ tenant, onSave, isSaving }: TenantSettingsF
     primary_color: tenant.primary_color || "#4f46e5",
     secondary_color: tenant.secondary_color || "#ffffff",
     logo_url: tenant.logo_url || "",
-    use_mistral: tenant.use_mistral || false,
-    custom_instructions: tenant.custom_instructions || ""
+    use_mistral: tenant.use_mistral === true,
+    custom_instructions: tenant.custom_instructions || "",
+    is_brandenburg: tenant.is_brandenburg === true,
   })
 
+  // Update formData when tenant changes - using explicit boolean conversion
+  useEffect(() => {
+    console.log("TenantSettingsForm - tenant changed, updating formData with is_brandenburg =", tenant.is_brandenburg === true);
+    
+    setFormData({
+      name: tenant.name || "",
+      bot_name: tenant.bot_name || "",
+      bot_welcome_message: tenant.bot_welcome_message || "",
+      primary_color: tenant.primary_color || "#4f46e5",
+      secondary_color: tenant.secondary_color || "#ffffff",
+      logo_url: tenant.logo_url || "",
+      use_mistral: tenant.use_mistral === true,
+      custom_instructions: tenant.custom_instructions || "",
+      is_brandenburg: tenant.is_brandenburg === true,
+    });
+  }, [tenant]);
+
+  // Debug: Log formData state
+  useEffect(() => {
+    console.log("TenantSettingsForm - formData:", formData);
+    console.log("TenantSettingsForm - is_brandenburg type in formData:", typeof formData.is_brandenburg);
+  }, [formData]);
+
   const handleChange = (name: string, value: string | boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value
-    }))
+    console.log(`TenantSettingsForm - handleChange: ${name} = ${value} (type: ${typeof value})`);
+    
+    // Ensure boolean values are treated as boolean
+    if (name === "is_brandenburg" || name === "use_mistral") {
+      const boolValue = value === true;
+      console.log(`Converting ${name} to strict boolean: ${boolValue}`);
+      setFormData((prev) => ({
+        ...prev,
+        [name]: boolValue
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    await onSave(formData)
+    
+    // Ensure boolean values are properly set with explicit conversion
+    const dataToSubmit = {
+      ...formData,
+      is_brandenburg: formData.is_brandenburg === true,
+      use_mistral: formData.use_mistral === true
+    };
+    
+    console.log("TenantSettingsForm - handleSubmit - sending data:", dataToSubmit);
+    console.log("TenantSettingsForm - Type of is_brandenburg in submit:", typeof dataToSubmit.is_brandenburg);
+    await onSave(dataToSubmit)
   }
 
   return (
@@ -58,6 +110,7 @@ export function TenantSettingsForm({ tenant, onSave, isSaving }: TenantSettingsF
           <AIModelCard
             useMistral={formData.use_mistral}
             customInstructions={formData.custom_instructions}
+            is_brandenburg={formData.is_brandenburg}
             onChange={handleChange}
           />
 

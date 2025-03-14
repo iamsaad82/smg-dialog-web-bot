@@ -1,0 +1,35 @@
+[
+  {
+    "data": {
+      "title": "Stadtfest Brandenburg",
+      "date": "10.07.2024",
+      "time": "10:00-22:00",
+      "location": "Innenstadt",
+      "organizer": "Stadt Brandenburg",
+      "description": "Jährliches Stadtfest mit Musik, Kultur und kulinarischen Spezialitäten."
+    },
+    "type": "event"
+  },
+  {
+    "data": {
+      "title": "Sommerkonzert im Park",
+      "date": "15.08.2024",
+      "time": "19:00",
+      "location": "Stadtpark",
+      "organizer": "Musikverein Brandenburg",
+      "description": "Klassische Musik unter freiem Himmel. Bei Regen findet das Konzert in der Stadthalle statt."
+    },
+    "type": "event"
+  },
+  {
+    "data": {
+      "title": "Weihnachtsmarkt",
+      "date": "01.12.2024 - 23.12.2024",
+      "time": "11:00-20:00",
+      "location": "Marktplatz",
+      "organizer": "Stadtmarketing Brandenburg",
+      "description": "Traditioneller Weihnachtsmarkt mit Handwerkskunst, kulinarischen Angeboten und Unterhaltungsprogramm."
+    },
+    "type": "event"
+  }
+]

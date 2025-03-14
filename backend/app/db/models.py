@@ -31,12 +31,28 @@ class TenantModel(Base):
     bot_message_text_color = Column(String, nullable=False, default="#ffffff")
     user_message_bg_color = Column(String, nullable=False, default="#4f46e5")
     user_message_text_color = Column(String, nullable=False, default="#ffffff")
+    is_brandenburg = Column(Boolean, nullable=False, default=False)
     config = Column(JSON, nullable=True)
     
     # Beziehungen
     documents = relationship("DocumentModel", back_populates="tenant", cascade="all, delete-orphan")
     interactive_config = relationship("InteractiveConfigModel", back_populates="tenant", uselist=False, cascade="all, delete-orphan")
     ui_components_config = relationship("UIComponentsConfigModel", back_populates="tenant", uselist=False, cascade="all, delete-orphan")
+
+# UserModel für Benutzer-Authentifizierung und -Verwaltung
+class UserModel(Base):
+    __tablename__ = "users"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    email = Column(String, unique=True, nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+    is_superuser = Column(Boolean, default=False)
+    role = Column(String, default="user")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    agency_id = Column(String, nullable=True)
 
 class DocumentModel(Base):
     __tablename__ = "documents"
@@ -92,6 +108,8 @@ class TenantBase(BaseModel):
     bot_message_text_color: str = "#ffffff"
     user_message_bg_color: str = "#4f46e5"
     user_message_text_color: str = "#ffffff"
+    # Brandenburg-Integration
+    is_brandenburg: bool = False
 
 
 class TenantCreate(TenantBase):
@@ -116,6 +134,8 @@ class TenantUpdate(BaseModel):
     bot_message_text_color: Optional[str] = None
     user_message_bg_color: Optional[str] = None
     user_message_text_color: Optional[str] = None
+    # Brandenburg-Integration
+    is_brandenburg: Optional[bool] = None
 
 
 class Tenant(TenantBase):
@@ -124,9 +144,14 @@ class Tenant(TenantBase):
     api_key: str
     created_at: datetime
     updated_at: datetime
+    is_brandenburg: bool = False  # Explizit als Feld mit Standardwert definieren
     
     class Config:
         from_attributes = True
+        # Stellt sicher, dass Felder mit None-Werten nicht ausgelassen werden
+        json_encoders = {
+            bool: lambda v: False if v is None else v,
+        }
 
 
 class DocumentBase(BaseModel):

@@ -27,6 +27,7 @@ export default function TenantSettingsPage() {
         if (currentTenant) {
           api.setApiKey(currentTenant.api_key)
           const tenantData = await api.getTenant(id)
+          console.log("TenantSettingsPage - Loaded tenant data:", tenantData);
           setTenant(tenantData)
           setError(null)
         } else {
@@ -48,6 +49,22 @@ export default function TenantSettingsPage() {
 
     try {
       setSaving(true)
+      console.log("TenantSettingsPage - Received updated data:", JSON.stringify(updatedData));
+      
+      // Stellen Sie sicher, dass is_brandenburg ein boolescher Wert ist
+      if (updatedData.hasOwnProperty('is_brandenburg')) {
+        const boolValue = updatedData.is_brandenburg === true;
+        console.log(`Converting is_brandenburg from ${updatedData.is_brandenburg} (${typeof updatedData.is_brandenburg}) to ${boolValue}`);
+        updatedData.is_brandenburg = boolValue;
+      }
+      
+      // Stellen Sie sicher, dass use_mistral ein boolescher Wert ist
+      if (updatedData.hasOwnProperty('use_mistral')) {
+        const boolValue = updatedData.use_mistral === true;
+        console.log(`Converting use_mistral from ${updatedData.use_mistral} (${typeof updatedData.use_mistral}) to ${boolValue}`);
+        updatedData.use_mistral = boolValue;
+      }
+      
       // Konvertiere null-Werte zu undefined für kompatibilität mit TenantUpdate
       const cleanedData: TenantUpdate = Object.entries(updatedData).reduce(
         (acc, [key, value]) => ({
@@ -57,10 +74,23 @@ export default function TenantSettingsPage() {
         {} as TenantUpdate
       )
       
-      await api.updateTenant(tenant.id, cleanedData)
+      console.log("TenantSettingsPage - Sending cleaned data:", JSON.stringify(cleanedData));
+      
+      const savedTenant = await api.updateTenant(tenant.id, cleanedData);
+      console.log("TenantSettingsPage - Response from API:", JSON.stringify(savedTenant));
+      
+      // Debug check
+      console.log("is_brandenburg in API response:", savedTenant.is_brandenburg);
+      console.log("is_brandenburg type in API response:", typeof savedTenant.is_brandenburg);
+      
+      // Aktualisiere die vollständigen Daten vom Server nach dem Speichern
+      const updatedTenant = await api.getTenant(tenant.id);
+      console.log("TenantSettingsPage - Fetched updated tenant data:", updatedTenant);
+      console.log("is_brandenburg in fetched data:", updatedTenant.is_brandenburg);
+      console.log("is_brandenburg type in fetched data:", typeof updatedTenant.is_brandenburg);
       
       // Aktualisiere den lokalen Tenant-Zustand
-      setTenant(prev => prev ? { ...prev, ...updatedData } : null)
+      setTenant(updatedTenant);
       
       // Erfolgsmeldung mit Toast statt alert
       toast.success("Einstellungen wurden erfolgreich gespeichert")

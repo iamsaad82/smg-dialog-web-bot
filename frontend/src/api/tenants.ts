@@ -56,8 +56,41 @@ export class TenantApi {
   }
 
   async getTenant(id: string): Promise<Tenant> {
-    const response = await apiCore.getClient().get(`/tenants/${id}`);
-    return response.data;
+    console.log(`getTenant - Requesting tenant with ID: ${id}`);
+    
+    try {
+      // Direkte fetch-Implementierung statt axios
+      const response = await fetch(`${API_BASE_URL}/tenants/${id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-API-Key': apiCore.getApiKey() || ''
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const rawData = await response.json();
+      console.log("getTenant - Raw response data:", JSON.stringify(rawData));
+      
+      // Stelle sicher, dass is_brandenburg ein Boolean ist
+      const tenant: Tenant = {
+        ...rawData,
+        is_brandenburg: rawData.hasOwnProperty('is_brandenburg') ? rawData.is_brandenburg === true : false
+      };
+      
+      console.log("getTenant - Processed tenant:", JSON.stringify(tenant));
+      console.log("getTenant - is_brandenburg value:", tenant.is_brandenburg);
+      console.log("getTenant - is_brandenburg type:", typeof tenant.is_brandenburg);
+      
+      return tenant;
+    } catch (error) {
+      console.error("Fehler beim Abrufen des Tenants:", error);
+      throw error;
+    }
   }
 
   async getAllTenants(): Promise<Tenant[]> {
@@ -77,7 +110,17 @@ export class TenantApi {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
       
-      return await response.json();
+      const rawData = await response.json();
+      console.log("getAllTenants - Raw response data:", JSON.stringify(rawData));
+      
+      // Stelle sicher, dass alle Tenants ein is_brandenburg-Feld haben
+      const processedTenants: Tenant[] = rawData.map((tenant: any) => ({
+        ...tenant,
+        is_brandenburg: tenant.hasOwnProperty('is_brandenburg') ? tenant.is_brandenburg === true : false
+      }));
+      
+      console.log("getAllTenants - Processed tenants:", JSON.stringify(processedTenants));
+      return processedTenants;
     } catch (error) {
       console.error("Fehler beim Abrufen aller Tenants:", error);
       throw error;
@@ -85,8 +128,33 @@ export class TenantApi {
   }
 
   async updateTenant(id: string, data: TenantUpdate): Promise<Tenant> {
-    const response = await apiCore.getClient().put(`/tenants/${id}`, data);
-    return response.data;
+    console.log("API updateTenant - Raw data received:", JSON.stringify(data));
+    
+    // Stelle sicher, dass bool'sche Werte richtig behandelt werden
+    const sanitizedData = { ...data };
+    
+    // Explizit testen und konvertieren
+    if ('is_brandenburg' in sanitizedData) {
+      const boolValue = sanitizedData.is_brandenburg === true;
+      console.log(`Converting is_brandenburg from ${sanitizedData.is_brandenburg} (${typeof sanitizedData.is_brandenburg}) to ${boolValue}`);
+      sanitizedData.is_brandenburg = boolValue;
+    }
+    
+    if ('use_mistral' in sanitizedData) {
+      const boolValue = sanitizedData.use_mistral === true;
+      console.log(`Converting use_mistral from ${sanitizedData.use_mistral} (${typeof sanitizedData.use_mistral}) to ${boolValue}`);
+      sanitizedData.use_mistral = boolValue;
+    }
+    
+    console.log("API updateTenant - Sanitized data to send:", JSON.stringify(sanitizedData));
+    const response = await apiCore.getClient().put(`/tenants/${id}`, sanitizedData);
+    console.log("API updateTenant - Response from backend:", response.data);
+    
+    // Validiere den zurückgegebenen Wert
+    const tenant = response.data;
+    console.log("is_brandenburg in response:", tenant.is_brandenburg, "(type:", typeof tenant.is_brandenburg, ")");
+    
+    return tenant;
   }
 
   async deleteTenant(id: string): Promise<void> {

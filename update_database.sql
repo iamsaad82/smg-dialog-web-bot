@@ -48,6 +48,15 @@ BEGIN
         RAISE NOTICE 'Spalte use_mistral zur tenants-Tabelle hinzugefügt';
     END IF;
     
+    -- Spalte is_brandenburg hinzufügen, wenn sie nicht existiert
+    IF NOT EXISTS (
+        SELECT FROM information_schema.columns 
+        WHERE table_name = 'tenants' AND column_name = 'is_brandenburg'
+    ) THEN
+        ALTER TABLE tenants ADD COLUMN is_brandenburg BOOLEAN DEFAULT FALSE;
+        RAISE NOTICE 'Spalte is_brandenburg zur tenants-Tabelle hinzugefügt';
+    END IF;
+    
     -- Spalten für Chat-Bubble-Farben hinzufügen
     IF NOT EXISTS (
         SELECT FROM information_schema.columns 
@@ -79,6 +88,42 @@ BEGIN
     ) THEN
         ALTER TABLE tenants ADD COLUMN user_message_text_color VARCHAR(50) DEFAULT '#ffffff';
         RAISE NOTICE 'Spalte user_message_text_color zur tenants-Tabelle hinzugefügt';
+    END IF;
+END;
+$$;
+
+-- Tabelle für Benutzer erstellen, falls sie nicht existiert
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'users') THEN
+        CREATE TABLE users (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            email VARCHAR(255) UNIQUE NOT NULL,
+            hashed_password VARCHAR(255) NOT NULL,
+            full_name VARCHAR(255),
+            is_active BOOLEAN DEFAULT TRUE,
+            is_superuser BOOLEAN DEFAULT FALSE,
+            role VARCHAR(50) DEFAULT 'user',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            agency_id UUID
+        );
+        
+        -- Admin-Benutzer erstellen für die Brandenburg-Import-Funktionalität
+        INSERT INTO users (
+            id, email, hashed_password, full_name, 
+            is_active, is_superuser, role
+        ) VALUES (
+            uuid_generate_v4(), 
+            'admin@example.com', 
+            '$2b$12$CsXJJ5BxB6Rh0nXPedF9bOJlwm0i8DOprXpI9H/G9BL6lzF.KOW/m', -- "password" (gehashed)
+            'Admin User', 
+            TRUE, 
+            TRUE, 
+            'admin'
+        );
+        
+        RAISE NOTICE 'Tabelle users erstellt und Admin-Benutzer angelegt';
     END IF;
 END;
 $$;

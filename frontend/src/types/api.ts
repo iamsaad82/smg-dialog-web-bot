@@ -18,6 +18,7 @@ export interface Tenant {
   bot_message_text_color?: string;
   user_message_bg_color?: string;
   user_message_text_color?: string;
+  is_brandenburg?: boolean;
 }
 
 export interface TenantCreate {
@@ -32,6 +33,7 @@ export interface TenantCreate {
   secondary_color?: string;
   logo_url?: string;
   use_mistral?: boolean;
+  is_brandenburg?: boolean;
 }
 
 export interface TenantUpdate {
@@ -45,6 +47,11 @@ export interface TenantUpdate {
   secondary_color?: string;
   logo_url?: string;
   use_mistral?: boolean;
+  bot_message_bg_color?: string;
+  bot_message_text_color?: string;
+  user_message_bg_color?: string;
+  user_message_text_color?: string;
+  is_brandenburg?: boolean;
 }
 
 // Dokument-Typen

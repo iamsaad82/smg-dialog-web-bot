@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<daten>
+  <schulen>
+    <schule>
+      <bezeichnung>Grundschule Nord</bezeichnung>
+      <schulart>Grundschule</schulart>
+      <strasse_nr>Schulstraße 1</strasse_nr>
+      <plz>14770</plz>
+      <ort>Brandenburg an der Havel</ort>
+      <telefon>03381 123456</telefon>
+      <email>grundschule.nord@brandenburg.de</email>
+      <internet>www.grundschule-nord-brandenburg.de</internet>
+    </schule>
+    <schule>
+      <bezeichnung>Gymnasium am See</bezeichnung>
+      <schulart>Gymnasium</schulart>
+      <strasse_nr>Seestraße 25</strasse_nr>
+      <plz>14770</plz>
+      <ort>Brandenburg an der Havel</ort>
+      <telefon>03381 234567</telefon>
+      <email>gym.am.see@brandenburg.de</email>
+      <internet>www.gymnasium-am-see.de</internet>
+    </schule>
+  </schulen>
+  
+  <aemter>
+    <amt>
+      <bezeichnung>Bürgeramt</bezeichnung>
+      <fachbereich>Bürgerservice</fachbereich>
+      <adresse>
+        <strasse_nr>Rathaus-Platz 1</strasse_nr>
+        <plz>14770</plz>
+        <ort>Brandenburg an der Havel</ort>
+      </adresse>
+      <oeffnungszeiten>
+        <tag>
+          <bezeichnung>Montag</bezeichnung>
+          <zeit>
+            <von>09:00</von>
+            <bis>12:00</bis>
+          </zeit>
+          <zeit>
+            <von>13:00</von>
+            <bis>16:00</bis>
+          </zeit>
+        </tag>
+        <tag>
+          <bezeichnung>Dienstag</bezeichnung>
+          <zeit>
+            <von>09:00</von>
+            <bis>18:00</bis>
+          </zeit>
+        </tag>
+        <tag>
+          <bezeichnung>Mittwoch</bezeichnung>
+          <zeit>
+            <von>09:00</von>
+            <bis>12:00</bis>
+          </zeit>
+        </tag>
+        <tag>
+          <bezeichnung>Donnerstag</bezeichnung>
+          <zeit>
+            <von>09:00</von>
+            <bis>18:00</bis>
+          </zeit>
+        </tag>
+        <tag>
+          <bezeichnung>Freitag</bezeichnung>
+          <zeit>
+            <von>09:00</von>
+            <bis>12:00</bis>
+          </zeit>
+        </tag>
+      </oeffnungszeiten>
+      <dienstleistungen>
+        <dienstleistung>
+          <bezeichnung>Personalausweis beantragen</bezeichnung>
+        </dienstleistung>
+        <dienstleistung>
+          <bezeichnung>Reisepass beantragen</bezeichnung>
+        </dienstleistung>
+        <dienstleistung>
+          <bezeichnung>Meldebestätigung</bezeichnung>
+        </dienstleistung>
+      </dienstleistungen>
+    </amt>
+    <amt>
+      <bezeichnung>Standesamt</bezeichnung>
+      <fachbereich>Personenstandswesen</fachbereich>
+      <adresse>
+        <strasse_nr>Rathaus-Platz 2</strasse_nr>
+        <plz>14770</plz>
+        <ort>Brandenburg an der Havel</ort>
+      </adresse>
+      <oeffnungszeiten>
+        <tag>
+          <bezeichnung>Montag</bezeichnung>
+          <zeit>
+            <von>09:00</von>
+            <bis>12:00</bis>
+          </zeit>
+        </tag>
+        <tag>
+          <bezeichnung>Dienstag</bezeichnung>
+          <zeit>
+            <von>09:00</von>
+            <bis>12:00</bis>
+          </zeit>
+          <zeit>
+            <von>14:00</von>
+            <bis>18:00</bis>
+          </zeit>
+        </tag>
+        <tag>
+          <bezeichnung>Donnerstag</bezeichnung>
+          <zeit>
+            <von>09:00</von>
+            <bis>12:00</bis>
+          </zeit>
+          <zeit>
+            <von>14:00</von>
+            <bis>16:00</bis>
+          </zeit>
+        </tag>
+      </oeffnungszeiten>
+      <dienstleistungen>
+        <dienstleistung>
+          <bezeichnung>Geburtsurkunde</bezeichnung>
+        </dienstleistung>
+        <dienstleistung>
+          <bezeichnung>Eheschließung</bezeichnung>
+        </dienstleistung>
+        <dienstleistung>
+          <bezeichnung>Sterbeurkunde</bezeichnung>
+        </dienstleistung>
+      </dienstleistungen>
+    </amt>
+  </aemter>
+  
+  <veranstaltungen>
+    <veranstaltung>
+      <bezeichnung>Stadtfest Brandenburg</bezeichnung>
+      <datum>10.07.2024</datum>
+      <uhrzeit>10:00-22:00</uhrzeit>
+      <ort>Innenstadt</ort>
+      <veranstalter>Stadt Brandenburg</veranstalter>
+      <beschreibung>Jährliches Stadtfest mit Musik, Kultur und kulinarischen Spezialitäten.</beschreibung>
+    </veranstaltung>
+    <veranstaltung>
+      <bezeichnung>Sommerkonzert im Park</bezeichnung>
+      <datum>15.08.2024</datum>
+      <uhrzeit>19:00</uhrzeit>
+      <ort>Stadtpark</ort>
+      <veranstalter>Musikverein Brandenburg</veranstalter>
+      <beschreibung>Klassische Musik unter freiem Himmel. Bei Regen findet das Konzert in der Stadthalle statt.</beschreibung>
+    </veranstaltung>
+    <veranstaltung>
+      <bezeichnung>Weihnachtsmarkt</bezeichnung>
+      <datum>01.12.2024 - 23.12.2024</datum>
+      <uhrzeit>11:00-20:00</uhrzeit>
+      <ort>Marktplatz</ort>
+      <veranstalter>Stadtmarketing Brandenburg</veranstalter>
+      <beschreibung>Traditioneller Weihnachtsmarkt mit Handwerkskunst, kulinarischen Angeboten und Unterhaltungsprogramm.</beschreibung>
+    </veranstaltung>
+  </veranstaltungen>
+</daten> 

@@ -1,0 +1,28 @@
+[
+  {
+    "data": {
+      "name": "Grundschule Nord",
+      "type": "Grundschule",
+      "address": "Schulstraße 1, 14770 Brandenburg an der Havel",
+      "contact": {
+        "phone": "03381 123456",
+        "email": "grundschule.nord@brandenburg.de",
+        "website": "www.grundschule-nord-brandenburg.de"
+      }
+    },
+    "type": "school"
+  },
+  {
+    "data": {
+      "name": "Gymnasium am See",
+      "type": "Gymnasium",
+      "address": "Seestraße 25, 14770 Brandenburg an der Havel",
+      "contact": {
+        "phone": "03381 234567",
+        "email": "gym.am.see@brandenburg.de",
+        "website": "www.gymnasium-am-see.de"
+      }
+    },
+    "type": "school"
+  }
+]

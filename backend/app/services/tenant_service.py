@@ -36,19 +36,41 @@ class TenantService:
         db_tenant = db.query(TenantModel).filter(TenantModel.id == tenant_id).first()
         if not db_tenant:
             return None
-        return Tenant.model_validate(db_tenant)
+        
+        # Stellen wir sicher, dass is_brandenburg einen Wert hat
+        tenant_dict = db_tenant.__dict__.copy()
+        if 'is_brandenburg' not in tenant_dict or tenant_dict['is_brandenburg'] is None:
+            tenant_dict['is_brandenburg'] = False
+        
+        # Tenant-Objekt mit expliziten Werten erstellen
+        return Tenant.model_validate(tenant_dict)
     
     def get_tenant_by_api_key(self, db: Session, api_key: str) -> Optional[Tenant]:
         """Ruft einen Tenant anhand seines API-Keys ab."""
         db_tenant = db.query(TenantModel).filter(TenantModel.api_key == api_key).first()
         if not db_tenant:
             return None
-        return Tenant.model_validate(db_tenant)
+        
+        # Stellen wir sicher, dass is_brandenburg einen Wert hat
+        tenant_dict = db_tenant.__dict__.copy()
+        if 'is_brandenburg' not in tenant_dict or tenant_dict['is_brandenburg'] is None:
+            tenant_dict['is_brandenburg'] = False
+        
+        # Tenant-Objekt mit expliziten Werten erstellen
+        return Tenant.model_validate(tenant_dict)
     
     def get_all_tenants(self, db: Session) -> List[Tenant]:
         """Ruft alle Tenants ab."""
         db_tenants = db.query(TenantModel).all()
-        return [Tenant.model_validate(tenant) for tenant in db_tenants]
+        
+        # Liste von Tenant-Objekten erstellen und is_brandenburg sicherstellen
+        return [
+            Tenant.model_validate({
+                **tenant.__dict__.copy(),
+                'is_brandenburg': tenant.__dict__.get('is_brandenburg', False)
+            }) 
+            for tenant in db_tenants
+        ]
     
     def update_tenant(self, db: Session, tenant_id: str, tenant_update: TenantUpdate) -> Optional[Tenant]:
         """Aktualisiert einen bestehenden Tenant."""

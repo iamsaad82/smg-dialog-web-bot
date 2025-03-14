@@ -65,7 +65,17 @@ async def get_tenant(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tenant nicht gefunden"
         )
-    return tenant
+    
+    # Logging für Debugging
+    print(f"[get_tenant] Tenant mit ID {tenant_id}:", tenant.dict())
+    print(f"[get_tenant] is_brandenburg Wert: {tenant.is_brandenburg} (Typ: {type(tenant.is_brandenburg)})")
+    
+    # Stelle sicher, dass is_brandenburg als boolean vorhanden ist
+    tenant_dict = tenant.dict()
+    if 'is_brandenburg' not in tenant_dict or tenant_dict['is_brandenburg'] is None:
+        tenant_dict['is_brandenburg'] = False
+    
+    return Tenant.model_validate(tenant_dict)
 
 
 @router.put("/{tenant_id}", response_model=Tenant)
@@ -76,13 +86,26 @@ async def update_tenant(
     admin_api_key: str = Depends(get_admin_api_key)
 ):
     """Aktualisiert einen Tenant (nur für Admin)."""
+    # Logging für eingehende Daten
+    print(f"[update_tenant] Eingehende Daten für Tenant {tenant_id}:", tenant_update.dict(exclude_unset=True))
+    
     updated_tenant = tenant_service.update_tenant(db, tenant_id, tenant_update)
     if not updated_tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Tenant nicht gefunden"
         )
-    return updated_tenant
+    
+    # Logging für aktualisierte Daten
+    print(f"[update_tenant] Aktualisierter Tenant {tenant_id}:", updated_tenant.dict())
+    print(f"[update_tenant] is_brandenburg Wert: {updated_tenant.is_brandenburg} (Typ: {type(updated_tenant.is_brandenburg)})")
+    
+    # Stelle sicher, dass is_brandenburg als boolean vorhanden ist
+    tenant_dict = updated_tenant.dict()
+    if 'is_brandenburg' not in tenant_dict or tenant_dict['is_brandenburg'] is None:
+        tenant_dict['is_brandenburg'] = False
+    
+    return Tenant.model_validate(tenant_dict)
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)
