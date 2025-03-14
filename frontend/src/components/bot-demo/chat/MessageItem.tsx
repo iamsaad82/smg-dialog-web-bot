@@ -34,6 +34,9 @@ interface MessageItemProps {
 }
 
 export function MessageItem({ message, primaryColor, secondaryColor }: MessageItemProps) {
+  // Sicherstellen, dass der Text getrimmt ist
+  const messageContent = message.content.trim();
+  
   return (
     <div
       className={`flex items-start gap-2 ${
@@ -59,7 +62,7 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
         )}
       </div>
       <div
-        className={`rounded-lg px-3 py-2 ${
+        className={`rounded-lg p-0 ${
           message.role === "assistant" ? "max-w-[650px] w-fit" : "max-w-[85%]"
         } shadow-sm transition-all duration-200 hover:shadow-md ${
           message.role === "assistant"
@@ -78,17 +81,19 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
               }
         }
       >
-        {message.role === "assistant" ? (
-          renderFormattedContent(message.content)
-        ) : (
-          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-        )}
-        
-        <p className="text-xs opacity-50 mt-2">{message.timestamp}</p>
+        <div className="px-3 py-2">
+          {message.role === "assistant" ? (
+            renderFormattedContent(messageContent)
+          ) : (
+            <p className="text-sm whitespace-pre-wrap">{messageContent}</p>
+          )}
+          
+          <p className="text-xs opacity-50 mt-2">{message.timestamp}</p>
+        </div>
         
         {/* Interaktive Elemente anzeigen, falls vorhanden */}
         {message.interactiveElements && message.interactiveElements.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 w-full">
+          <div className="px-3 pb-2 pt-2 border-t border-gray-200 dark:border-gray-700 w-full">
             {message.interactiveElements.map((element, index) => (
               <div key={index} className="mt-1.5 text-sm w-full">
                 {/* Info-Element mit expliziter Komponente rendern */}

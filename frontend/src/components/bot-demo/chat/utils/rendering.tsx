@@ -10,13 +10,14 @@ import { LinkItem } from './types';
  * Rendert strukturierten oder einfachen Text mit entsprechender Formatierung
  */
 export const renderFormattedContent = (content: string) => {
+  // Whitespace am Anfang und Ende des Inhalts trimmen
+  const trimmedContent = content.trim();
+  
   return formatTextWithBoldTitle(
-    content,
+    trimmedContent,
     // Render für nummerierte Listen - einfacher, klarer Stil
     (sections, introText, links) => (
-      <div className="space-y-2">
-        {/* Einführungstext wird im vereinfachten Ansatz nicht mehr verwendet */}
-        
+      <div className="space-y-2 w-full">
         {/* Nummerierte Abschnitte */}
         <div className="space-y-2">
           {sections.map((section, index) => (
@@ -29,7 +30,7 @@ export const renderFormattedContent = (content: string) => {
                   <h3 className="text-sm font-medium">{section.title.endsWith(':') ? section.title.slice(0, -1) : section.title}</h3>
                   {section.content && (
                     <div className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                      {formatTextWithBold(section.content)}
+                      {formatTextWithBold(section.content.trim())}
                     </div>
                   )}
                 </div>
@@ -49,9 +50,7 @@ export const renderFormattedContent = (content: string) => {
     
     // Render für Aufzählungslisten - einfacher, klarer Stil
     (sections, introText, links) => (
-      <div className="space-y-2">
-        {/* Einführungstext wird im vereinfachten Ansatz nicht mehr verwendet */}
-        
+      <div className="space-y-2 w-full">
         {/* Aufzählungen */}
         <div className="space-y-2">
           {sections.map((section, index) => (
@@ -66,7 +65,7 @@ export const renderFormattedContent = (content: string) => {
                 {section.items.map((item, itemIndex) => (
                   <li key={itemIndex} className="flex text-sm">
                     <span className="text-blue-500 mr-2">•</span>
-                    <span className="text-gray-700 dark:text-gray-300">{item}</span>
+                    <span className="text-gray-700 dark:text-gray-300">{item.trim()}</span>
                   </li>
                 ))}
               </ul>
@@ -85,10 +84,10 @@ export const renderFormattedContent = (content: string) => {
     
     // Render für einfachen Text - unkomplizierte Textdarstellung
     (text, links) => (
-      <div className="space-y-2">
+      <div className="w-full">
         {/* Einfacher Text */}
         <div className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
-          {formatTextWithBold(text)}
+          {formatTextWithBold(text.trim())}
         </div>
         
         {/* Links */}
@@ -100,9 +99,9 @@ export const renderFormattedContent = (content: string) => {
       </div>
     ),
     
-    // Render für Screenshot-Format - wird nicht mehr separat behandelt, sondern auf normalen nummerierten Listen-Renderer umgeleitet
+    // Render für Screenshot-Format
     (sections, introText, links) => (
-      <div className="space-y-2">
+      <div className="space-y-2 w-full">
         {/* Nummerierte Abschnitte */}
         <div className="space-y-2">
           {sections.map((section, index) => (
@@ -115,7 +114,7 @@ export const renderFormattedContent = (content: string) => {
                   <h3 className="text-sm font-medium">{section.title.endsWith(':') ? section.title.slice(0, -1) : section.title}</h3>
                   {section.content && (
                     <div className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                      {formatTextWithBold(section.content)}
+                      {formatTextWithBold(section.content.trim())}
                     </div>
                   )}
                 </div>

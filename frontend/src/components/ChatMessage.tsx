@@ -41,8 +41,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   
   // Vorverarbeitung des Nachrichtentexts für Bot-Nachrichten
   const processedContent = React.useMemo(() => {
-    if (isUser) return message.content;
-    return message.content;
+    // Trimmen Sie den Text, um unerwünschte Leerzeichen zu entfernen
+    return message.content.trim();
   }, [message.content, isUser]);
   
   // Animation-Varianten
@@ -109,33 +109,35 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         <Box
           bg={isUser ? userMessageBgColor : botMessageBgColor}
           color={isUser ? userMessageTextColor : botMessageTextColor}
-          p={3}
           borderRadius="lg"
           borderTopLeftRadius={!isUser ? 0 : undefined}
           borderTopRightRadius={isUser ? 0 : undefined}
           borderLeftWidth={!isUser ? '3px' : undefined}
           borderLeftColor={!isUser ? botColor : undefined}
+          overflow="hidden" // Verhindert, dass Inhalte überlaufen
         >
-          {isUser ? (
-            <Text>{processedContent}</Text>
-          ) : (
-            <Box
-              className="prose prose-sm max-w-none dark:prose-invert"
-              sx={{
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                '& a': {
-                  color: 'inherit',
-                  textDecoration: 'underline',
-                  _hover: {
-                    opacity: 0.8
+          <Box p={3}>
+            {isUser ? (
+              <Text>{processedContent}</Text>
+            ) : (
+              <Box
+                className="prose prose-sm max-w-none dark:prose-invert"
+                sx={{
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                  '& a': {
+                    color: 'inherit',
+                    textDecoration: 'underline',
+                    _hover: {
+                      opacity: 0.8
+                    }
                   }
-                }
-              }}
-            >
-              {renderFormattedContent(processedContent)}
-            </Box>
-          )}
+                }}
+              >
+                {renderFormattedContent(processedContent)}
+              </Box>
+            )}
+          </Box>
         </Box>
         
         {/* Interaktive Elemente nur für Bot-Nachrichten anzeigen */}
