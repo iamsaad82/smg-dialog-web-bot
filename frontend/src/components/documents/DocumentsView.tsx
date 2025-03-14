@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useDocuments } from './context/DocumentsProvider';
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { AlertCircle, FileUp, RefreshCw, Filter, Trash2 } from "lucide-react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { AlertCircle, FileUp, RefreshCw, Filter, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useRouter } from 'next/router';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,6 +12,14 @@ import DocumentTable from './table/DocumentTable';
 import DocumentFilters from './filters/DocumentFilters';
 import DocumentUploadModal from './modals/DocumentUploadModal';
 import DocumentDetailModal from './modals/DocumentDetailModal';
+import { 
+  Pagination, 
+  PaginationContent, 
+  PaginationItem, 
+  PaginationNext, 
+  PaginationPrevious 
+} from "@/components/ui/pagination";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /**
  * Hauptkomponente für die Dokumentenansicht
@@ -19,9 +27,14 @@ import DocumentDetailModal from './modals/DocumentDetailModal';
  */
 export default function DocumentsView() {
   const router = useRouter();
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  
   const {
     // Daten
     tenant,
+    documents,
     filteredDocuments,
     selectedDocuments,
     documentStatus,
@@ -59,12 +72,30 @@ export default function DocumentsView() {
     resetFilters
   } = useDocuments();
 
+  // Paginierte Dokumente
+  const paginatedDocuments = React.useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    return filteredDocuments.slice(startIndex, startIndex + pageSize);
+  }, [filteredDocuments, page, pageSize]);
+
+  // Gesamtanzahl der Seiten
+  const totalPages = Math.max(1, Math.ceil(filteredDocuments.length / pageSize));
+
+  // Seite wechseln
+  const changePage = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage);
+      // Bei Seitenwechsel nach oben scrollen
+      window.scrollTo(0, 0);
+    }
+  };
+
   // Anzahl der ausgewählten Dokumente
   const selectedCount = selectedDocuments.length;
   
-  // Prüfen, ob alle gefilterten Dokumente ausgewählt sind
-  const allSelected = filteredDocuments.length > 0 && 
-    selectedCount === filteredDocuments.length;
+  // Prüfen, ob alle Dokumente auf der aktuellen Seite ausgewählt sind
+  const allSelected = paginatedDocuments.length > 0 && 
+    paginatedDocuments.every(doc => selectedDocuments.includes(doc.id));
 
   // Aktionen für Bulk-Operationen
   const renderBulkActions = () => {
@@ -92,6 +123,38 @@ export default function DocumentsView() {
           <span>Löschen</span>
         </Button>
       </div>
+    );
+  };
+
+  // Seitenwechsler rendern
+  const renderPagination = () => {
+    if (filteredDocuments.length <= pageSize) return null;
+    
+    return (
+      <Pagination className="mt-4">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious 
+              onClick={() => changePage(page - 1)}
+              className={page <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+            />
+          </PaginationItem>
+          
+          <div className="flex items-center gap-2 px-2">
+            <span>Seite</span>
+            <strong>{page}</strong>
+            <span>von</span>
+            <strong>{totalPages}</strong>
+          </div>
+          
+          <PaginationItem>
+            <PaginationNext 
+              onClick={() => changePage(page + 1)}
+              className={page >= totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
     );
   };
 
@@ -135,6 +198,16 @@ export default function DocumentsView() {
           </Alert>
         )}
 
+        {/* Infobox wenn viele Dokumente vorhanden sind */}
+        {filteredDocuments.length > 100 && (
+          <Alert variant="default" className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+            <AlertCircle className="h-4 w-4 text-blue-500" />
+            <AlertDescription className="text-blue-700 dark:text-blue-300">
+              Sie haben {filteredDocuments.length} Dokumente. Verwenden Sie die Filter und Paginierung, um die Anzeige zu organisieren.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Filter-Bereich */}
         <Card>
           <CardHeader className="pb-3">
@@ -174,16 +247,37 @@ export default function DocumentsView() {
         {/* Dokumenten-Tabelle */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle>Dokumenten-Liste</CardTitle>
-            <CardDescription>
-              {filteredDocuments.length} Dokumente gefunden
-              {filteredDocuments.length >= 1000 && (
-                <div className="mt-2 text-amber-500">
-                  <AlertCircle className="inline-block h-3 w-3 mr-1" />
-                  Hinweis: Es werden maximal 1000 Dokumente angezeigt. Falls Sie mehr Dokumente haben, verwenden Sie bitte die Filter, um Ihre Suche einzugrenzen.
-                </div>
-              )}
-            </CardDescription>
+            <div className="flex flex-col md:flex-row md:items-center justify-between">
+              <div>
+                <CardTitle>Dokumenten-Liste</CardTitle>
+                <CardDescription>
+                  {filteredDocuments.length} Dokumente gefunden, 
+                  zeige {paginatedDocuments.length} Dokumente auf Seite {page} von {totalPages}
+                </CardDescription>
+              </div>
+              
+              {/* Dokumenten pro Seite Auswahl */}
+              <div className="flex items-center space-x-2 mt-2 md:mt-0">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Dokumente pro Seite:</span>
+                <Select
+                  value={pageSize.toString()}
+                  onValueChange={(value) => {
+                    setPageSize(Number(value));
+                    setPage(1); // Zurück zur ersten Seite
+                  }}
+                >
+                  <SelectTrigger className="w-[80px]">
+                    <SelectValue placeholder="50" />
+                  </SelectTrigger>
+                  <SelectContent side="top">
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="250">250</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -201,12 +295,17 @@ export default function DocumentsView() {
               </div>
             ) : (
               <DocumentTable
-                documents={filteredDocuments}
+                documents={paginatedDocuments}
                 documentStatus={documentStatus}
                 selectedDocuments={selectedDocuments}
                 allSelected={allSelected}
                 onSelectDocument={selectDocument}
-                onSelectAll={selectAllDocuments}
+                onSelectAll={(selected) => {
+                  // Nur die Dokumente auf der aktuellen Seite auswählen/abwählen
+                  paginatedDocuments.forEach(doc => {
+                    selectDocument(doc.id, selected);
+                  });
+                }}
                 onViewDocument={viewDocument}
                 onEditDocument={editDocument}
                 onDeleteDocument={deleteDocument}
@@ -214,6 +313,16 @@ export default function DocumentsView() {
               />
             )}
           </CardContent>
+          
+          {/* Paginierung am unteren Rand */}
+          {!loading && filteredDocuments.length > 0 && (
+            <CardFooter className="flex items-center justify-between py-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                Zeige {(page - 1) * pageSize + 1} - {Math.min(page * pageSize, filteredDocuments.length)} von {filteredDocuments.length} Dokumenten
+              </div>
+              {renderPagination()}
+            </CardFooter>
+          )}
         </Card>
       </div>
 
