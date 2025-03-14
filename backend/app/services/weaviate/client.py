@@ -34,34 +34,36 @@ def get_weaviate_client():
                     except ValueError:
                         pass
         
-        # Verbindungskonfiguration für v4
-        connection_params = weaviate.connect.ConnectionParams.with_http(
-            url=weaviate_url or f"{'https' if http_secure else 'http'}://{http_host}:{http_port}",
-        )
+        # Bei Bedarf Header für Modellintegration
+        headers = {}
+        if settings.OPENAI_API_KEY:
+            headers["X-OpenAI-Api-Key"] = settings.OPENAI_API_KEY
         
         # Auth-Konfiguration
+        auth_credentials = None
         if settings.WEAVIATE_API_KEY:
-            connection_params = connection_params.with_api_key(settings.WEAVIATE_API_KEY)
-            
-        # Client mit verbesserten Timeout-Einstellungen erstellen (v4)
-        client = weaviate.WeaviateClient(
-            connection_params=connection_params,
+            auth_credentials = weaviate.auth.AuthApiKey(api_key=settings.WEAVIATE_API_KEY)
+        
+        # Client mit connect_to_custom erstellen (basierend auf der Bibliotheksdokumentation)
+        client = weaviate.connect_to_custom(
+            http_host=http_host,
+            http_port=http_port,
+            http_secure=http_secure,
+            grpc_host=http_host,
+            grpc_port=50051,  # Standard-gRPC-Port
+            grpc_secure=http_secure,
+            headers=headers,
+            auth_credentials=auth_credentials,
         )
         
-        # Bei Bedarf Header für Modellintegration hinzufügen
-        if settings.OPENAI_API_KEY:
-            headers = {
-                "X-OpenAI-Api-Key": settings.OPENAI_API_KEY
-            }
-            connection_params = connection_params.with_headers(headers)
-            client = weaviate.WeaviateClient(connection_params=connection_params)
-        
         # Bereitschaft überprüfen
-        # In v4 gibt es keine direkte is_ready()-Methode, stattdessen verwenden wir die Schemaabfrage
         try:
-            client.schema.get()
-            logging.info("Weaviate-Client erfolgreich initialisiert")
-            return client
+            if client.is_ready():
+                logging.info("Weaviate-Client erfolgreich initialisiert")
+                return client
+            else:
+                logging.error("Weaviate-Client nicht bereit")
+                return None
         except Exception as e:
             logging.error(f"Weaviate-Client nicht bereit: {e}")
             return None
