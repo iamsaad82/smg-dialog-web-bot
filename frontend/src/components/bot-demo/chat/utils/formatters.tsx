@@ -9,8 +9,15 @@ import { formatTextWithBold } from './formatting';
 const cleanupUrl = (url: string): string => {
   if (!url) return '';
   
-  // Leerzeichen in URLs entfernen
-  let cleanUrl = url.replace(/\s+/g, '');
+  // Umfassende Reinigung von Leerzeichen, Bindestrichen und Formatierungen
+  let cleanUrl = url;
+  
+  // Leerzeichen entfernen, besonders in Protokoll und Domainteilen
+  cleanUrl = cleanUrl.replace(/(\w+:\/\/|\w+\.)\s+/g, '$1')   // https: // oder www. mit Leerzeichen
+                    .replace(/\s+\./g, '.')                  // Leerzeichen vor Punkten entfernen
+                    .replace(/\s+-\s+/g, '-')                // Leerzeichen um Bindestriche herum entfernen
+                    .replace(/(\w)-(\w)/g, '$1$2')          // Bindestriche zwischen Wörtern entfernen (z.B. "wir- ev- brb")
+                    .replace(/\s+/g, '');                   // Alle restlichen Leerzeichen entfernen
   
   // Klammern und andere Formatierungen entfernen
   cleanUrl = cleanUrl.replace(/^\(|\)$|\[$|\]$|\*\*|\*/g, '');

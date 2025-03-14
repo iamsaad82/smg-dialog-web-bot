@@ -77,8 +77,15 @@ export const extractBulletPoints = (text: string): string[] => {
 const cleanupUrl = (url: string): string => {
   if (!url) return '';
   
-  // Leerzeichen in URLs entfernen
-  let cleanUrl = url.replace(/\s+/g, '');
+  // Umfassende Reinigung von Leerzeichen, Bindestrichen und Formatierungen
+  let cleanUrl = url;
+  
+  // Leerzeichen entfernen, besonders in Protokoll und Domainteilen
+  cleanUrl = cleanUrl.replace(/(\w+:\/\/|\w+\.)\s+/g, '$1')   // https: // oder www. mit Leerzeichen
+                    .replace(/\s+\./g, '.')                  // Leerzeichen vor Punkten entfernen
+                    .replace(/\s+-\s+/g, '-')                // Leerzeichen um Bindestriche herum entfernen
+                    .replace(/(\w)-(\w)/g, '$1$2')          // Bindestriche zwischen Wörtern entfernen (z.B. "wir- ev- brb")
+                    .replace(/\s+/g, '');                   // Alle restlichen Leerzeichen entfernen
   
   // Klammern am Anfang und Ende entfernen
   cleanUrl = cleanUrl.replace(/^\(|\)$|\[$|\]$/g, '');
@@ -98,11 +105,13 @@ const generateLinkTitle = (url: string, context: string = ''): string => {
   try {
     // Domänenbasierten Titel erstellen
     const domain = new URL(url).hostname.replace(/^www\./, '');
-    const domainParts = domain.split('.');
     
     // Bekannte Domains
     if (domain.includes('brandenburg')) {
-      if (context.toLowerCase().includes('schule') || context.toLowerCase().includes('gymnasium')) {
+      // WIR-Grundschule erkennen
+      if (url.toLowerCase().includes('grundschule') || context.toLowerCase().includes('grundschule')) {
+        return 'WIR-Grundschule Website';
+      } else if (context.toLowerCase().includes('schule') || context.toLowerCase().includes('gymnasium')) {
         return 'Schulwebseite Brandenburg';
       } else if (context.toLowerCase().includes('wohngeld')) {
         return 'Wohngeld Brandenburg';
@@ -111,7 +120,13 @@ const generateLinkTitle = (url: string, context: string = ''): string => {
       }
     }
     
+    // Weitere bekannte Domains
+    if (domain.includes('wir-ev-brb')) {
+      return 'WIR-Grundschule Brandenburg';
+    }
+    
     // Standard-Titel basierend auf Domain
+    const domainParts = domain.split('.');
     const readableDomain = domainParts[0].charAt(0).toUpperCase() + domainParts[0].slice(1);
     return `${readableDomain} Webseite`;
   } catch (e) {
@@ -125,11 +140,12 @@ export const extractLinks = (text: string): LinkItem[] => {
   const links: LinkItem[] = [];
   
   try {
-    // Pattern zum Erkennen von URLs (mit und ohne Protokoll)
-    const urlPattern = '(?:https?:\\/\\/|www\\.)[^\\s\\]\\)>"\']+'
+    // Verbesserte Pattern zum Erkennen von URLs (mit und ohne Protokoll)
+    // Unterstützt auch Leerzeichen und Bindestriche in URLs
+    const urlPattern = '(?:https?\\:\\s*\\/\\/|www\\.)[^\\s\\]\\)>"\']+(\\s+[^\\s\\]\\)>"\']+|\\s*-\\s*[^\\s\\]\\)>"\']+)*';
     
     // 1. Erkennung von Links in Schlüssel-Wert-Paaren (z.B. "Website: https://...")
-    const keyValueLinkRegex = new RegExp(`(Website|E-Mail|Homepage|Webseite|URL|Link):\\s*(${urlPattern})`, 'gi');
+    const keyValueLinkRegex = new RegExp(`(Website|E-Mail|Homepage|Webseite|URL|Link|Kontakt\\s+Website):\\s*(${urlPattern})`, 'gi');
     let keyValueMatch;
     
     while ((keyValueMatch = keyValueLinkRegex.exec(text)) !== null) {
@@ -146,6 +162,7 @@ export const extractLinks = (text: string): LinkItem[] => {
             case 'webseite':
             case 'homepage':
             case 'url':
+            case 'kontakt website':
               title = text.toLowerCase().includes('schule') ? 'Schulwebseite' : 'Offizielle Webseite';
               break;
             case 'e-mail':
@@ -161,7 +178,7 @@ export const extractLinks = (text: string): LinkItem[] => {
       }
     }
     
-    // 2. Erkennung von Markdown-Links: [text](url)
+    // 2. Erkennung von Markdown-Links: [text](url) mit Unterstützung für Leerzeichen und Bindestriche
     const markdownLinkRegex = new RegExp(`\\[(.*?)\\]\\s*\\(\\s*(${urlPattern})\\s*\\)`, 'g');
     let markdownMatch;
     
@@ -210,7 +227,7 @@ export const extractLinks = (text: string): LinkItem[] => {
       }
     }
     
-    // 5. Erkennung von einfachen URLs im Text
+    // 5. Erkennung von einfachen URLs im Text mit Unterstützung für Leerzeichen und Bindestriche
     const plainUrlRegex = new RegExp(`(?<![\\]\\(])\\b(${urlPattern})\\b`, 'g');
     let plainMatch;
     

@@ -48,50 +48,75 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
     const duplicatePattern = /\b(\w+[^:]*?)(?:\s*[-:]\s+\1|\s*[-:]\s+\**\1\**)\b/gi;
     cleaned = cleaned.replace(duplicatePattern, '$1');
     
-    // 2. Bereinigen von Markdown-Links: [text](url) mit besserer Erkennung
+    // 2. Bereinigen von Markdown-Links mit extremer Flexibilität
     cleaned = cleaned.replace(
-      /\[(.*?)\]\s*\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g, 
+      /\[\s*(.*?)\s*\]\s*\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:[ \t-]+[^\s)]+)*)\s*\)/g, 
       (match, linkText, url) => {
-        // Leerzeichen in URLs entfernen (nicht im Linktext)
-        const cleanUrl = url.replace(/\s+/g, '');
+        // Alle Leerzeichen und Bindestriche zwischen Protokoll und Domain-Teilen entfernen
+        const cleanUrl = url.replace(/(\w+:\/\/|\w+\.)\s+/g, '$1')
+                           .replace(/\s+\./g, '.')
+                           .replace(/\s+-\s+/g, '-')
+                           .replace(/(\w)-(\w)/g, '$1$2')
+                           .replace(/\s+/g, '');
         return `[${linkText}](${cleanUrl})`;
       }
     );
     
-    // 3. Bereinigen von URLs in eckigen oder runden Klammern: [url] oder (url)
+    // 3. Besonders aggressive Bereinigung von URLs in eckigen oder runden Klammern
     cleaned = cleaned.replace(
-      /[\[\(]\s*((?:https?:\/\/|www\.)[^\s\]\)]+(?:\s+[^\s\]\)]+)*)\s*[\]\)]/g, 
+      /[\[\(]\s*((?:https?:\/\/|www\.)[^\s\]\)]+(?:[ \t-]+[^\s\]\)]+)*)\s*[\]\)]/g, 
       (match, url) => {
-        const cleanUrl = url.replace(/\s+/g, '');
-        // Ursprüngliche Klammern beibehalten
+        // Leerzeichen und Bindestriche in URLs entfernen
+        const cleanUrl = url.replace(/(\w+:\/\/|\w+\.)\s+/g, '$1')
+                           .replace(/\s+\./g, '.')
+                           .replace(/\s+-\s+/g, '-')
+                           .replace(/(\w)-(\w)/g, '$1$2')
+                           .replace(/\s+/g, '');
         return match.charAt(0) + cleanUrl + match.charAt(match.length - 1);
       }
     );
     
     // 4. Bereinigen von URLs in Label-Kontext mit verbesserter Erkennung
     urlLabels.forEach(label => {
-      const pattern = new RegExp(`(${label}):\\s*((?:https?:\/\/|www\.)[^\\s\\n<>"']+(?:\\s+[^\\s\\n<>"']+)*)`, 'gi');
+      const pattern = new RegExp(`(${label}):\\s*((?:https?:\/\/|www\.)[^\\s\\n<>"']+(?:[ \\t-]+[^\\s\\n<>"']+)*)`, 'gi');
       cleaned = cleaned.replace(pattern, (match, labelText, url) => {
-        const cleanUrl = url.replace(/\s+/g, '');
+        // Leerzeichen und Bindestriche in URLs entfernen
+        const cleanUrl = url.replace(/(\w+:\/\/|\w+\.)\s+/g, '$1')
+                           .replace(/\s+\./g, '.')
+                           .replace(/\s+-\s+/g, '-')
+                           .replace(/(\w)-(\w)/g, '$1$2')
+                           .replace(/\s+/g, '');
         return `${labelText}: ${cleanUrl}`;
       });
     });
     
     // 5. Bereinigen einfacher URLs mit umfassenderer Erkennung
     cleaned = cleaned.replace(
-      /(https?:\/\/[^\s"'<>]+(?:\s+[^\s"'<>]+)*)/g, 
-      (match) => match.replace(/\s+/g, '')
+      /(https?:\/\/[^\s"'<>]+(?:[ \t-]+[^\s"'<>]+)*)/g, 
+      (match) => {
+        return match.replace(/(\w+:\/\/|\w+\.)\s+/g, '$1')
+                    .replace(/\s+\./g, '.')
+                    .replace(/\s+-\s+/g, '-')
+                    .replace(/(\w)-(\w)/g, '$1$2')
+                    .replace(/\s+/g, '');
+      }
     );
     
     // 6. Bereinigen von Website-URLs ohne http/https
     cleaned = cleaned.replace(
-      /\b(www\.[^\s"'<>]+(?:\s+[^\s"'<>]+)*)/g,
-      (match) => match.replace(/\s+/g, '')
+      /\b(www\.[^\s"'<>]+(?:[ \t-]+[^\s"'<>]+)*)/g,
+      (match) => {
+        return match.replace(/(\w+\.)\s+/g, '$1')
+                    .replace(/\s+\./g, '.')
+                    .replace(/\s+-\s+/g, '-')
+                    .replace(/(\w)-(\w)/g, '$1$2')
+                    .replace(/\s+/g, '');
+      }
     );
     
     // 7. Sicherstellen, dass www.-URLs ein Protokoll haben
     cleaned = cleaned.replace(
-      /\b(www\.[^\s"'<>]+)\b/g,
+      /\b(www\.[^\s"'<>]+)/g,
       (match) => {
         if (!match.startsWith('http')) {
           return 'https://' + match;
@@ -122,6 +147,10 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
     
     // Bereinigen von Fällen mit doppelter Formatierung "**Schulform:** ..."
     cleaned = cleaned.replace(/\*\*([^:*]+):\*\*\s*/g, '$1: ');
+    
+    // 11. Spezifische Behandlung von Bindestrich-getrennten Schlüssel-Wert-Paaren
+    // Erkennung: "- Schlüsselwort: Wert"
+    cleaned = cleaned.replace(/\s+-\s+(\w+(?:\s+\w+)*):\s+/g, '\n$1: ');
     
     return cleaned;
   };

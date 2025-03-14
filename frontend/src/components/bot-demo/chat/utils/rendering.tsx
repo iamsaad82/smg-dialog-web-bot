@@ -30,40 +30,59 @@ const formatStructuredInfo = (text: string): React.ReactNode => {
   // Schlüsselwörter, die auf strukturierte Infos hindeuten könnten
   const structureKeywords = [
     'Schulform', 'Schultyp', 'Gymnasium', 'Schule', 'Kontakt', 'Telefon', 
-    'E-Mail', 'Adresse', 'Website', 'Webseite', 'Schulleitung'
+    'E-Mail', 'Adresse', 'Website', 'Webseite', 'Schulleitung', 'Ganztagsschule'
   ];
   
+  // Preprocessing: Text mit Bindestrichen normalisieren
+  let normalizedText = text;
+  
+  // Ersetze "- Schlüssel: Wert" mit einer eigenen Zeile "Schlüssel: Wert"
+  const dashKeyValuePattern = /\s+-\s+([^:]+):\s+([^-]+)/g;
+  let dashKeyValueMatch;
+  let hasTransformedKeyValues = false;
+  
+  // Teste, ob Text Bindestrich-getrennte Schlüssel-Wert-Paare enthält
+  const containsDashSeparatedKeyValues = 
+    text.split(' - ').filter(part => part.includes(':') && 
+      structureKeywords.some(kw => part.includes(kw))).length >= 2;
+  
+  // Wenn mit Bindestrich getrennte Struktur erkannt wurde, transformiere zu Zeilenformat
+  if (containsDashSeparatedKeyValues) {
+    normalizedText = normalizedText.replace(/\s+-\s+/g, '\n');
+    hasTransformedKeyValues = true;
+  }
+  
   // Grundlegende Eigenschaft prüfen: Hat das Format Schlüssel-Wert-Paare?
-  const hasKeyValuePairs = text.split('\n')
+  const hasKeyValuePairs = normalizedText.split('\n')
     .filter(line => line.includes(':') && structureKeywords.some(kw => line.includes(kw)))
     .length >= 2;
 
   // Hat der Text einen Titel/Header?
-  const hasHeaderMarker = text.includes('###');
-  const firstLine = text.split('\n')[0]?.trim() || '';
+  const hasHeaderMarker = normalizedText.includes('###');
+  const firstLine = normalizedText.split('\n')[0]?.trim() || '';
   const hasTitleAtStart = !firstLine.includes(':') && 
                          (firstLine.length > 0) &&
-                         structureKeywords.some(kw => text.includes(kw));
+                         structureKeywords.some(kw => normalizedText.includes(kw));
   
   // Prüfung auf bekannte Institutionen oder Einrichtungen
   const containsInstitutionKeywords = [
-    'Gymnasium', 'Schule', 'Schulform', 'Schulleitung', 'Bertolt', 'Brecht'
-  ].some(kw => text.toLowerCase().includes(kw.toLowerCase()));
+    'Gymnasium', 'Schule', 'Schulform', 'Schulleitung', 'Bertolt', 'Brecht', 'WIR'
+  ].some(kw => normalizedText.toLowerCase().includes(kw.toLowerCase()));
   
   // Entscheidung, ob strukturierte Information vorliegt
-  const isStructuredInfo = (hasKeyValuePairs && (hasHeaderMarker || hasTitleAtStart)) || 
+  const isStructuredInfo = (hasKeyValuePairs && (hasHeaderMarker || hasTitleAtStart || hasTransformedKeyValues)) || 
                           (containsInstitutionKeywords && hasKeyValuePairs);
   
   if (isStructuredInfo) {
     // Format mit sauberen Key-Value-Paaren erstellen
-    const lines = text.split('\n');
+    const lines = normalizedText.split('\n');
     const structuredData: Record<string, string> = {};
     let title = '';
     
     // Titel aus den ersten Zeilen extrahieren
     if (hasHeaderMarker) {
       // Titel aus Header-Format extrahieren: ### Titel
-      const titleMatch = text.match(/^###\s+(.+?)(?:\s*[-:]\s*|$)/m);
+      const titleMatch = normalizedText.match(/^###\s+(.+?)(?:\s*[-:]\s*|$)/m);
       if (titleMatch) {
         title = cleanupValue(titleMatch[1]);
       }
@@ -74,51 +93,93 @@ const formatStructuredInfo = (text: string): React.ReactNode => {
         // Titel aus Zeilen entfernen
         lines.shift();
       } else {
-        // Institutionsname suchen (z.B. "Bertolt-Brecht-Gymnasium")
-        const institutionMatch = text.match(/(?:^|\n)(?:\*\*)?([^:]*?Gymnasium|[^:]*?Schule)(?:\*\*)?(?=\s*[-:]\s*|\n|$)/);
+        // Institutionsname suchen (z.B. "Bertolt-Brecht-Gymnasium" oder "WIR - Grundschule")
+        const institutionMatch = normalizedText.match(/(?:^|\n)(?:\*\*)?([^:]*?(?:Gymnasium|Grundschule|Schule))(?:\*\*)?(?=\s*[-:]\s*|\n|$)/);
         if (institutionMatch) {
           title = cleanupValue(institutionMatch[1]);
         }
       }
     }
     
+    // Bei Bindestrich-getrenntem Format: Möglicherweise separate Titelextraktion
+    if (hasTransformedKeyValues && !title) {
+      // Versuche Titel aus dem ersten Teil vor dem ersten Bindestrich zu extrahieren
+      const titleFromDashes = text.split(' - ')[0].trim();
+      if (titleFromDashes && !titleFromDashes.includes(':')) {
+        title = cleanupValue(titleFromDashes);
+      }
+    }
+    
     // Bekannte Schlüssel für Informationsstrukturen
     const knownKeys = [
-      'Schulform', 'Schultyp', 'Adresse', 'Telefon', 'E-Mail', 'Website', 
+      'Schulform', 'Schultyp', 'Adresse', 'Telefon', 'E-Mail', 'Website', 'Email',
       'Schulname', 'Schulleitung', 'Träger', 'Öffnungszeiten', 'Ansprechpartner', 
       'Kontakt', 'Standort', 'Beschreibung', 'Information', 'Hinweis', 'Details',
       'Leistungen', 'Anmeldung', 'Gebühren', 'Kosten', 'Öffnungszeit', 'Ganztag',
       'Ganztagsschule'
     ];
     
-    // Schlüssel-Wert-Paare aus dem Text extrahieren
+    // Schlüssel-Wert-Paare aus dem Text extrahieren - verbesserte Version für verschiedene Formate
     const keyValueRegex = /(?:^|\n)\s*(?:\*\*)?([^:*]+?)(?:\*\*)?:\s*(?:\*\*)?(.+?)(?:\*\*)?(?=\n|$)/g;
     let match;
     
-    while ((match = keyValueRegex.exec(text)) !== null) {
-      let key = cleanupValue(match[1]);
-      let value = match[2].trim();
+    // Sammeln aller Zeilen, die Schlüssel-Wert-Paare enthalten könnten
+    interface KeyValuePair {
+      key: string;
+      value: string;
+    }
+    const potentialKeyValuePairs: KeyValuePair[] = [];
+    
+    // Standard-Schlüssel-Wert-Paare extrahieren
+    while ((match = keyValueRegex.exec(normalizedText)) !== null) {
+      potentialKeyValuePairs.push({
+        key: match[1].trim(),
+        value: match[2].trim()
+      });
+    }
+    
+    // Spezielle Behandlung für "Kontakt X: Y"-Format
+    const contactKeyValueRegex = /(?:^|\n)\s*(?:\*\*)?Kontakt\s+([^:*]+?)(?:\*\*)?:\s*(?:\*\*)?(.+?)(?:\*\*)?(?=\n|$)/g;
+    while ((match = contactKeyValueRegex.exec(normalizedText)) !== null) {
+      const contactType = match[1].trim();
+      const contactValue = match[2].trim();
+      
+      // Beispiel: "Kontakt Telefon: 123" wird zu "Telefon: 123"
+      potentialKeyValuePairs.push({
+        key: contactType,
+        value: contactValue
+      });
+    }
+    
+    // Alle gesammelten Schlüssel-Wert-Paare verarbeiten
+    potentialKeyValuePairs.forEach(({ key, value }) => {
+      let cleanKey = cleanupValue(key);
+      let cleanValue = value;
       
       // Falls der Wert nochmals einen Schlüssel enthält, diesen entfernen
       knownKeys.forEach(knownKey => {
         const duplicateKeyRegex = new RegExp(`^${knownKey}:\\s*`, 'i');
-        if (duplicateKeyRegex.test(value)) {
-          value = value.replace(duplicateKeyRegex, '');
+        if (duplicateKeyRegex.test(cleanValue)) {
+          cleanValue = cleanValue.replace(duplicateKeyRegex, '');
         }
       });
       
-      value = cleanupValue(value);
+      cleanValue = cleanupValue(cleanValue);
+      
+      // Vereinheitlichung von Schlüsseln
+      if (cleanKey.toLowerCase() === 'email') cleanKey = 'E-Mail';
+      if (cleanKey.toLowerCase() === 'webseite') cleanKey = 'Website';
       
       // Vorhandene Werte für den gleichen Schlüssel zusammenführen
-      if (structuredData[key]) {
+      if (structuredData[cleanKey]) {
         // Nur hinzufügen, wenn der Wert nicht bereits vorhanden ist
-        if (!structuredData[key].includes(value)) {
-          structuredData[key] += ` - ${value}`;
+        if (!structuredData[cleanKey].includes(cleanValue)) {
+          structuredData[cleanKey] += ` - ${cleanValue}`;
         }
       } else {
-        structuredData[key] = value;
+        structuredData[cleanKey] = cleanValue;
       }
-    }
+    });
     
     // Wenn kein Titel gefunden wurde, prüfen auf spezifische Schlüssel
     if (!title && structuredData['Name']) {
@@ -127,12 +188,24 @@ const formatStructuredInfo = (text: string): React.ReactNode => {
     } else if (!title && structuredData['Schulname']) {
       title = structuredData['Schulname'];
       delete structuredData['Schulname'];
-    } else if (!title && structuredData['Schulform'] === 'Gymnasium') {
-      const institutionMatch = text.match(/(?:Bertolt|Brecht)[-\s](?:Bertolt|Brecht)?[-\s]?Gymnasium/i);
-      if (institutionMatch) {
-        title = institutionMatch[0].trim();
+    } else if (!title && structuredData['Schulform']) {
+      if (structuredData['Schulform'] === 'Gymnasium') {
+        const institutionMatch = normalizedText.match(/(?:Bertolt|Brecht)[-\s](?:Bertolt|Brecht)?[-\s]?Gymnasium/i);
+        if (institutionMatch) {
+          title = institutionMatch[0].trim();
+        } else {
+          title = 'Gymnasium';
+        }
+      } else if (structuredData['Schulform'] === 'Grundschule') {
+        // WIR-Grundschule erkennen
+        const wirMatch = normalizedText.match(/WIR[-\s](?:Grundschule)/i);
+        if (wirMatch) {
+          title = wirMatch[0].trim();
+        } else {
+          title = structuredData['Schulform'];
+        }
       } else {
-        title = 'Gymnasium';
+        title = structuredData['Schulform'];
       }
     }
     
