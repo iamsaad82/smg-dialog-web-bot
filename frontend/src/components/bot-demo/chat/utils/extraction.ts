@@ -73,15 +73,55 @@ export const extractBulletPoints = (text: string): string[] => {
 
 // Extrahiert Links aus dem Text
 export const extractLinks = (text: string): LinkItem[] => {
-  const linkRegex = /(https?:\/\/[^\s]+)/g;
+  // Verbesserte Regex, die auch Links in Klammern und anderen Strukturen erkennt
+  const linkRegex = /(?:\[([^\]]+)\])?\s*\(?(?:https?:\/\/|www\.)([^\s\)\]"',]+)/g;
   const links: LinkItem[] = [];
   
-  let match;
-  while ((match = linkRegex.exec(text)) !== null) {
-    links.push({
-      url: match[0],
-      title: `Link ${links.length + 1}` // Standard-Titel, wenn kein besserer verfügbar ist
-    });
+  try {
+    // Zuerst alle direkten URL-Matches finden
+    const urlMatches = text.match(linkRegex) || [];
+    
+    for (let i = 0; i < urlMatches.length; i++) {
+      const rawMatch = urlMatches[i];
+      
+      // URL extrahieren - alles was mit http:// oder https:// oder www. beginnt
+      let url = rawMatch.match(/(https?:\/\/|www\.)[^\s\)\]"',]+/)?.[0] || '';
+      
+      // Sicherstellen, dass URLs, die mit www. beginnen, ein https:// vorangestellt bekommen
+      if (url.startsWith('www.')) {
+        url = 'https://' + url;
+      }
+      
+      // Versuchen, einen aussagekräftigen Titel zu extrahieren
+      let title = `Link ${links.length + 1}`; // Standard-Titel
+      
+      // Kontextbasierte Titel-Extraktion: Text vor dem Link prüfen auf Beschreibungen
+      const textBeforeLink = text.substring(0, text.indexOf(rawMatch));
+      const lastSentence = textBeforeLink.split(/[.!?]/).pop() || '';
+      
+      // Wenn der Link in eckigen Klammern ist, den Text aus den Klammern als Titel verwenden
+      const bracketMatch = rawMatch.match(/\[([^\]]+)\]/);
+      if (bracketMatch && bracketMatch[1]) {
+        title = bracketMatch[1];
+      } 
+      // Wenn der Link nach "unter [" oder ähnlichen Formulierungen kommt
+      else if (lastSentence.match(/unter|website|seite|portal|homepage|webseite/i)) {
+        // Extrahiere den Domainnamen ohne www. und .de/.com etc.
+        const domainMatch = url.match(/(?:https?:\/\/)?(?:www\.)?([^\/]+)/);
+        if (domainMatch && domainMatch[1]) {
+          const domain = domainMatch[1].split('.')[0]; // Erster Teil der Domain
+          title = domain.charAt(0).toUpperCase() + domain.slice(1) + ' Webseite';
+        }
+      }
+      // Wenn der Link in einem Kontext mit Wohngeld oder ähnlichen Begriffen steht
+      else if (text.match(/wohngeld|mietzuschuss|lastenzuschuss/i)) {
+        title = 'Wohngeld-Informationen';
+      }
+      
+      links.push({ url, title });
+    }
+  } catch (error) {
+    console.error("Fehler beim Extrahieren von Links:", error);
   }
   
   return links;

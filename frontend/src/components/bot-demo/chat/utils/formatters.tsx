@@ -10,8 +10,8 @@ import { formatTextWithBold } from './formatting';
 export const formatTextWithLinks = (text: string): React.ReactNode => {
   if (!text) return null;
   
-  // URLs erkennen (http/https/www)
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+  // Verbesserte URL-Erkennung (unterstützt auch Links in Klammern, etc.)
+  const urlRegex = /\[?(?:https?:\/\/|www\.)[^\s\]()<>"']+(?:\([^\s()]*\)|[^\s()[\]<>"']*)/g;
   
   // Text in Teile zerlegen: normaler Text und Links
   const parts = text.split(urlRegex);
@@ -22,7 +22,16 @@ export const formatTextWithLinks = (text: string): React.ReactNode => {
     result.push(<React.Fragment key={`text-${i}`}>{part}</React.Fragment>);
     
     if (matches[i]) {
+      // URL bereinigen
       let href = matches[i];
+      
+      // Klammern entfernen, falls vorhanden
+      href = href.replace(/^\(|\)$/g, '');
+      
+      // Wenn URL mit [ oder ] beginnt oder endet, entfernen
+      href = href.replace(/^\[|\]$/g, '');
+      
+      // Wenn URL nicht mit http oder https beginnt, aber mit www, dann https hinzufügen
       if (href.startsWith('www.')) {
         href = `https://${href}`;
       }
@@ -33,9 +42,13 @@ export const formatTextWithLinks = (text: string): React.ReactNode => {
           href={href} 
           target="_blank" 
           rel="noopener noreferrer" 
-          className="text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+          className="text-blue-600 hover:text-blue-800 underline hover:opacity-90 dark:text-blue-400 dark:hover:text-blue-300"
+          aria-label={`Externer Link: ${href} - Öffnet in einem neuen Tab`}
         >
-          {matches[i]}
+          {/* Klammer-Formatierung beibehalten, wenn im Original vorhanden */}
+          {matches[i].startsWith('(') ? '(' : ''}
+          {matches[i].replace(/^\(|\)$/g, '')}
+          {matches[i].endsWith(')') ? ')' : ''}
         </a>
       );
     }
