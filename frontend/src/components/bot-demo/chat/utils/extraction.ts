@@ -1,63 +1,49 @@
 import { LinkItem, NumberedSection } from './types';
 
-// Erkennt nummerierte Listenelemente (z.B. "1. Alternative Heilmethoden:")
+// Erkennt nummerierte Listenelemente (z.B. "1. Alternative Heilmethoden")
 export const extractNumberedSections = (text: string): NumberedSection[] => {
-  // Prüfen für das spezielle Format aus dem Screenshot
-  const screenShotRegex = /(\d+)\.\s+\*\*([^*:]+)\*\*([^]*?)(?=\d+\.\s+\*\*|\n\n\d+\s|\n\s*\n|$)/g;
   const sections: NumberedSection[] = [];
   
   try {
-    let match;
-    let fullText = text;
+    // Vereinfachter Ansatz: Nummerierte Abschnitte erkennen
+    // Zeilen mit Nummern am Anfang (1., 2., etc.) finden
+    const lines = text.split('\n');
+    let currentSection: NumberedSection | null = null;
+    let contentLines: string[] = [];
     
-    // Ein zusätzlicher Punkt am Ende hilft, das letzte Segment zu extrahieren
-    if (!fullText.endsWith('.')) {
-      fullText += '.';
-    }
-    
-    // Zuerst den Screenshot-Stil prüfen
-    while ((match = screenShotRegex.exec(fullText)) !== null) {
-      const [_, number, title, content] = match;
-      if (title && title.trim()) {
-        sections.push({
-          number,
-          title: title.trim(),
-          content: content.trim()
-        });
-      }
-    }
-    
-    // Wenn keine Treffer, dann die anderen Formate probieren
-    if (sections.length === 0) {
-      // Verbesserte Regex für verschiedene Formate mit korrekter Doppelpunktbehandlung
-      // Nummerierung (1. oder 1)), gefolgt von Titel, optional ein Doppelpunkt, dann Inhalt
-      const numberedSectionRegex = /(\d+)[\.)\s]+\s*([^:\n]+)(?::\s*)?(.+?)(?=\s*\d+[\.)\s]+\s*[^:\n]+(?::\s*)?|$)/g;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
       
-      while ((match = numberedSectionRegex.exec(fullText)) !== null) {
-        const [_, number, title, content] = match;
-        if (title && title.trim()) {
-          sections.push({
-            number,
-            title: title.trim(),
-            content: content.trim()
-          });
+      // Nummeriertes Element erkennen (z.B. "1. Titel" oder "2. Wohngeld ( Mietzuschuss/Lastenzuschuss )")
+      const numberedMatch = line.match(/^(\d+)[\.)]\s+(.+)$/);
+      
+      if (numberedMatch) {
+        // Wenn wir bereits einen aktuellen Abschnitt haben, speichern wir ihn
+        if (currentSection) {
+          currentSection.content = contentLines.join('\n').trim();
+          sections.push(currentSection);
+          contentLines = [];
         }
+        
+        // Neuen Abschnitt starten
+        currentSection = {
+          number: numberedMatch[1],
+          title: numberedMatch[2].trim(),
+          content: ''
+        };
+      } 
+      // Wenn keine nummerierte Zeile, aber wir haben einen aktuellen Abschnitt,
+      // betrachten wir es als Inhalt des aktuellen Abschnitts
+      else if (currentSection) {
+        contentLines.push(line);
       }
     }
     
-    // Dritte Alternative für "X. **Titel**: Content" Format
-    if (sections.length === 0) {
-      const boldTitleWithColonRegex = /(\d+)[\.)\s]+\s+\*\*([^*:]+)(?::\s*)\*\*([\s\S]*?)(?=\s*\d+[\.)\s]+\s+\*\*|$)/g;
-      while ((match = boldTitleWithColonRegex.exec(fullText)) !== null) {
-        const [_, number, title, content] = match;
-        if (title && title.trim()) {
-          sections.push({
-            number,
-            title: title.trim(),
-            content: content.trim()
-          });
-        }
-      }
+    // Den letzten Abschnitt hinzufügen, falls vorhanden
+    if (currentSection) {
+      currentSection.content = contentLines.join('\n').trim();
+      sections.push(currentSection);
     }
   } catch (error) {
     console.error("Fehler beim Extrahieren von nummerierten Abschnitten:", error);

@@ -4,7 +4,6 @@ import { formatTextWithBoldReact as formatTextWithBold } from './formatters';
 import { NumberedStructuredContent } from '../components/NumberedStructuredContent';
 import { StructuredContent } from '../components/StructuredContent';
 import { LinkCardSlider } from '../components/LinkCardSlider';
-import { NumberedCardContent } from '../components/NumberedCardContent';
 import { LinkItem } from './types';
 
 /**
@@ -13,113 +12,121 @@ import { LinkItem } from './types';
 export const renderFormattedContent = (content: string) => {
   return formatTextWithBoldTitle(
     content,
-    // Render numbered list
+    // Render für nummerierte Listen - einfacher, klarer Stil
     (sections, introText, links) => (
-      <div className="space-y-4">
-        {/* Zeige Einführungstext, falls vorhanden */}
-        {introText && introText.trim().length > 0 && (
-          <div className="text-sm leading-relaxed whitespace-pre-wrap mb-2">
-            {formatTextWithBold(introText)}
-          </div>
-        )}
+      <div className="space-y-2">
+        {/* Einführungstext wird im vereinfachten Ansatz nicht mehr verwendet */}
         
-        {/* Container für die nummerierten Abschnitte */}
-        <div className="space-y-3 rounded-xl overflow-hidden">
-          {/* Zeige nummerierte Abschnitte */}
+        {/* Nummerierte Abschnitte */}
+        <div className="space-y-2">
           {sections.map((section, index) => (
-            <NumberedStructuredContent
-              key={index}
-              number={section.number}
-              title={section.title}
-              content={section.content}
-            />
+            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+              <div className="flex">
+                <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium text-sm mr-2">
+                  {section.number}
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium">{section.title.endsWith(':') ? section.title.slice(0, -1) : section.title}</h3>
+                  {section.content && (
+                    <div className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                      {formatTextWithBold(section.content)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           ))}
         </div>
         
-        {/* Link-Cards am Ende anzeigen */}
+        {/* Links */}
         {links.length > 0 && (
-          <div className="mt-4">
+          <div className="mt-2">
             <LinkCardSlider links={links} />
           </div>
         )}
       </div>
     ),
-    // Render bulleted list
+    
+    // Render für Aufzählungslisten - einfacher, klarer Stil
     (sections, introText, links) => (
-      <div className="space-y-4">
-        {/* Zeige Inhalte, die vor den strukturierten Daten stehen könnten */}
-        {introText && introText.trim().length > 0 && (
-          <div className="text-sm leading-relaxed whitespace-pre-wrap mb-2">
-            {formatTextWithBold(introText)}
-          </div>
-        )}
+      <div className="space-y-2">
+        {/* Einführungstext wird im vereinfachten Ansatz nicht mehr verwendet */}
         
-        {/* Zeige strukturierte Abschnitte */}
-        <div className="space-y-3">
+        {/* Aufzählungen */}
+        <div className="space-y-2">
           {sections.map((section, index) => (
-            <StructuredContent 
-              key={index} 
-              title={section.title} 
-              items={section.items} 
-            />
+            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+              {section.title && (
+                <h3 className="text-sm font-medium mb-2">
+                  {section.title.endsWith(':') ? section.title.slice(0, -1) : section.title}
+                </h3>
+              )}
+              
+              <ul className="space-y-1">
+                {section.items.map((item, itemIndex) => (
+                  <li key={itemIndex} className="flex text-sm">
+                    <span className="text-blue-500 mr-2">•</span>
+                    <span className="text-gray-700 dark:text-gray-300">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
         </div>
         
-        {/* Link-Cards am Ende anzeigen */}
+        {/* Links */}
         {links.length > 0 && (
-          <div className="mt-4">
+          <div className="mt-2">
             <LinkCardSlider links={links} />
           </div>
         )}
       </div>
     ),
-    // Render simple text
+    
+    // Render für einfachen Text - unkomplizierte Textdarstellung
     (text, links) => (
-      <div className="space-y-4">
-        <div className="text-sm space-y-3 leading-relaxed">
-          {text.split(/\n\s*\n/).map((section, sectionIndex) => 
-            section.trim().length > 0 ? (
-              <p key={sectionIndex} className="whitespace-pre-wrap">
-                {formatTextWithBold(section)}
-              </p>
-            ) : null
-          )}
+      <div className="space-y-2">
+        {/* Einfacher Text */}
+        <div className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">
+          {formatTextWithBold(text)}
         </div>
         
-        {/* Link-Cards am Ende anzeigen */}
+        {/* Links */}
         {links.length > 0 && (
-          <div className="mt-4">
+          <div className="mt-2">
             <LinkCardSlider links={links} />
           </div>
         )}
       </div>
     ),
-    // Render screenshot format
+    
+    // Render für Screenshot-Format - wird nicht mehr separat behandelt, sondern auf normalen nummerierten Listen-Renderer umgeleitet
     (sections, introText, links) => (
-      <div className="space-y-4">
-        {/* Zeige Einführungstext, falls vorhanden */}
-        {introText && introText.trim().length > 0 && (
-          <div className="text-sm leading-relaxed whitespace-pre-wrap mb-2">
-            {formatTextWithBold(introText)}
-          </div>
-        )}
-        
-        {/* Container für die nummerierten Cards */}
-        <div className="space-y-3">
-          {/* Zeige nummerierte Cards */}
+      <div className="space-y-2">
+        {/* Nummerierte Abschnitte */}
+        <div className="space-y-2">
           {sections.map((section, index) => (
-            <NumberedCardContent
-              key={index}
-              number={section.number}
-              title={section.title}
-              content={section.content}
-            />
+            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm">
+              <div className="flex">
+                <div className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium text-sm mr-2">
+                  {section.number}
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium">{section.title.endsWith(':') ? section.title.slice(0, -1) : section.title}</h3>
+                  {section.content && (
+                    <div className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+                      {formatTextWithBold(section.content)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           ))}
         </div>
         
-        {/* Link-Cards am Ende anzeigen */}
+        {/* Links */}
         {links.length > 0 && (
-          <div className="mt-4">
+          <div className="mt-2">
             <LinkCardSlider links={links} />
           </div>
         )}
