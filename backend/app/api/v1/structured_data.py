@@ -129,4 +129,65 @@ async def import_brandenburg_data(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Fehler beim Importieren der Daten: {str(e)}"
+        )
+
+
+class ImportFromUrlRequest(BaseModel):
+    """Schema für URL-Import-Anfragen."""
+    url: str = "https://www.stadt-brandenburg.de/_/a/chatbot/daten.xml"
+
+
+@router.post("/import/brandenburg/url")
+async def import_brandenburg_data_from_url(
+    request: ImportFromUrlRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Importiert strukturierte Daten aus einer Brandenburg-XML-Datei über eine URL.
+    Erfordert Admin-Rechte.
+    
+    - **url**: URL zur XML-Datei (Standard: https://www.stadt-brandenburg.de/_/a/chatbot/daten.xml)
+    """
+    # Prüfen, ob Benutzer Admin ist
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nur Administratoren können diese Funktion nutzen"
+        )
+    
+    # Prüfen, ob die URL valide ist
+    if not request.url.startswith(('http://', 'https://')) or not request.url.endswith('.xml'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Die URL muss mit http:// oder https:// beginnen und auf .xml enden"
+        )
+    
+    # Alle Tenants mit Brandenburg-Konfiguration holen
+    tenants = tenant_service.get_all_tenants(db)
+    brandenburg_tenants = [t for t in tenants if getattr(t, 'is_brandenburg', False)]
+    
+    if not brandenburg_tenants:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Keine Brandenburg-Tenants gefunden"
+        )
+    
+    try:
+        # XML-Import für jeden Brandenburg-Tenant durchführen
+        results = {}
+        for tenant in brandenburg_tenants:
+            tenant_id = str(tenant.id)
+            result = structured_data_service.import_brandenburg_data_from_url(
+                url=request.url,
+                tenant_id=tenant_id
+            )
+            results[tenant.name] = result
+            
+        return {"message": "Import erfolgreich", "results": results}
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Fehler beim Importieren der Daten von URL: {str(e)}"
         ) 

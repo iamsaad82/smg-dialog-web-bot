@@ -67,6 +67,8 @@ class StructuredDataService:
                 wvc.config.Property(name="contactWebsite", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="allDayCare", data_type=wvc.config.DataType.BOOLEAN),
                 wvc.config.Property(name="additionalInfo", data_type=wvc.config.DataType.TEXT),
+                wvc.config.Property(name="description", data_type=wvc.config.DataType.TEXT),
+                wvc.config.Property(name="link", data_type=wvc.config.DataType.TEXT),
                 # Suchfeld für alle Inhalte
                 wvc.config.Property(name="fullTextSearch", data_type=wvc.config.DataType.TEXT)
             ]
@@ -80,6 +82,9 @@ class StructuredDataService:
                 wvc.config.Property(name="contactEmail", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="contactWebsite", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="services", data_type=wvc.config.DataType.TEXT_ARRAY),
+                wvc.config.Property(name="description", data_type=wvc.config.DataType.TEXT),
+                wvc.config.Property(name="content", data_type=wvc.config.DataType.TEXT),
+                wvc.config.Property(name="link", data_type=wvc.config.DataType.TEXT),
                 # Suchfeld für alle Inhalte
                 wvc.config.Property(name="fullTextSearch", data_type=wvc.config.DataType.TEXT)
             ]
@@ -90,10 +95,12 @@ class StructuredDataService:
                 wvc.config.Property(name="time", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="location", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="description", data_type=wvc.config.DataType.TEXT),
+                wvc.config.Property(name="content", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="organizer", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="contactPhone", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="contactEmail", data_type=wvc.config.DataType.TEXT),
                 wvc.config.Property(name="contactWebsite", data_type=wvc.config.DataType.TEXT),
+                wvc.config.Property(name="link", data_type=wvc.config.DataType.TEXT),
                 # Suchfeld für alle Inhalte
                 wvc.config.Property(name="fullTextSearch", data_type=wvc.config.DataType.TEXT)
             ]
@@ -123,12 +130,17 @@ class StructuredDataService:
         for key, value in data.items():
             if isinstance(value, dict):
                 # Verschachtelte Dictionaries abflachen (z.B. für 'contact')
-                nested = StructuredDataService.flatten_data(value, f"{key}_")
+                nested = StructuredDataService.flatten_data(value, f"{prefix}{key}_")
                 result.update(nested)
+            elif isinstance(value, list) and key == "services" and all(isinstance(item, str) for item in value):
+                # Services als Array behalten
+                result[f"{prefix}{key}"] = value
+            elif isinstance(value, list):
+                # Listen in komma-getrennte Strings umwandeln
+                result[f"{prefix}{key}"] = ", ".join(str(item) for item in value if item)
             else:
                 # Schlüssel mit Präfix verwenden
-                new_key = f"{prefix}{key}"
-                result[new_key] = value
+                result[f"{prefix}{key}"] = value
         
         return result
     
@@ -219,6 +231,54 @@ class StructuredDataService:
         return result
     
     @staticmethod
+    def import_brandenburg_data_from_url(url: str, tenant_id: str) -> Dict[str, int]:
+        """
+        Importiert strukturierte Daten für Brandenburg direkt von einer URL.
+        
+        Args:
+            url: URL zur XML-Datei
+            tenant_id: ID des Tenants
+            
+        Returns:
+            Dict mit Anzahl der importierten Elemente pro Typ
+        """
+        # Sicherstellen, dass Schemas existieren
+        for data_type in StructuredDataService.SUPPORTED_TYPES:
+            StructuredDataService.create_schema_for_type(tenant_id, data_type)
+        
+        parser = BrandenburgXMLParser()
+        
+        if not parser.parse_file(url):
+            logger.error(f"Konnte XML-Datei nicht von URL parsen: {url}")
+            return {"schools": 0, "offices": 0, "events": 0}
+        
+        result = {"schools": 0, "offices": 0, "events": 0}
+        
+        # Schulen importieren
+        schools = parser.extract_schools()
+        logger.info(f"Extrahierte {len(schools)} Schulen aus URL {url}")
+        for school in schools:
+            if StructuredDataService.store_structured_data(tenant_id, "school", school["data"]):
+                result["schools"] += 1
+        
+        # Ämter importieren
+        offices = parser.extract_offices()
+        logger.info(f"Extrahierte {len(offices)} Ämter aus URL {url}")
+        for office in offices:
+            if StructuredDataService.store_structured_data(tenant_id, "office", office["data"]):
+                result["offices"] += 1
+        
+        # Veranstaltungen importieren
+        events = parser.extract_events()
+        logger.info(f"Extrahierte {len(events)} Veranstaltungen aus URL {url}")
+        for event in events:
+            if StructuredDataService.store_structured_data(tenant_id, "event", event["data"]):
+                result["events"] += 1
+        
+        logger.info(f"Import von URL für Tenant {tenant_id} abgeschlossen: {result}")
+        return result
+    
+    @staticmethod
     def search_structured_data(
         tenant_id: str,
         data_type: str,
@@ -249,61 +309,99 @@ class StructuredDataService:
         
         # Prüfen, ob Klasse existiert
         if not SchemaManager.class_exists(class_name):
-            logger.warning(f"Klasse {class_name} existiert nicht")
+            logger.error(f"Klasse {class_name} existiert nicht in Weaviate")
             return []
         
         try:
             # Suche durchführen
             collection = weaviate_client.collections.get(class_name)
-            
-            # Hybrid-Suche für bessere Ergebnisse
-            response = collection.query.hybrid(
+            results = collection.query.hybrid(
                 query=query,
                 limit=limit,
-                alpha=0.75  # Gewichtung zwischen Vektor- und Keyword-Suche
+                alpha=0.5  # Balance zwischen Vektor- und Keyword-Suche
             )
             
-            # Ergebnisse in strukturierte Daten umwandeln
-            results = []
-            for obj in response.objects:
-                # UUID als ID verwenden
-                item_id = str(obj.uuid)
+            # Ergebnisse in das einheitliche Format konvertieren
+            formatted_results = []
+            
+            for item in results.objects:
+                properties = item.properties
+                item_id = str(item.uuid)
                 
-                # Eigenschaften in ursprüngliche Struktur zurückwandeln
-                item_props = {}
-                contact_props = {}
-                details_props = {}
+                # Properties wieder in eine verschachtelte Struktur umwandeln
+                structured_data = {}
                 
-                for key, value in obj.properties.items():
-                    if key.startswith("contact_"):
-                        contact_props[key.replace("contact_", "")] = value
-                    elif key.startswith("details_"):
-                        details_props[key.replace("details_", "")] = value
-                    elif key != "fullTextSearch":  # Suchfeld ignorieren
-                        item_props[key] = value
+                # Gemeinsame Felder extrahieren
+                for field in ["fullTextSearch"]:
+                    if field in properties:
+                        del properties[field]
                 
-                # Strukturierte Daten zusammensetzen
-                structured_item = {
-                    "id": item_id,
-                    **item_props
-                }
+                # Spezifische Felder je nach Datentyp verarbeiten
+                if data_type == "school":
+                    structured_data = {
+                        "id": item_id,
+                        "name": properties.get("name", ""),
+                        "type": properties.get("type", ""),
+                        "address": properties.get("address", ""),
+                        "contact": {
+                            "phone": properties.get("contact_phone", ""),
+                            "email": properties.get("contact_email", ""),
+                            "website": properties.get("contact_website", "")
+                        },
+                        "additionalInfo": properties.get("additionalInfo", ""),
+                        "description": properties.get("details_description", "") or properties.get("description", ""),
+                        "link": properties.get("details_link", "") or properties.get("link", "")
+                    }
                 
-                if contact_props:
-                    structured_item["contact"] = contact_props
+                elif data_type == "office":
+                    structured_data = {
+                        "id": item_id,
+                        "name": properties.get("name", ""),
+                        "department": properties.get("department", ""),
+                        "address": properties.get("address", ""),
+                        "openingHours": properties.get("openingHours", ""),
+                        "contact": {
+                            "phone": properties.get("contact_phone", ""),
+                            "email": properties.get("contact_email", ""),
+                            "website": properties.get("contact_website", "")
+                        },
+                        "services": properties.get("services", []),
+                        "description": properties.get("description", ""),
+                        "content": properties.get("details_content", "") or properties.get("content", ""),
+                        "link": properties.get("details_link", "") or properties.get("link", "")
+                    }
                 
-                if details_props:
-                    structured_item["details"] = details_props
+                elif data_type == "event":
+                    structured_data = {
+                        "id": item_id,
+                        "title": properties.get("title", ""),
+                        "date": properties.get("date", ""),
+                        "time": properties.get("time", ""),
+                        "location": properties.get("location", ""),
+                        "description": properties.get("description", ""),
+                        "content": properties.get("content", ""),
+                        "organizer": properties.get("organizer", ""),
+                        "contact": {
+                            "phone": properties.get("contact_phone", ""),
+                            "email": properties.get("contact_email", ""),
+                            "website": properties.get("contact_website", "")
+                        },
+                        "link": properties.get("link", "")
+                    }
                 
-                # Ergebnis zur Liste hinzufügen
-                results.append({
+                formatted_results.append({
                     "type": data_type,
-                    "data": structured_item
+                    "data": structured_data
                 })
             
-            return results
+            logger.info(f"{len(formatted_results)} {data_type}-Elemente gefunden für Suchanfrage '{query}'")
+            return formatted_results
+            
         except Exception as e:
             logger.error(f"Fehler bei der Suche nach {data_type}-Daten: {e}")
             return []
+    
+    # Weitere Methoden zur Verwaltung strukturierter Daten...
 
 
 # Singleton-Instanz für direkten Zugriff
