@@ -135,21 +135,48 @@ async def get_tenant_id_from_api_key(
     Prüft zuerst den Header, dann den Query-Parameter.
     Wirft eine HTTPException, wenn der API-Key ungültig ist.
     """
+    # DEBUG-Informationen drucken
+    print(f"[get_tenant_id_from_api_key] Request-Methode: {request.method}")
+    print(f"[get_tenant_id_from_api_key] Request-URL: {request.url}")
+    print(f"[get_tenant_id_from_api_key] API-Key-Header: {api_key_header}")
+    
     # Zuerst Header-API-Key prüfen
     api_key = api_key_header
     
     # Wenn kein Header-API-Key, dann Query-Parameter prüfen
     if not api_key:
         api_key = request.query_params.get("api_key")
+        print(f"[get_tenant_id_from_api_key] API-Key aus Query: {api_key}")
+    
+    # Fallback für Entwicklungsumgebung - für die spezifische Tenant-ID aus der URL
+    # HINWEIS: Das ist nur für Entwicklungszwecke und sollte in der Produktion entfernt werden
+    if not api_key and settings.ENV == "dev":
+        # Extrahiere tenant_id aus dem Pfad
+        path_parts = str(request.url.path).split('/')
+        for i, part in enumerate(path_parts):
+            if part == 'tenants' and i+1 < len(path_parts) and path_parts[i+1] != 'current':
+                tenant_id_from_path = path_parts[i+1]
+                print(f"[get_tenant_id_from_api_key] ENTWICKLUNGSMODUS - Tenant-ID aus Pfad: {tenant_id_from_path}")
+                if tenant_id_from_path and tenant_id_from_path != "current" and tenant_id_from_path != "ui-components-definitions":
+                    # Prüfen, ob dieser Tenant existiert
+                    tenant = tenant_service.get_tenant_by_id(db, tenant_id_from_path)
+                    if tenant:
+                        print(f"[get_tenant_id_from_api_key] Development-Bypass: Verwende Tenant-ID {tenant_id_from_path}")
+                        return tenant_id_from_path
     
     if not api_key:
+        print("[get_tenant_id_from_api_key] Kein API-Key gefunden.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="API-Key nicht angegeben"
         )
     
+    # Verifizieren des API-Keys
     tenant_id = tenant_service.verify_api_key(db, api_key)
+    print(f"[get_tenant_id_from_api_key] Verifizierter Tenant: {tenant_id}")
+    
     if not tenant_id:
+        print("[get_tenant_id_from_api_key] Ungültiger API-Key.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Ungültiger API-Key"

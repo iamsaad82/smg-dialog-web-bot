@@ -389,22 +389,44 @@ async def get_tenant_details(
     Diese Route erlaubt authentifizierten Benutzern, Tenant-Details für UI-Zwecke abzurufen,
     ohne Admin-Rechte zu benötigen.
     """
-    # Sicherheitsabfrage: Stellen Sie sicher, dass der Benutzer zum angeforderten Tenant gehört
-    if current_tenant_id != tenant_id:
+    try:
+        # Ausführliches Logging für Debugging
+        print(f"[get_tenant_details] API-Aufruf mit tenant_id={tenant_id}, authenticated_tenant_id={current_tenant_id}")
+        
+        # Sicherheitsabfrage: Stellen Sie sicher, dass der Benutzer zum angeforderten Tenant gehört
+        if current_tenant_id != tenant_id:
+            print(f"[get_tenant_details] Zugriff verweigert: Anfragender Tenant ({current_tenant_id}) ≠ Angeforderter Tenant ({tenant_id})")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Nur Benutzer des Tenants können die Details einsehen"
+            )
+        
+        # Tenant aus der Datenbank holen
+        tenant = tenant_service.get_tenant_by_id(db, tenant_id)
+        if not tenant:
+            print(f"[get_tenant_details] Tenant mit ID {tenant_id} nicht gefunden")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tenant nicht gefunden"
+            )
+        
+        # Debugging-Informationen
+        print(f"[get_tenant_details] Tenant mit ID {tenant_id} gefunden")
+        print(f"[get_tenant_details] is_brandenburg Wert: {tenant.is_brandenburg}")
+        
+        # Erfolgreiche Rückgabe
+        return tenant
+    except HTTPException as he:
+        # HTTPException direkt weiterleiten
+        print(f"[get_tenant_details] HTTP-Ausnahme: {he.status_code} - {he.detail}")
+        raise he
+    except Exception as e:
+        # Alle anderen Ausnahmen als 500 mit Debugging-Informationen
+        error_msg = f"Unerwarteter Fehler beim Abrufen des Tenants: {str(e)}"
+        print(f"[get_tenant_details] FEHLER: {error_msg}")
+        import traceback
+        print(f"[get_tenant_details] Stacktrace: {traceback.format_exc()}")
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Nur Benutzer des Tenants können die Details einsehen"
-        )
-    
-    tenant = tenant_service.get_tenant_by_id(db, tenant_id)
-    if not tenant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant nicht gefunden"
-        )
-    
-    # Logging für Debugging
-    print(f"[get_tenant_details] Tenant mit ID {tenant_id} angefordert")
-    print(f"[get_tenant_details] is_brandenburg Wert: {tenant.is_brandenburg}")
-    
-    return tenant 
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_msg
+        ) 

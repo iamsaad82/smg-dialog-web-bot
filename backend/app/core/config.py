@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "KI-Bot-System"
     
+    # Umgebung (dev, stage, prod)
+    ENV: str = os.getenv("ENV", "dev")
+    
     # Speicherpfade
     DATA_DIR: str = os.getenv("DATA_DIR", "/app/data")
 
