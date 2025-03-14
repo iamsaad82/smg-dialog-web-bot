@@ -146,12 +146,16 @@ export default function TenantBrandenburgImportPage() {
       const adminApiKey = "admin-secret-key-12345";
 
       const backendUrl = "http://localhost:8000"; // Backend-URL für direkte Anfragen
+      
+      console.log("Sende Import-Anfrage mit API-Key:", adminApiKey);
+      
       const response = await fetch(`${backendUrl}/api/v1/structured-data/import/brandenburg`, {
         method: "POST",
         headers: {
           'X-API-Key': adminApiKey, // Admin-API-Key zur Authentifizierung hinzufügen
         },
         body: formData,
+        credentials: 'omit' // Keine Cookies senden, da wir den API-Key verwenden
       });
 
       if (!response.ok) {
@@ -205,6 +209,9 @@ export default function TenantBrandenburgImportPage() {
       const adminApiKey = "admin-secret-key-12345";
       
       const backendUrl = "http://localhost:8000"; // Backend-URL für direkte Anfragen
+      
+      console.log("Sende URL-Import-Anfrage mit API-Key:", adminApiKey);
+      
       const response = await fetch(
         `${backendUrl}/api/v1/structured-data/import/brandenburg/url`,
         {
@@ -217,6 +224,7 @@ export default function TenantBrandenburgImportPage() {
             url: xmlUrl,
             tenant_id: tenantId // Nur für diesen Tenant importieren
           }),
+          credentials: 'omit' // Keine Cookies senden, da wir den API-Key verwenden
         }
       );
 
