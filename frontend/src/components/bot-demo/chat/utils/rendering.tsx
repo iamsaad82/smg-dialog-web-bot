@@ -27,28 +27,59 @@ const cleanupValue = (value: string): string => {
  * Erkennt und formatiert allgemeine strukturierte Informationen
  */
 const formatStructuredInfo = (text: string): React.ReactNode => {
-  // Prüfen, ob es sich um einen strukturierten Informationsblock handelt
-  const hasKeyValuePairs = text.split('\n').filter(line => line.includes(':')).length >= 3;
-  const hasHeaderMarker = text.includes('###');
-  const hasTitleAtStart = text.split('\n')[0] && !text.split('\n')[0].includes(':');
+  // Schlüsselwörter, die auf strukturierte Infos hindeuten könnten
+  const structureKeywords = [
+    'Schulform', 'Schultyp', 'Gymnasium', 'Schule', 'Kontakt', 'Telefon', 
+    'E-Mail', 'Adresse', 'Website', 'Webseite', 'Schulleitung'
+  ];
   
-  if ((hasKeyValuePairs && (hasHeaderMarker || hasTitleAtStart)) || text.includes('###')) {
+  // Grundlegende Eigenschaft prüfen: Hat das Format Schlüssel-Wert-Paare?
+  const hasKeyValuePairs = text.split('\n')
+    .filter(line => line.includes(':') && structureKeywords.some(kw => line.includes(kw)))
+    .length >= 2;
+
+  // Hat der Text einen Titel/Header?
+  const hasHeaderMarker = text.includes('###');
+  const firstLine = text.split('\n')[0]?.trim() || '';
+  const hasTitleAtStart = !firstLine.includes(':') && 
+                         (firstLine.length > 0) &&
+                         structureKeywords.some(kw => text.includes(kw));
+  
+  // Prüfung auf bekannte Institutionen oder Einrichtungen
+  const containsInstitutionKeywords = [
+    'Gymnasium', 'Schule', 'Schulform', 'Schulleitung', 'Bertolt', 'Brecht'
+  ].some(kw => text.toLowerCase().includes(kw.toLowerCase()));
+  
+  // Entscheidung, ob strukturierte Information vorliegt
+  const isStructuredInfo = (hasKeyValuePairs && (hasHeaderMarker || hasTitleAtStart)) || 
+                          (containsInstitutionKeywords && hasKeyValuePairs);
+  
+  if (isStructuredInfo) {
     // Format mit sauberen Key-Value-Paaren erstellen
     const lines = text.split('\n');
     const structuredData: Record<string, string> = {};
     let title = '';
     
     // Titel aus den ersten Zeilen extrahieren
-    if (text.startsWith('###')) {
-      const titleMatch = text.match(/^###\s+(.+?)(?:\s*[-:]\s*|$)/);
+    if (hasHeaderMarker) {
+      // Titel aus Header-Format extrahieren: ### Titel
+      const titleMatch = text.match(/^###\s+(.+?)(?:\s*[-:]\s*|$)/m);
       if (titleMatch) {
         title = cleanupValue(titleMatch[1]);
       }
-    } else if (hasTitleAtStart) {
-      const firstLine = lines[0].trim();
-      title = cleanupValue(firstLine);
-      // Titel-Zeile aus den zu verarbeitenden Zeilen entfernen
-      lines.shift();
+    } else if (hasTitleAtStart || containsInstitutionKeywords) {
+      // Erste Zeile als Titel verwenden, wenn sie nicht als Schlüssel-Wert-Paar formatiert ist
+      if (!firstLine.includes(':')) {
+        title = cleanupValue(firstLine);
+        // Titel aus Zeilen entfernen
+        lines.shift();
+      } else {
+        // Institutionsname suchen (z.B. "Bertolt-Brecht-Gymnasium")
+        const institutionMatch = text.match(/(?:^|\n)(?:\*\*)?([^:]*?Gymnasium|[^:]*?Schule)(?:\*\*)?(?=\s*[-:]\s*|\n|$)/);
+        if (institutionMatch) {
+          title = cleanupValue(institutionMatch[1]);
+        }
+      }
     }
     
     // Bekannte Schlüssel für Informationsstrukturen
@@ -56,52 +87,52 @@ const formatStructuredInfo = (text: string): React.ReactNode => {
       'Schulform', 'Schultyp', 'Adresse', 'Telefon', 'E-Mail', 'Website', 
       'Schulname', 'Schulleitung', 'Träger', 'Öffnungszeiten', 'Ansprechpartner', 
       'Kontakt', 'Standort', 'Beschreibung', 'Information', 'Hinweis', 'Details',
-      'Leistungen', 'Anmeldung', 'Gebühren', 'Kosten', 'Öffnungszeit'
+      'Leistungen', 'Anmeldung', 'Gebühren', 'Kosten', 'Öffnungszeit', 'Ganztag',
+      'Ganztagsschule'
     ];
     
-    // Key-Value-Paare erkennen und doppelte Schlüssel vermeiden
-    lines.forEach(line => {
-      if (!line.trim()) return;
-      
-      const keyValueMatch = line.match(/([^:]+):\s*(.+)/);
-      if (keyValueMatch) {
-        let key = cleanupValue(keyValueMatch[1]);
-        let value = keyValueMatch[2].trim();
-        
-        // Doppelte Schlüssel im Wert erkennen und entfernen
-        knownKeys.forEach(knownKey => {
-          const duplicateKeyRegex = new RegExp(`^${knownKey}:\\s*`, 'i');
-          if (duplicateKeyRegex.test(value)) {
-            value = value.replace(duplicateKeyRegex, '');
-          }
-        });
-        
-        value = cleanupValue(value);
-        
-        // Wenn der Schlüssel bereits existiert, Werte zusammenführen
-        if (structuredData[key]) {
-          if (!structuredData[key].includes(value)) {
-            structuredData[key] += ` - ${value}`;
-          }
-        } else {
-          structuredData[key] = value;
-        }
-      } else if (!title && line.trim() && !line.startsWith('-') && !line.startsWith('*')) {
-        // Wenn noch kein Titel gesetzt wurde und die Zeile kein Key-Value-Paar ist,
-        // verwenden wir sie als Titel
-        title = cleanupValue(line);
-      }
-    });
+    // Schlüssel-Wert-Paare aus dem Text extrahieren
+    const keyValueRegex = /(?:^|\n)\s*(?:\*\*)?([^:*]+?)(?:\*\*)?:\s*(?:\*\*)?(.+?)(?:\*\*)?(?=\n|$)/g;
+    let match;
     
-    // Wenn ein passender Schlüssel existiert, der als Titel verwendet werden kann
-    const titleCandidateKeys = ['Name', 'Titel', 'Schulname', 'Einrichtung', 'Bezeichnung'];
-    if (!title) {
-      for (const candidateKey of titleCandidateKeys) {
-        if (structuredData[candidateKey]) {
-          title = structuredData[candidateKey];
-          delete structuredData[candidateKey];
-          break;
+    while ((match = keyValueRegex.exec(text)) !== null) {
+      let key = cleanupValue(match[1]);
+      let value = match[2].trim();
+      
+      // Falls der Wert nochmals einen Schlüssel enthält, diesen entfernen
+      knownKeys.forEach(knownKey => {
+        const duplicateKeyRegex = new RegExp(`^${knownKey}:\\s*`, 'i');
+        if (duplicateKeyRegex.test(value)) {
+          value = value.replace(duplicateKeyRegex, '');
         }
+      });
+      
+      value = cleanupValue(value);
+      
+      // Vorhandene Werte für den gleichen Schlüssel zusammenführen
+      if (structuredData[key]) {
+        // Nur hinzufügen, wenn der Wert nicht bereits vorhanden ist
+        if (!structuredData[key].includes(value)) {
+          structuredData[key] += ` - ${value}`;
+        }
+      } else {
+        structuredData[key] = value;
+      }
+    }
+    
+    // Wenn kein Titel gefunden wurde, prüfen auf spezifische Schlüssel
+    if (!title && structuredData['Name']) {
+      title = structuredData['Name'];
+      delete structuredData['Name'];
+    } else if (!title && structuredData['Schulname']) {
+      title = structuredData['Schulname'];
+      delete structuredData['Schulname'];
+    } else if (!title && structuredData['Schulform'] === 'Gymnasium') {
+      const institutionMatch = text.match(/(?:Bertolt|Brecht)[-\s](?:Bertolt|Brecht)?[-\s]?Gymnasium/i);
+      if (institutionMatch) {
+        title = institutionMatch[0].trim();
+      } else {
+        title = 'Gymnasium';
       }
     }
     

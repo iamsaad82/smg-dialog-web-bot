@@ -1,5 +1,5 @@
 import React from 'react';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, Mail, Globe } from 'lucide-react';
 import { LinkItem } from './types';
 import { formatTextWithBold } from './formatting';
 
@@ -12,8 +12,8 @@ const cleanupUrl = (url: string): string => {
   // Leerzeichen in URLs entfernen
   let cleanUrl = url.replace(/\s+/g, '');
   
-  // Klammern am Anfang und Ende entfernen
-  cleanUrl = cleanUrl.replace(/^\(|\)$|\[$|\]$/g, '');
+  // Klammern und andere Formatierungen entfernen
+  cleanUrl = cleanUrl.replace(/^\(|\)$|\[$|\]$|\*\*|\*/g, '');
   
   // Sicherstellen, dass www. URLs ein Protokoll haben
   if (cleanUrl.startsWith('www.') && !cleanUrl.startsWith('http')) {
@@ -29,145 +29,193 @@ const cleanupUrl = (url: string): string => {
 };
 
 /**
- * Gibt einen lesbaren Domainnamen zurück
+ * Extrahiert einen menschenlesbaren Domain-Namen aus einer URL
  */
 const getDomainLabel = (url: string): string => {
   try {
-    const urlObj = new URL(url);
     if (url.startsWith('mailto:')) {
       return url.replace('mailto:', '');
     }
-    return urlObj.hostname.replace(/^www\./, '');
+    
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname.replace(/^www\./, '');
+    
+    // Für bekannte Domains bessere Labels zurückgeben
+    if (hostname.includes('brandenburg')) return 'brandenburg.de';
+    if (hostname.includes('berlin')) return 'berlin.de';
+    
+    return hostname;
   } catch (e) {
+    // Fallback für nicht-URL Formate
     return url;
   }
 };
 
 /**
- * Erzeugt ein Link-Element mit konsistentem Stil
+ * Erstellt ein einheitliches Link-Element mit konsistentem Styling
  */
 const createLinkElement = (url: string, text: string, key: string): JSX.Element => {
   const cleanUrl = cleanupUrl(url);
   const isEmail = cleanUrl.startsWith('mailto:');
+  const domainLabel = getDomainLabel(cleanUrl);
   
-  return (
-    <a 
-      key={key} 
-      href={cleanUrl} 
-      target={isEmail ? '_self' : '_blank'} 
-      rel={isEmail ? undefined : 'noopener noreferrer'}
-      className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
-      aria-label={isEmail ? `E-Mail an ${text}` : `${text} - Öffnet in einem neuen Tab`}
-    >
-      {text}
-      {!isEmail && <ExternalLink className="h-3 w-3 ml-0.5" />}
-    </a>
-  );
+  // Wenn kein Text gegeben ist, Domain als Text verwenden
+  const displayText = text || domainLabel;
+  
+  // E-Mail-Links anders als Web-Links darstellen
+  if (isEmail) {
+    return (
+      <a 
+        key={key} 
+        href={cleanUrl} 
+        className="text-purple-600 hover:text-purple-800 inline-flex items-center gap-1 hover:underline dark:text-purple-400"
+      >
+        <Mail className="h-3.5 w-3.5 mr-0.5" />
+        {displayText}
+      </a>
+    );
+  } else {
+    return (
+      <a 
+        key={key} 
+        href={cleanUrl} 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="text-blue-600 hover:text-blue-800 inline-flex items-center gap-1 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
+        aria-label={`${displayText} - Öffnet in einem neuen Tab`}
+      >
+        {displayText}
+        <ExternalLink className="h-3 w-3 ml-0.5" />
+      </a>
+    );
+  }
 };
 
 /**
  * Formatiert Text und ersetzt Links mit anklickbaren Elementen.
- * @param text Der zu formatierende Text
- * @returns Formatierter Text mit Links als React-Elemente
+ * Umfassende und robuste Erkennung verschiedener Link-Formate.
  */
 export const formatTextWithLinks = (text: string): React.ReactNode => {
   if (!text) return null;
   
-  // Vorverarbeitung: Leerzeichen in URLs entfernen und eckige Klammern bereinigen
-  let preprocessedText = text;
-  
-  // HTML-Tags temporär ersetzen
-  preprocessedText = preprocessedText.replace(/<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/g, (match, url, text) => {
-    return `[${text}](${url})`;
-  });
-  
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   
-  // Pattern zum Erkennen verschiedener Link-Typen
+  // Umfassende Muster für verschiedene Link-Typen
   const patterns = [
     // Markdown-Links: [text](url)
     {
-      regex: /\[(.*?)\]\s*\(\s*((?:https?:\/\/|www\.|mailto:)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g,
+      regex: /\[(.*?)\]\s*\(\s*((?:https?:\/\/|www\.|mailto:)[^\s)]+)\s*\)/g,
       process: (match: RegExpExecArray) => {
-        const linkText = match[1].trim() || getDomainLabel(match[2]);
-        return createLinkElement(match[2], linkText, `md-${match.index}`);
+        const linkText = match[1].trim();
+        const url = cleanupUrl(match[2]);
+        
+        parts.push(text.substring(lastIndex, match.index));
+        lastIndex = match.index + match[0].length;
+        
+        return createLinkElement(url, linkText, `md-${match.index}`);
       }
     },
+    
+    // URLs in eckigen Klammern: [url]
+    {
+      regex: /\[\s*((?:https?:\/\/|www\.)[^\s\]]+)\s*\]/g,
+      process: (match: RegExpExecArray) => {
+        const url = cleanupUrl(match[1]);
+        
+        parts.push(text.substring(lastIndex, match.index));
+        lastIndex = match.index + match[0].length;
+        
+        return createLinkElement(url, '', `brack-${match.index}`);
+      }
+    },
+    
+    // URLs in runden Klammern: (url)
+    {
+      regex: /\(\s*((?:https?:\/\/|www\.)[^\s)]+)\s*\)/g,
+      process: (match: RegExpExecArray) => {
+        const url = cleanupUrl(match[1]);
+        
+        parts.push(text.substring(lastIndex, match.index));
+        lastIndex = match.index + match[0].length;
+        
+        return createLinkElement(url, '', `paren-${match.index}`);
+      }
+    },
+    
     // URLs in Schlüssel-Wert-Paaren: "Website: https://..."
     {
-      regex: /(Website|E-Mail|Homepage|Webseite|URL|Link):\s+((?:https?:\/\/|www\.|mailto:)[^\s\n]+(?:\s+[^\s\n]+)*)/gi,
+      regex: /\b(Website|Webseite|E-Mail|Homepage|URL|Link):\s+((?:https?:\/\/|www\.|mailto:)[^\s\n]+)/gi,
       process: (match: RegExpExecArray) => {
         const label = match[1];
-        const url = match[2];
+        const url = cleanupUrl(match[2]);
+        
         // Nur die URL ersetzen, nicht das Label
-        parts.push(text.substring(lastIndex, match.index + label.length + 2)); // +2 für ": "
-        lastIndex = match.index + label.length + 2 + url.length;
-        return createLinkElement(url, getDomainLabel(url), `kv-${match.index}`);
+        parts.push(text.substring(lastIndex, match.index + label.length + 1)); // +1 für den Doppelpunkt
+        
+        // Finde den Abstand nach dem Doppelpunkt
+        const colonPos = match.index + label.length;
+        const afterColonSpace = text.substring(colonPos, colonPos + 2).replace(':', '').length;
+        
+        lastIndex = match.index + label.length + 1 + afterColonSpace + match[2].length;
+        
+        // Erstelle einen aussagekräftigeren Text für den Link
+        const linkText = label.toLowerCase() === 'e-mail' ? url.replace('mailto:', '') : '';
+        return createLinkElement(url, linkText, `kv-${match.index}`);
       }
     },
+    
     // E-Mail-Adressen: name@domain.com
     {
       regex: /\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b/g,
       process: (match: RegExpExecArray) => {
-        return createLinkElement(`mailto:${match[1]}`, match[1], `email-${match.index}`);
-      }
-    },
-    // URLs in eckigen oder runden Klammern: [url] oder (url)
-    {
-      regex: /[\[\(]\s*((?:https?:\/\/|www\.)[^\s\]\)]+(?:\s+[^\s\]\)]+)*)\s*[\]\)]/g,
-      process: (match: RegExpExecArray) => {
-        const url = match[1];
-        const fullMatch = match[0];
-        // Ersetze die gesamte Klammer-Struktur durch den Link
+        const email = match[1];
+        
         parts.push(text.substring(lastIndex, match.index));
-        lastIndex = match.index + fullMatch.length;
-        return createLinkElement(url, getDomainLabel(url), `bracket-${match.index}`);
+        lastIndex = match.index + email.length;
+        
+        return createLinkElement(`mailto:${email}`, email, `email-${match.index}`);
       }
     },
+    
     // Einfache URLs im Text: https://example.com oder www.example.com
     {
-      regex: /(?<!["\][(])\b((?:https?:\/\/|www\.)[^\s"'<>(),;]+)/g,
+      regex: /\b(?<!["\][(])((?:https?:\/\/|www\.)[^\s"'<>(),;]+)/g,
       process: (match: RegExpExecArray) => {
-        return createLinkElement(match[1], getDomainLabel(match[1]), `plain-${match.index}`);
+        const url = cleanupUrl(match[1]);
+        
+        parts.push(text.substring(lastIndex, match.index));
+        lastIndex = match.index + match[1].length;
+        
+        return createLinkElement(url, '', `plain-${match.index}`);
       }
     }
   ];
   
-  // Alle Patterns durchlaufen und Links ersetzen
+  // Alle Patterns durchlaufen
   patterns.forEach(pattern => {
     let match;
-    // Regex zurücksetzen für jeden Pattern-Typ
-    pattern.regex.lastIndex = 0;
+    pattern.regex.lastIndex = 0; // Regex-Index zurücksetzen
     
-    while ((match = pattern.regex.exec(preprocessedText)) !== null) {
-      // Text bis zum aktuellen Match hinzufügen (nur wenn es sich nicht um ein Schlüssel-Wert-Paar handelt)
-      if (pattern.regex.source.indexOf('Website|E-Mail') === -1) {
-        parts.push(preprocessedText.substring(lastIndex, match.index));
-      }
-      
-      // Link-Element erstellen und hinzufügen
-      parts.push(pattern.process(match));
-      
-      // Nur den lastIndex aktualisieren, wenn es sich nicht um ein Schlüssel-Wert-Paar handelt
-      if (pattern.regex.source.indexOf('Website|E-Mail') === -1) {
-        lastIndex = match.index + match[0].length;
+    while ((match = pattern.regex.exec(text)) !== null) {
+      const processedNode = pattern.process(match);
+      if (processedNode) {
+        parts.push(processedNode);
       }
     }
   });
   
   // Restlichen Text hinzufügen
-  if (lastIndex < preprocessedText.length) {
-    parts.push(preprocessedText.substring(lastIndex));
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
   }
   
-  return parts.length > 0 ? parts : preprocessedText;
+  return parts.length > 0 ? parts : text;
 };
 
 /**
  * Formatiert Text mit fetten Passagen als React-Elemente.
- * @param text Der zu formatierende Text
- * @returns Formatierter Text mit fetten Elementen
+ * Verarbeitet auch Links innerhalb des fettgedruckten Textes.
  */
 export const formatTextWithBoldReact = (text: string): React.ReactNode => {
   if (!text) return null;

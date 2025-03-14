@@ -34,7 +34,7 @@ interface MessageItemProps {
 }
 
 export function MessageItem({ message, primaryColor, secondaryColor }: MessageItemProps) {
-  // Verbesserte Hilfs-Funktion zur URL-Bereinigung
+  // Verbesserte Hilfs-Funktion zur umfassenden URL-Bereinigung
   const cleanupUrls = (text: string): string => {
     if (!text) return '';
     
@@ -43,12 +43,12 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
     
     let cleaned = text;
     
-    // 1. Bestimmte Muster, die doppelte Inhalte enthalten, bereinigen
-    // z.B. "Gymnasium - Gymnasium" zu "Gymnasium"
-    const duplicatePattern = /(\w+)(\s+[-:]\s+\1|[-:]\s+\1)/gi;
+    // 1. Umfassendere Erkennung von Doppelungen in strukturierten Daten
+    // z.B. "Schulform: Schulform: Gymnasium" oder "Gymnasium - Gymnasium"
+    const duplicatePattern = /\b(\w+[^:]*?)(?:\s*[-:]\s+\1|\s*[-:]\s+\**\1\**)\b/gi;
     cleaned = cleaned.replace(duplicatePattern, '$1');
     
-    // 2. Bereinigen von Markdown-Links: [text](url)
+    // 2. Bereinigen von Markdown-Links: [text](url) mit besserer Erkennung
     cleaned = cleaned.replace(
       /\[(.*?)\]\s*\(\s*((?:https?:\/\/|www\.)[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g, 
       (match, linkText, url) => {
@@ -58,25 +58,26 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
       }
     );
     
-    // 3. Bereinigen von URLs in eckigen Klammern: [url] oder runden Klammern: (url)
+    // 3. Bereinigen von URLs in eckigen oder runden Klammern: [url] oder (url)
     cleaned = cleaned.replace(
       /[\[\(]\s*((?:https?:\/\/|www\.)[^\s\]\)]+(?:\s+[^\s\]\)]+)*)\s*[\]\)]/g, 
       (match, url) => {
         const cleanUrl = url.replace(/\s+/g, '');
+        // Ursprüngliche Klammern beibehalten
         return match.charAt(0) + cleanUrl + match.charAt(match.length - 1);
       }
     );
     
-    // 4. Bereinigen von URLs in Label-Kontext (z.B. "Website: https://...")
+    // 4. Bereinigen von URLs in Label-Kontext mit verbesserter Erkennung
     urlLabels.forEach(label => {
-      const pattern = new RegExp(`(${label}):\\s*((?:https?:\/\/|www\.)[^\\s\\n]+(?:\\s+[^\\s\\n]+)*)`, 'gi');
+      const pattern = new RegExp(`(${label}):\\s*((?:https?:\/\/|www\.)[^\\s\\n<>"']+(?:\\s+[^\\s\\n<>"']+)*)`, 'gi');
       cleaned = cleaned.replace(pattern, (match, labelText, url) => {
         const cleanUrl = url.replace(/\s+/g, '');
         return `${labelText}: ${cleanUrl}`;
       });
     });
     
-    // 5. Bereinigen einfacher URLs
+    // 5. Bereinigen einfacher URLs mit umfassenderer Erkennung
     cleaned = cleaned.replace(
       /(https?:\/\/[^\s"'<>]+(?:\s+[^\s"'<>]+)*)/g, 
       (match) => match.replace(/\s+/g, '')
@@ -99,11 +100,12 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
       }
     );
     
-    // 8. Doppelte Doppelpunkte in strukturierten Daten entfernen (z.B. "Schulform: Schulform: Gymnasium")
+    // 8. Doppelte Doppelpunkte in strukturierten Daten entfernen
     const knownLabels = [
       'Schulform', 'Schultyp', 'Adresse', 'Telefon', 'E-Mail', 'Website', 
       'Schulname', 'Schulleitung', 'Träger', 'Öffnungszeiten', 'Kontakt',
-      'Standort', 'Beschreibung', 'Information', 'Hinweis', 'Details'
+      'Standort', 'Beschreibung', 'Information', 'Hinweis', 'Details',
+      'Ganztags', 'Ganztagsschule'
     ];
     
     knownLabels.forEach(label => {
@@ -111,11 +113,27 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
       cleaned = cleaned.replace(regex, `$1: `);
     });
     
+    // 9. "**" Markierungen bei URLs entfernen
+    cleaned = cleaned.replace(/\*\*(https?:\/\/[^\s*]+)\*\*/g, '$1');
+    
+    // 10. Intelligentere Erkennung strukturierter Daten
+    // Bereinigen von Fällen wie "Schulform: ** Gymnasium"
+    cleaned = cleaned.replace(/(\w+):\s*\*\*\s*([^*]+)/g, '$1: $2');
+    
+    // Bereinigen von Fällen mit doppelter Formatierung "**Schulform:** ..."
+    cleaned = cleaned.replace(/\*\*([^:*]+):\*\*\s*/g, '$1: ');
+    
     return cleaned;
   };
   
   // Sicherstellen, dass der Text getrimmt ist und URLs bereinigt sind
   const messageContent = message.content.trim();
+  
+  // Prüfen, ob der Inhalt strukturiert ist oder strukturierte Elemente enthält
+  const containsStructuredInfo = messageContent.includes('###') || 
+                               (messageContent.split('\n').filter(line => line.includes(':')).length >= 3) ||
+                               messageContent.includes('Schulform:') || 
+                               messageContent.includes('Gymnasium');
   
   // Für Assistenten-Nachrichten: URLs bereinigen, bevor sie an renderFormattedContent übergeben werden
   const cleanedContent = message.role === "assistant" ? cleanupUrls(messageContent) : messageContent;

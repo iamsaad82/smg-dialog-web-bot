@@ -28,100 +28,70 @@ export class ChatApi {
     const { signal } = controller;
     let streamActive = true;
     
-    // Puffer-Status und Intelligente URL-Erkennung
-    let bufferMode = false;
-    let structureBuffer = '';
-    let urlBuffer = ''; // Spezieller Buffer für URLs
+    // Puffer für strukturierte Daten und Streaming-Steuerung
+    let buffer = '';
+    let structureDetected = false;
+    let potentialStructuredContent = false;
+    let headerDetected = false;
+    let keyValuePairsCount = 0;
     
-    // Verbesserte Regex für begrenzte Strukturen, die nicht in Teilen gestreamt werden sollten
-    const startStructureRegexes = [
-      /\[\s*([^[\]]*?)\s*\]\s*\(\s*https?:\/\//,  // Markdown-Link mit Text [beliebiger Text](http
-      /\[\s*https?:\/\//,                         // URL in eckigen Klammern [http
-      /\(\s*https?:\/\//                          // URL in runden Klammern (http
-    ];
+    // Verbesserte Regex für strukturierte Inhalte
+    const structureHeaderRegex = /^###\s+(.+?)(?:\s*[-:]\s*|$)/;
+    const keyValueRegex = /^\s*\**([^:*]+):\s*\**(.+)\**$/;
+    const websiteRegex = /(?:Website|Webseite):\s+\[?(?:https?:\/\/|www\.)([^\s\]]+)/i;
+    const linkInParensRegex = /\(\s*(?:https?:\/\/|www\.)([^\s\)]+)/;
     
-    const endStructureRegexes = [
-      /\)\s*$/,          // Ende eines Markdown-Links mit rundem Abschluss )
-      /\]\s*$/,          // Ende eckiger Klammern am Ende des Textes
-      /\]\s*(?!\()/      // Ende eckiger Klammern, kein '(' danach
-    ];
-    
-    // Umfassendere Prüfung auf URL-Strukturen im Text
-    const containsUrlStructure = (text: string): boolean => {
-      // Prüfe auf verschiedene URL-Muster, die über mehrere Chunks verteilt sein könnten
-      return (
-        text.includes('http') || 
-        text.includes('www.') || 
-        text.includes('://') ||
-        text.includes('[') && text.includes(']') && text.includes('(') ||
-        text.match(/\[\s*[^\]]*\]\s*\(/) !== null // [text](
-      );
+    // Verbesserte URL-Erkennung
+    const containsUrl = (text: string): boolean => {
+      return text.includes('http') || 
+             text.includes('www.') || 
+             text.includes('[') && text.includes(']') && text.includes('(') ||
+             /\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/.test(text);
     };
     
-    // Verbesserte Funktion zum Prüfen, ob ein Strukturanfang vorliegt
-    const isStructureStart = (text: string): boolean => {
-      // Zusätzlich zu RegEx auch Textinhalte prüfen
-      if (text.includes('[') && text.toLowerCase().includes('http')) {
-        return true;
-      }
-      
-      if (text.includes('[') && text.includes(']') && text.includes('(')) {
-        return true;
-      }
-      
-      return startStructureRegexes.some(regex => regex.test(text));
-    };
-    
-    // Verbesserte Funktion zum Prüfen, ob ein Strukturende vorliegt
-    const isStructureEnd = (text: string): boolean => {
-      // Wenn wir eine komplette Markdown-Link-Struktur haben
-      if (text.includes('[') && text.includes(']') && 
-          text.includes('(') && text.includes(')')) {
-        const lastOpenBracket = text.lastIndexOf('[');
-        const lastCloseBracket = text.lastIndexOf(']');
-        const lastOpenParen = text.lastIndexOf('(');
-        const lastCloseParen = text.lastIndexOf(')');
-        
-        // Prüfe, ob die Reihenfolge korrekt ist: [ ] ( )
-        return lastOpenBracket < lastCloseBracket && 
-               lastCloseBracket < lastOpenParen && 
-               lastOpenParen < lastCloseParen;
-      }
-      
-      return endStructureRegexes.some(regex => regex.test(text));
-    };
-    
-    // Verbesserte und umfassendere Funktion zum Bereinigen von URLs in einem Text
+    // Verbesserte URL-Bereinigung
     const cleanupUrls = (text: string): string => {
-      // Leerzeichen in URLs entfernen
-      let processedText = text;
+      let cleanedText = text;
       
-      // Markdown-Links [text](url) bereinigen - mit größerer Flexibilität für verschiedene Formate
-      processedText = processedText.replace(
-        /\[(.*?)\]\s*\(\s*(https?:\/\/[^\s)]+[^\s)]*([ \t]+[^\s)]+)*)\s*\)/g, 
-        (match, linkText, url) => {
-          // Alle Leerzeichen in der URL entfernen (nicht im Linktext)
-          const cleanUrl = url.replace(/\s+/g, '');
-          return `[${linkText}](${cleanUrl})`;
-        }
+      // [Text](URL) Markdown Links bereinigen
+      cleanedText = cleanedText.replace(
+        /\[(.*?)\]\s*\(\s*(https?:\/\/[^\s)]+(?:\s+[^\s)]+)*)\s*\)/g,
+        (_, linkText, url) => `[${linkText}](${url.replace(/\s+/g, '')})`
       );
       
-      // URLs in eckigen Klammern [url] bereinigen - mit größerer Flexibilität
-      processedText = processedText.replace(
-        /\[\s*(https?:\/\/[^\s\]]+[^\s\]]*([ \t]+[^\s\]]+)*)\s*\]/g, 
-        (match, url) => {
-          const cleanUrl = url.replace(/\s+/g, '');
-          return `[${cleanUrl}]`;
-        }
+      // Alle anderen URLs bereinigen
+      cleanedText = cleanedText.replace(
+        /(https?:\/\/[^\s"'<>]+(?:\s+[^\s"'<>]+)*)/g,
+        match => match.replace(/\s+/g, '')
       );
       
-      // Einfache URLs bereinigen - umfassendere Erkennung
-      processedText = processedText.replace(
-        /(https?:\/\/[^\s"'<>]+[^\s"'<>]*([ \t]+[^\s"'<>]+)*)/g, 
-        (match) => match.replace(/\s+/g, '')
-      );
+      return cleanedText;
+    };
+    
+    // Funktion zur Verarbeitung des Buffers
+    const processBuffer = () => {
+      // Wenn es strukturierter Inhalt sein könnte, prüfe nochmal
+      if (potentialStructuredContent) {
+        const lines = buffer.split('\n');
+        const hasHeader = lines.some(line => structureHeaderRegex.test(line));
+        const keyValuePairs = lines.filter(line => keyValueRegex.test(line));
+        
+        structureDetected = Boolean((hasHeader || (lines[0] && !lines[0].includes(':'))) && 
+                          keyValuePairs.length >= 3);
+      }
       
-      return processedText;
+      // Bereinige URLs, unabhängig davon, ob es strukturierter Inhalt ist
+      const cleanedBuffer = cleanupUrls(buffer);
+      
+      // Sende gereinigten Buffer
+      onChunk(cleanedBuffer);
+      
+      // Buffer zurücksetzen
+      buffer = '';
+      structureDetected = false;
+      potentialStructuredContent = false;
+      keyValuePairsCount = 0;
+      headerDetected = false;
     };
     
     // Stream-Funktion mit Fetch
@@ -152,151 +122,154 @@ export class ChatApi {
         // Stream-Verarbeitung
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let buffer = '';
+        let messageBuffer = '';
         
-        // Hilfsfunktion zum Verarbeiten einer Zeile
+        // Verbesserte Zeilenverarbeitung
         const processLine = (line: string): void => {
-          if (!line || !streamActive) return; // Leere Zeilen ignorieren oder Stream beendet
+          if (!line || !streamActive) return;
           
           console.log("Empfangene Zeile:", line);
           
           if (line.startsWith('data:')) {
-            // Daten-Zeile (enthält Text-Chunk) - WICHTIG: kein trim() anwenden, um Leerzeichen zu erhalten
-            let content = line.substring(5);
+            const content = line.substring(5);
             
             try {
               // Prüfen auf JSON-Format (interaktive Elemente)
               if (content.includes('interactive_elements')) {
                 const parsedData = JSON.parse(content);
                 
-                // Interaktive Elemente übergeben, wenn vorhanden
                 if (parsedData.interactive_elements && onInteractiveElements) {
                   console.log("Interaktive Elemente gefunden:", parsedData.interactive_elements);
                   onInteractiveElements(parsedData.interactive_elements);
                 }
                 
-                // Eventuellen Text trotzdem verarbeiten
+                // Eventuellen Text dennoch verarbeiten
                 if (parsedData.text !== undefined) {
-                  // Text senden - aber zuerst URLs bereinigen
-                  onChunk(cleanupUrls(parsedData.text));
+                  // Zuerst prüfen, ob der Text strukturierte Information enthalten könnte
+                  if (!structureDetected && !potentialStructuredContent) {
+                    if (parsedData.text.includes('###') || 
+                        keyValueRegex.test(parsedData.text) ||
+                        websiteRegex.test(parsedData.text) ||
+                        parsedData.text.includes('Gymnasium') || 
+                        parsedData.text.includes('Schule') ||
+                        parsedData.text.includes('Kontakt') ||
+                        parsedData.text.includes('Adresse')) {
+                      // Möglicherweise strukturierter Inhalt - zum Buffer hinzufügen
+                      potentialStructuredContent = true;
+                      buffer += parsedData.text;
+                      
+                      // Prüfe auf Header oder Key-Value-Paare
+                      const lines = buffer.split('\n');
+                      if (lines.some(line => structureHeaderRegex.test(line))) {
+                        headerDetected = true;
+                      }
+                      
+                      keyValuePairsCount += lines.filter(line => keyValueRegex.test(line)).length;
+                      
+                      // Wenn wir genug Hinweise haben, markiere als strukturiert
+                      if ((headerDetected && keyValuePairsCount >= 2) || 
+                          keyValuePairsCount >= 3) {
+                        structureDetected = true;
+                      }
+                      
+                      // Wenn wir am Ende eines Absatzes sind, verarbeite den Buffer
+                      if (parsedData.text.endsWith('\n\n') || 
+                          parsedData.text.includes('.') && 
+                          (parsedData.text.endsWith('.') || parsedData.text.endsWith('. '))) {
+                        processBuffer();
+                      }
+                    } else if (containsUrl(parsedData.text)) {
+                      // Einfacher Text mit URLs - reinigen und direkt senden
+                      onChunk(cleanupUrls(parsedData.text));
+                    } else {
+                      // Normaler Text - direkt senden
+                      onChunk(parsedData.text);
+                    }
+                  } else {
+                    // Bereits als strukturiert erkannt - zum Buffer hinzufügen
+                    buffer += parsedData.text;
+                    
+                    // Wenn wir am Ende eines Absatzes sind, verarbeite den Buffer
+                    if (parsedData.text.endsWith('\n\n') || 
+                        (parsedData.text.includes('.') && parsedData.text.endsWith('.'))) {
+                      processBuffer();
+                    }
+                  }
                 }
               } else {
                 // Regulärer Text-Chunk - Verbesserte Verarbeitungslogik
-                
-                // 1. Im Puffer-Modus: Alles sammeln, bis die Struktur vollständig ist
-                if (bufferMode) {
-                  // Text zum Buffer hinzufügen
-                  structureBuffer += content;
-                  console.log("Buffer-Inhalt:", structureBuffer);
+                if (structureDetected || potentialStructuredContent) {
+                  // Zum Buffer hinzufügen, wenn wir bereits eine Struktur erkannt haben
+                  buffer += content;
                   
-                  // Prüfen, ob wir nun ein Strukturende haben
-                  if (isStructureEnd(structureBuffer)) {
-                    console.log("Struktur vollständig:", structureBuffer);
-                    
-                    // URLs im Buffer bereinigen und senden
-                    const cleanedText = cleanupUrls(structureBuffer);
-                    console.log("Gereinigte Struktur:", cleanedText);
-                    onChunk(cleanedText);
-                    
-                    // Buffer zurücksetzen
-                    structureBuffer = '';
-                    bufferMode = false;
+                  // Erkennung von Absatzende oder Kontextwechsel
+                  if (content.endsWith('\n\n') || 
+                      (content.includes('.') && content.endsWith('.')) ||
+                      content.endsWith('.]') ||
+                      content.includes('Ja, für weitere Informationen')) {
+                    processBuffer();
                   }
-                } 
-                // 2. Nicht im Puffer-Modus: Prüfen, ob wir in den Puffer-Modus wechseln sollten
-                else {
-                  // Sehr großzügige Prüfung auf URL- oder Link-Strukturen
-                  if (
-                    // Klassische URL-Anfänge
-                    (content.includes('http') || content.includes('www.')) ||
-                    // Markdown-Link-Anfänge
-                    (content.includes('[') && (
-                      content.includes('](') || 
-                      (content.toLowerCase().includes('link') && content.includes(']'))
-                    )) ||
-                    // Struktur-Erkennungsmuster
-                    isStructureStart(content)
-                  ) {
-                    console.log("Potenzielle Link-Struktur erkannt - starte Buffer-Modus:", content);
-                    bufferMode = true;
-                    structureBuffer = content;
-                    
-                    // Wenn die Struktur bereits vollständig ist, direkt verarbeiten
-                    if (isStructureEnd(structureBuffer)) {
-                      console.log("Struktur sofort vollständig:", structureBuffer);
-                      onChunk(cleanupUrls(structureBuffer));
-                      structureBuffer = '';
-                      bufferMode = false;
-                    }
-                  } else {
-                    // Regulären Text einfach durchreichen (mit URL-Bereinigung für den Fall der Fälle)
-                    onChunk(cleanupUrls(content));
+                } else if (content.includes('###') || 
+                    keyValueRegex.test(content) ||
+                    websiteRegex.test(content) ||
+                    linkInParensRegex.test(content) ||
+                    content.includes('Schulform') || 
+                    content.includes('Gymnasium') || 
+                    content.includes('Adresse:')) {
+                  // Könnte strukturierter Inhalt sein - puffern
+                  potentialStructuredContent = true;
+                  buffer += content;
+                  
+                  // Prüfe auf Header oder Key-Value-Paare
+                  const lines = buffer.split('\n');
+                  if (lines.some(line => structureHeaderRegex.test(line))) {
+                    headerDetected = true;
                   }
+                  
+                  keyValuePairsCount += lines.filter(line => keyValueRegex.test(line)).length;
+                  
+                  // Wenn wir genug Hinweise haben, markiere als strukturiert
+                  if ((headerDetected && keyValuePairsCount >= 2) || 
+                      keyValuePairsCount >= 3) {
+                    structureDetected = true;
+                  }
+                } else if (containsUrl(content)) {
+                  // Einfacher Text mit URLs - reinigen und senden
+                  onChunk(cleanupUrls(content));
+                } else {
+                  // Normaler Text - direkt senden
+                  onChunk(content);
                 }
               }
             } catch (e) {
-              // Wenn kein gültiges JSON, dann als normalen Text behandeln
-              console.log("Kein JSON, verarbeite als Text:", content);
+              console.error("Fehler bei der Verarbeitung:", e);
               
-              // Ähnliche Verarbeitungslogik wie oben, für nicht-JSON-Inhalte
-              if (bufferMode) {
-                structureBuffer += content;
-                if (isStructureEnd(structureBuffer)) {
-                  onChunk(cleanupUrls(structureBuffer));
-                  structureBuffer = '';
-                  bufferMode = false;
-                }
-              } else {
-                if (
-                  (content.includes('http') || content.includes('www.')) ||
-                  (content.includes('[') && (
-                    content.includes('](') || 
-                    (content.toLowerCase().includes('link') && content.includes(']'))
-                  )) ||
-                  isStructureStart(content)
-                ) {
-                  bufferMode = true;
-                  structureBuffer = content;
-                  
-                  if (isStructureEnd(structureBuffer)) {
-                    onChunk(cleanupUrls(structureBuffer));
-                    structureBuffer = '';
-                    bufferMode = false;
-                  }
-                } else {
-                  onChunk(cleanupUrls(content));
-                }
-              }
+              // Bei Fehlern einfach den bereinigten Inhalt senden
+              onChunk(cleanupUrls(content));
             }
           } else if (line === '[DONE]' || line === 'event: done') {
-            // Ende des Streams
             console.log('Stream beendet über Event');
             
-            // Wenn noch Daten im Buffer sind, diese jetzt senden
-            if (bufferMode && structureBuffer) {
-              onChunk(cleanupUrls(structureBuffer));
+            // Noch verbliebenen Buffer verarbeiten
+            if (buffer) {
+              processBuffer();
             }
             
             streamActive = false;
             onDone();
-          } else if (line.startsWith(':')) {
-            // Kommentar-Zeile, ignorieren
-            console.log('Kommentar:', line);
-          } else {
-            console.log('Unbekanntes Format:', line);
           }
         };
         
-        // Verarbeitung des Streams
+        // Stream-Verarbeitung
         while (streamActive) {
           const { value, done } = await reader.read();
           
           if (done) {
             console.log('Stream-Lesung beendet');
             
-            // Wenn noch Daten im Buffer sind, diese jetzt senden
-            if (bufferMode && structureBuffer) {
-              onChunk(cleanupUrls(structureBuffer));
+            // Noch verbliebenen Buffer verarbeiten
+            if (buffer) {
+              processBuffer();
             }
             
             streamActive = false;
@@ -304,15 +277,15 @@ export class ChatApi {
             break;
           }
           
-          // Decodieren und zum Buffer hinzufügen
+          // Chunk decodieren und zum messageBuffer hinzufügen
           const chunk = decoder.decode(value, { stream: true });
-          buffer += chunk;
+          messageBuffer += chunk;
           
           // Nach Zeilenumbrüchen suchen und Zeilen verarbeiten
           let lineBreakIndex;
-          while ((lineBreakIndex = buffer.indexOf('\n')) >= 0 && streamActive) {
-            const line = buffer.substring(0, lineBreakIndex).trim();
-            buffer = buffer.substring(lineBreakIndex + 1);
+          while ((lineBreakIndex = messageBuffer.indexOf('\n')) >= 0 && streamActive) {
+            const line = messageBuffer.substring(0, lineBreakIndex).trim();
+            messageBuffer = messageBuffer.substring(lineBreakIndex + 1);
             
             if (line) {
               processLine(line);
