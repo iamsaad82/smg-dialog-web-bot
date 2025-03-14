@@ -6,7 +6,6 @@ Implementiert die Initialisierung und Konfiguration des Weaviate-Clients.
 import weaviate
 import logging
 from typing import Optional, Dict, Any
-from weaviate.classes.config import ConnectionConfig
 from ...core.config import settings
 
 def get_weaviate_client():
@@ -47,16 +46,15 @@ def get_weaviate_client():
         # Client mit verbesserten Timeout-Einstellungen erstellen (v4)
         client = weaviate.WeaviateClient(
             connection_params=connection_params,
-            additional_config=weaviate.classes.init.AdditionalConfig(
-                timeout=weaviate.classes.init.Timeout(init=30, query=60)
-            )
         )
         
         # Bei Bedarf Header für Modellintegration hinzufügen
         if settings.OPENAI_API_KEY:
-            client.configure_additional_headers({
+            headers = {
                 "X-OpenAI-Api-Key": settings.OPENAI_API_KEY
-            })
+            }
+            connection_params = connection_params.with_headers(headers)
+            client = weaviate.WeaviateClient(connection_params=connection_params)
         
         # Bereitschaft überprüfen
         # In v4 gibt es keine direkte is_ready()-Methode, stattdessen verwenden wir die Schemaabfrage

@@ -7,7 +7,7 @@ import json
 import uuid
 from typing import Dict, Any, Optional, List, Union
 import weaviate
-import weaviate.classes as wvc
+# import weaviate.classes as wvc  # Diesen Import entfernen, da er in v4 anders strukturiert ist
 from datetime import datetime
 from .xml_parser_service import BrandenburgXMLParser
 from .weaviate.client import weaviate_client
@@ -24,6 +24,12 @@ class StructuredDataService:
     Ermöglicht das Importieren, Speichern und Abrufen von strukturierten Daten.
     """
     
+    # Unterstützte Datentypen
+    SUPPORTED_TYPES = [
+        "school", "office", "event", 
+        "service", "local_law", "kindergarten", "webpage", "waste_management"
+    ]
+    
     def __init__(self, weaviate_service: WeaviateService):
         """
         Initialisiert den Service.
@@ -32,11 +38,8 @@ class StructuredDataService:
             weaviate_service: Der WeaviateService.
         """
         self.weaviate_service = weaviate_service
-        # Unterstützte Datentypen
-        self.supported_data_types = [
-            "school", "office", "event", 
-            "service", "local_law", "kindergarten", "webpage", "waste_management"
-        ]
+        # Unterstützte Datentypen von der Klassenvariable übernehmen
+        self.supported_data_types = self.SUPPORTED_TYPES
     
     # Weaviate-Klassenpräfix für strukturierte Daten
     STRUCTURED_CLASS_PREFIX = "StructuredData"

@@ -5,7 +5,8 @@ Schema-Manager-Modul für die Verwaltung von Weaviate-Schemas und Klassen.
 import logging
 from typing import Dict, Any, Optional, List
 import weaviate
-import weaviate.classes as wvc
+# weaviate.classes existiert in Weaviate v4 nicht mehr in dieser Form
+# import weaviate.classes as wvc
 from .client import weaviate_client
 from ...utils.uuid_helper import to_str  # Importiere die UUID-Hilfsfunktion
 
