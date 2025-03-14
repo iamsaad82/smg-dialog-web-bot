@@ -79,7 +79,7 @@ origins = [
     "https://www.dialog-ai-web.de",
     "https://api.dialog-ai-web.de",
     "https://dialog-engine-frontend.onrender.com",
-    "*"  # Erlaubt alle Origins (nur für Testzwecke, in der Produktion sollten Sie spezifische Origins angeben)
+    # "*"  # Wildcard entfernt, da nicht mit credentials:'include' kompatibel
 ]
 
 logger.info(f"Konfiguriere CORS mit Origins: {origins}")

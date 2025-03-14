@@ -70,8 +70,7 @@ export class TenantApi {
           'Content-Type': 'application/json',
           'X-API-Key': adminApiKey,
           'Accept': 'application/json'
-        },
-        credentials: 'include'
+        }
       });
       
       if (!response.ok) {
