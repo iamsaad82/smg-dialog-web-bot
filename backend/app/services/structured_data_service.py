@@ -12,6 +12,7 @@ from datetime import datetime
 from .xml_parser_service import BrandenburgXMLParser
 from .weaviate.client import weaviate_client
 from .weaviate.schema_manager import SchemaManager
+from .weaviate import WeaviateService
 
 # Logger konfigurieren
 logging.basicConfig(level=logging.INFO)
