@@ -48,12 +48,27 @@ export default function TenantBrandenburgImportPage() {
       
       try {
         setFetchingTenant(true);
-        const response = await fetch(`/api/v1/tenants/${tenantId}/details`);
+        console.log("Anfrage an API wird gesendet:", `/api/v1/tenants/${tenantId}/details`);
+        
+        const response = await fetch(`/api/v1/tenants/${tenantId}/details`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          // Stelle sicher, dass Cookies für die Authentifizierung gesendet werden
+          credentials: 'include'
+        });
+        
+        console.log("API-Antwort Status:", response.status);
+        
         if (!response.ok) {
-          throw new Error("Fehler beim Laden der Tenant-Informationen");
+          const errorText = await response.text();
+          console.error("API-Fehlerdetails:", errorText);
+          throw new Error(`Fehler beim Laden der Tenant-Informationen: ${response.status} ${errorText}`);
         }
         
         const data = await response.json();
+        console.log("Geladene Tenant-Daten:", data);
         setTenant(data);
         
         // Prüfen, ob Brandenburg-Integration aktiviert ist
