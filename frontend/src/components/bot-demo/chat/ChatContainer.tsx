@@ -8,15 +8,18 @@ import { InteractiveElement } from "@/types/interactive";
 import { ChatInput } from "../input/ChatInput";
 import { MessageList } from "./MessageList";
 import { MessageItem } from "./MessageItem";
-import { ChatMessage } from "./utils/types";
+import { ChatMessage, ExtendedChatMessage } from "./utils/types";
 import { motion, AnimatePresence } from "framer-motion";
+
+// Import der DevTools für das lokale Testen
+import { DevTools } from "./tenant-renderers/DevTools";
 
 interface ChatContainerProps {
   tenant: Tenant;
 }
 
 export function ChatContainer({ tenant }: ChatContainerProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState<(ChatMessage | ExtendedChatMessage)[]>([
     {
       id: "system-1",
       role: "assistant",
@@ -31,6 +34,24 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
   // Refs für die aktuelle Bot-Antwort während des Streamings
   const currentAssistantMessageRef = useRef<string>("");
   const interactiveElementsRef = useRef<InteractiveElement[]>([]);
+
+  // DevTools-Integration im Entwicklungsmodus
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      // Prüfen, ob Test-Nachricht im localStorage vorhanden ist
+      const testMessageJson = localStorage.getItem('devTestMessage');
+      if (testMessageJson) {
+        try {
+          const testMessage = JSON.parse(testMessageJson) as ExtendedChatMessage;
+          setMessages((prev) => [...prev, testMessage]);
+          // Nach dem Hinzufügen die Test-Nachricht aus dem localStorage entfernen
+          localStorage.removeItem('devTestMessage');
+        } catch (error) {
+          console.error("Fehler beim Parsen der Test-Nachricht:", error);
+        }
+      }
+    }
+  }, []);
 
   const handleSendMessage = async (inputValue: string) => {
     if (!inputValue.trim() || isLoading) return;
@@ -238,7 +259,7 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
   };
 
   return (
-    <div className="flex flex-col h-full w-full">
+    <div className="flex h-full flex-1 flex-col">
       {/* Header mit Reset-Button - Padding reduziert */}
       <div className="flex justify-end p-2">
         <Button 
@@ -288,7 +309,7 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
               transition={{ duration: 0.3 }}
             >
               <MessageList 
-                messages={messages}
+                messages={messages as ChatMessage[]}
                 isLoading={isLoading && !messages[messages.length - 1]?.content}
                 primaryColor={tenant.primary_color || undefined}
                 secondaryColor={tenant.secondary_color || undefined}
@@ -313,6 +334,9 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
           )}
         </AnimatePresence>
       </div>
+
+      {/* DevTools im Entwicklungsmodus anzeigen */}
+      {process.env.NODE_ENV === 'development' && <DevTools />}
     </div>
   );
 } 

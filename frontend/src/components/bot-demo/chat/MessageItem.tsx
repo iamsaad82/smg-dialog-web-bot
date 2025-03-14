@@ -21,14 +21,19 @@ import {
 import { 
   ChatMessage, 
   StructuredContent as StructuredContentType,
-  LinkItem
+  LinkItem,
+  ExtendedChatMessage
 } from './utils/types';
 import { detectStructuredContent } from './utils/detection';
 import { extractLinks } from './utils/extraction';
 import { renderFormattedContent } from './utils/rendering';
 
+// Neue Imports für Tenant-Renderer
+import { TenantAwareRenderer } from './tenant-renderers';
+import { StructuredData } from './tenant-renderers/types';
+
 interface MessageItemProps {
-  message: ChatMessage;
+  message: ChatMessage | ExtendedChatMessage;
   primaryColor?: string;
   secondaryColor?: string;
 }
@@ -167,6 +172,12 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
   // Für Assistenten-Nachrichten: URLs bereinigen, bevor sie an renderFormattedContent übergeben werden
   const cleanedContent = message.role === "assistant" ? cleanupUrls(messageContent) : messageContent;
   
+  // Prüfen, ob die Nachricht strukturierte Daten enthält (neue API)
+  const hasStructuredData = message.role === "assistant" && 
+                          'structured_data' in message && 
+                          message.structured_data && 
+                          message.structured_data.length > 0;
+  
   return (
     <div
       className={`flex items-start gap-2 ${
@@ -213,7 +224,21 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
       >
         <div className="px-3 py-2">
           {message.role === "assistant" ? (
-            renderFormattedContent(cleanedContent)
+            // Strukturierte Daten haben Vorrang vor Text-basierten Rendering
+            hasStructuredData ? (
+              // Tenant-spezifisches Rendering für strukturierte Daten
+              <div className="space-y-4">
+                {(message as ExtendedChatMessage).structured_data!.map((item, index) => (
+                  <TenantAwareRenderer 
+                    key={index} 
+                    data={item} 
+                  />
+                ))}
+              </div>
+            ) : (
+              // Fallback auf text-basiertes Rendering, wenn keine strukturierten Daten vorhanden sind
+              renderFormattedContent(cleanedContent)
+            )
           ) : (
             <p className="text-sm whitespace-pre-wrap">{messageContent}</p>
           )}

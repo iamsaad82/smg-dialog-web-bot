@@ -1,4 +1,5 @@
 import { InteractiveElement } from "@/types/interactive";
+import { StructuredData } from '../tenant-renderers/types';
 
 // Typen für die strukturierten Inhalte
 export type NumberedSection = { number: string; title: string; content: string };
@@ -20,6 +21,15 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   interactiveElements?: InteractiveElement[];
+}
+
+/**
+ * Erweiterte Chat-Nachricht mit strukturierten Daten
+ * Diese wird für das Tenant-spezifische Rendering verwendet
+ */
+export interface ExtendedChatMessage extends ChatMessage {
+  // Strukturierte Daten für spezielle Renderer
+  structured_data?: StructuredData[];
 }
 
 export interface MessageItemProps {
