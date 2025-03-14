@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from .api.v1 import tenants, documents, chat, auth, embed
+from .api.v1 import tenants, documents, chat, auth, embed, structured_data
 from .core.config import settings
 import os
 import logging
@@ -130,6 +130,13 @@ app.include_router(
     embed.router,
     prefix=f"{settings.API_V1_STR}/embed",
     tags=["embed"]
+)
+
+# Strukturierte Daten Router
+app.include_router(
+    structured_data.router,
+    prefix=f"{settings.API_V1_STR}/structured-data",
+    tags=["structured-data"]
 )
 
 # Willkommensnachricht

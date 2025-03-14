@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from ...db.session import get_db
 import re
 import asyncio
+import logging
 
 router = APIRouter()
 
@@ -44,29 +45,60 @@ async def search(
 
 async def process_bot_response(response: str) -> Dict[str, Any]:
     """
-    Verarbeitet die Bot-Antwort und extrahiert UI-Komponenten, falls vorhanden.
+    Verarbeitet die Bot-Antwort und extrahiert UI-Komponenten und strukturierte Daten, falls vorhanden.
     """
     # Versuchen, JSON aus der Antwort zu extrahieren
     json_match = re.search(r'```(?:json)?\s*({[\s\S]*?})\s*```', response)
     
+    # Standardantwort vorbereiten
+    result = {"text": response, "interactive_elements": []}
+    
+    # Strukturierte Daten in der Antwort suchen
+    structured_data_match = re.search(r'<structured_data>([\s\S]*?)</structured_data>', response)
+    
+    # Wenn strukturierte Daten gefunden wurden, diese extrahieren und zur Antwort hinzufügen
+    if structured_data_match:
+        try:
+            structured_data_str = structured_data_match.group(1).strip()
+            structured_data = json.loads(structured_data_str)
+            
+            # Strukturierte Daten zur Antwort hinzufügen
+            result["structured_data"] = structured_data
+            
+            # Text bereinigen (strukturierte Daten-Tag entfernen)
+            result["text"] = response.replace(structured_data_match.group(0), "").strip()
+        except json.JSONDecodeError:
+            # Wenn das JSON ungültig ist, Fehler loggen und ohne strukturierte Daten fortfahren
+            logging.error(f"Ungültiges JSON in strukturierten Daten: {structured_data_match.group(1)}")
+    
+    # Wenn JSON gefunden wurde, dieses als interaktive Elemente verarbeiten
     if json_match:
         try:
             json_str = json_match.group(1)
-            component_data = json.loads(json_str)
+            data = json.loads(json_str)
             
-            # Prüfen, ob es sich um eine UI-Komponenten-Antwort handelt
-            if "component" in component_data and "text" in component_data:
-                component_response = BotComponentResponse(
-                    text=component_data["text"],
-                    component=component_data["component"],
-                    data=component_data.get("data", {})
-                )
-                return component_response.model_dump()
-        except Exception as e:
-            print(f"Fehler beim Verarbeiten der JSON-Antwort: {str(e)}")
+            # Überprüfen, ob das JSON valide BotComponentResponse-Elemente enthält
+            if isinstance(data, dict) and "components" in data and isinstance(data["components"], list):
+                components = data["components"]
+                
+                # Components auf valides Format prüfen
+                valid_components = []
+                for component in components:
+                    if isinstance(component, dict) and "type" in component:
+                        # Component validieren und zur Liste hinzufügen
+                        valid_components.append(component)
+                
+                # Text bereinigen (JSON entfernen)
+                clean_text = response.replace(json_match.group(0), "").strip()
+                
+                # Ergebnis aufbauen
+                result["text"] = clean_text
+                result["interactive_elements"] = valid_components
+        except json.JSONDecodeError:
+            # Bei ungültigem JSON-Format einfach den Originaltext zurückgeben
+            logging.error(f"Ungültiges JSON-Format: {json_match.group(1)}")
     
-    # Falls kein JSON erkannt oder Fehler, einfacher Text zurückgeben
-    return {"text": response}
+    return result
 
 
 @router.post("/completion")
