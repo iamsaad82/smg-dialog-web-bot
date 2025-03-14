@@ -1058,12 +1058,18 @@ class BrandenburgXMLParser:
                         }
                     }
                     
-                    # Beschreibung aus übergeordnetem Element holen, falls vorhanden
-                    parent = entsorgung_elem.getparent()
-                    if parent is not None:
-                        text_elem = parent.find("./text")
-                        if text_elem is not None and text_elem.text:
-                            entsorgung_data["data"]["description"] = text_elem.text
+                    # In ElementTree können wir nicht direkt auf das Elternelement zugreifen
+                    # Stattdessen suchen wir nach dem Text-Element im gleichen Block
+                    # Zuerst den Pfad des Elements bestimmen
+                    parent_path = ".//entsorgungen"
+                    text_elements = self.root.findall(f"{parent_path}/text")
+                    
+                    # Wenn es ein Text-Element in der Nähe gibt, nutzen wir dessen Inhalt
+                    if text_elements and len(text_elements) > 0:
+                        for text_elem in text_elements:
+                            if text_elem is not None and text_elem.text:
+                                entsorgung_data["data"]["description"] = text_elem.text
+                                break
                     
                     # Null-Werte entfernen
                     entsorgung_data = self._clean_empty_values(entsorgung_data)

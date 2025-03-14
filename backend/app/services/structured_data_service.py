@@ -237,7 +237,7 @@ class StructuredDataService:
         schools = parser.extract_schools()
         for school in schools:
             try:
-                self.store_structured_data(tenant_id, school)
+                self.store_structured_data(tenant_id, school["type"], school["data"])
                 result["schools"] += 1
             except Exception as e:
                 logger.error(f"Fehler beim Speichern einer Schule: {str(e)}")
@@ -246,7 +246,7 @@ class StructuredDataService:
         offices = parser.extract_offices()
         for office in offices:
             try:
-                self.store_structured_data(tenant_id, office)
+                self.store_structured_data(tenant_id, office["type"], office["data"])
                 result["offices"] += 1
             except Exception as e:
                 logger.error(f"Fehler beim Speichern eines Amtes: {str(e)}")
@@ -255,7 +255,7 @@ class StructuredDataService:
         events = parser.extract_events()
         for event in events:
             try:
-                self.store_structured_data(tenant_id, event)
+                self.store_structured_data(tenant_id, event["type"], event["data"])
                 result["events"] += 1
             except Exception as e:
                 logger.error(f"Fehler beim Speichern einer Veranstaltung: {str(e)}")
@@ -264,7 +264,7 @@ class StructuredDataService:
         dienstleistungen = parser.extract_dienstleistungen()
         for dienstleistung in dienstleistungen:
             try:
-                self.store_structured_data(tenant_id, dienstleistung)
+                self.store_structured_data(tenant_id, dienstleistung["type"], dienstleistung["data"])
                 result["dienstleistungen"] += 1
             except Exception as e:
                 logger.error(f"Fehler beim Speichern einer Dienstleistung: {str(e)}")
@@ -273,7 +273,7 @@ class StructuredDataService:
         ortsrecht_entries = parser.extract_ortsrecht()
         for ortsrecht in ortsrecht_entries:
             try:
-                self.store_structured_data(tenant_id, ortsrecht)
+                self.store_structured_data(tenant_id, ortsrecht["type"], ortsrecht["data"])
                 result["ortsrecht"] += 1
             except Exception as e:
                 logger.error(f"Fehler beim Speichern eines Ortsrecht-Eintrags: {str(e)}")
@@ -282,7 +282,7 @@ class StructuredDataService:
         kitas = parser.extract_kitas()
         for kita in kitas:
             try:
-                self.store_structured_data(tenant_id, kita)
+                self.store_structured_data(tenant_id, kita["type"], kita["data"])
                 result["kitas"] += 1
             except Exception as e:
                 logger.error(f"Fehler beim Speichern einer Kita: {str(e)}")
@@ -291,7 +291,7 @@ class StructuredDataService:
         webseiten = parser.extract_webseiten()
         for webseite in webseiten:
             try:
-                self.store_structured_data(tenant_id, webseite)
+                self.store_structured_data(tenant_id, webseite["type"], webseite["data"])
                 result["webseiten"] += 1
             except Exception as e:
                 logger.error(f"Fehler beim Speichern einer Webseite: {str(e)}")
@@ -300,7 +300,7 @@ class StructuredDataService:
         entsorgungen = parser.extract_entsorgungen()
         for entsorgung in entsorgungen:
             try:
-                self.store_structured_data(tenant_id, entsorgung)
+                self.store_structured_data(tenant_id, entsorgung["type"], entsorgung["data"])
                 result["entsorgungen"] += 1
             except Exception as e:
                 logger.error(f"Fehler beim Speichern einer Entsorgungsmöglichkeit: {str(e)}")
