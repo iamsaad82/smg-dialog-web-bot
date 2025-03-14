@@ -10,33 +10,41 @@ import { formatTextWithBold } from './formatting';
 export const formatTextWithLinks = (text: string): React.ReactNode => {
   if (!text) return null;
   
+  // Vorverarbeitung: Leerzeichen in URLs entfernen und eckige Klammern bereinigen
+  let preprocessedText = text;
+  
+  // Spezialfall: Link im Format [URL](URL) behandeln
+  preprocessedText = preprocessedText.replace(
+    /\[\s*(https?:\/\/[^\s\]]+)\s*\]\s*\(\s*(https?:\/\/[^\s)]+)\s*\)/g, 
+    (_, url1, url2) => {
+      const cleanUrl1 = url1.replace(/\s+/g, '');
+      const cleanUrl2 = url2.replace(/\s+/g, '');
+      return `<a href="${cleanUrl2}">${cleanUrl1}</a>`;
+    }
+  );
+  
+  // Leerzeichen in allen URLs entfernen
+  preprocessedText = preprocessedText.replace(
+    /(https?:\/\/[^\s<>"']+)/g, 
+    (match) => match.replace(/\s+/g, '')
+  );
+  
   // Behandlung von Markdown-Links [text](url)
   const markdownLinkRegex = /\[(.*?)\]\s*\(\s*(https?:\/\/[^\s)]+)\s*\)/g;
   let lastIndex = 0;
   const result: React.ReactNode[] = [];
   let match;
   
-  // Temporäre Kopie des Textes erstellen, um Leerzeichen in URLs zu entfernen
-  let processedText = text;
-  
-  // Alle Markdown-Links durch bereinigte Versionen ersetzen
-  processedText = processedText.replace(markdownLinkRegex, (match, linkText, url) => {
-    // Leerzeichen in URLs entfernen
-    const cleanUrl = url.replace(/\s+/g, '');
-    return `[${linkText}](${cleanUrl})`;
+  // HTML-Tags temporär ersetzen
+  preprocessedText = preprocessedText.replace(/<a\s+href="([^"]+)"[^>]*>([^<]+)<\/a>/g, (match, url, text) => {
+    return `[${text}](${url})`;
   });
   
-  // Einfache URLs bereinigen (außerhalb von Markdown-Links)
-  processedText = processedText.replace(
-    /(?<!\]\()(https?:\/\/[^\s\)\]"',<>]+)/g, 
-    (match) => match.replace(/\s+/g, '')
-  );
-  
   // Markdown-Links verarbeiten
-  while ((match = markdownLinkRegex.exec(processedText)) !== null) {
+  while ((match = markdownLinkRegex.exec(preprocessedText)) !== null) {
     // Text bis zum aktuellen Match hinzufügen
     if (match.index > lastIndex) {
-      result.push(processedText.substring(lastIndex, match.index));
+      result.push(preprocessedText.substring(lastIndex, match.index));
     }
     
     // Link-Text und URL extrahieren
@@ -60,11 +68,12 @@ export const formatTextWithLinks = (text: string): React.ReactNode => {
     lastIndex = match.index + fullMatch.length;
   }
   
-  // Restlichen Text hinzufügen
-  if (lastIndex < processedText.length) {
-    // Einfache URLs im restlichen Text finden
-    const plainText = processedText.substring(lastIndex);
-    const plainUrlRegex = /(?<!\]\()(https?:\/\/[^\s\)\]"',<>]+)/g;
+  // Restlichen Text verarbeiten - insbesondere für einfache URLs
+  if (lastIndex < preprocessedText.length) {
+    const plainText = preprocessedText.substring(lastIndex);
+    
+    // Erkennung von URLs mit und ohne eckige Klammern
+    const plainUrlRegex = /(?:\[(https?:\/\/[^\s\]]+)\])|(?<!\]\()(https?:\/\/[^\s\)\]"',<>]+)/g;
     
     let plainLastIndex = 0;
     let plainMatch;
@@ -76,7 +85,8 @@ export const formatTextWithLinks = (text: string): React.ReactNode => {
         plainResult.push(plainText.substring(plainLastIndex, plainMatch.index));
       }
       
-      const url = plainMatch[0].replace(/\s+/g, ''); // Leerzeichen entfernen
+      // URL extrahieren (entweder aus den Klammern oder direkt)
+      const url = (plainMatch[1] || plainMatch[0]).replace(/\s+/g, '');
       
       // Link-Element erstellen
       plainResult.push(
@@ -103,7 +113,7 @@ export const formatTextWithLinks = (text: string): React.ReactNode => {
     result.push(...plainResult);
   }
   
-  return result.length === 0 ? processedText : result;
+  return result.length === 0 ? preprocessedText : result;
 };
 
 /**

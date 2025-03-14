@@ -73,35 +73,109 @@ export const extractBulletPoints = (text: string): string[] => {
 
 // Extrahiert Links aus dem Text
 export const extractLinks = (text: string): LinkItem[] => {
-  // Verbesserte Regex, die auch Links in Klammern und Markdown-Format erkennt
-  // z.B. [link text](https://example.com) oder auch normale URLs
   const links: LinkItem[] = [];
   
   try {
-    // Markdown-Links erkennen: [text](url)
+    // Vorverarbeitung: Leerzeichen in URLs entfernen und spezielle Strukturen erkennen
+    let processedText = text;
+    
+    // Spezialfall: Links im Format [URL](URL) erkennen
+    const markdownSelfLinkRegex = /\[\s*(https?:\/\/[^\s\]]+)\s*\]\s*\(\s*(https?:\/\/[^\s)]+)\s*\)/g;
+    let selfLinkMatch;
+    
+    while ((selfLinkMatch = markdownSelfLinkRegex.exec(text)) !== null) {
+      if (selfLinkMatch[1] && selfLinkMatch[2]) {
+        // URLs bereinigen (Leerzeichen entfernen)
+        const displayUrl = selfLinkMatch[1].replace(/\s+/g, '');
+        const targetUrl = selfLinkMatch[2].replace(/\s+/g, '');
+        
+        // Prüfen, ob dieser Link bereits erkannt wurde
+        if (!links.some(link => link.url === targetUrl)) {
+          // Titel generieren
+          let title = 'Link';
+          
+          // Kontextbasierte Titel-Extraktion
+          if (text.toLowerCase().includes('wohngeld') && targetUrl.includes('brandenburg')) {
+            title = 'Wohngeld-Informationen Brandenburg';
+          } else if (targetUrl.includes('stadt-brandenburg')) {
+            title = 'Stadt Brandenburg Dienstleistung';
+          } else {
+            // Domain als Titel verwenden
+            try {
+              const domain = new URL(targetUrl).hostname.replace(/^www\./, '');
+              title = domain.charAt(0).toUpperCase() + domain.slice(1) + ' Webseite';
+            } catch (e) {
+              // Fallback-Titel
+              title = 'Externe Webseite';
+            }
+          }
+          
+          links.push({ url: targetUrl, title });
+        }
+      }
+    }
+    
+    // Links in eckigen Klammern erkennen: [https://example.com]
+    const bracketLinkRegex = /\[\s*(https?:\/\/[^\s\]]+)\s*\]/g;
+    let bracketMatch;
+    
+    while ((bracketMatch = bracketLinkRegex.exec(text)) !== null) {
+      if (bracketMatch[1]) {
+        const url = bracketMatch[1].replace(/\s+/g, '');
+        
+        // Prüfen, ob dieser Link bereits erkannt wurde
+        if (!links.some(link => link.url === url)) {
+          // Titel generieren
+          let title = 'Link';
+          
+          // Kontextbasierte Titel-Extraktion
+          if (text.toLowerCase().includes('wohngeld') && url.includes('brandenburg')) {
+            title = 'Wohngeld-Informationen Brandenburg';
+          } else if (url.includes('stadt-brandenburg')) {
+            title = 'Stadt Brandenburg Dienstleistung';
+          } else {
+            // Domain als Titel verwenden
+            try {
+              const domain = new URL(url).hostname.replace(/^www\./, '');
+              title = domain.charAt(0).toUpperCase() + domain.slice(1) + ' Webseite';
+            } catch (e) {
+              // Fallback-Titel
+              title = 'Externe Webseite';
+            }
+          }
+          
+          links.push({ url, title });
+        }
+      }
+    }
+    
+    // Normale Markdown-Links erkennen: [text](url)
     const markdownLinkRegex = /\[(.*?)\]\s*\(\s*(https?:\/\/[^\s)]+)\s*\)/g;
     let markdownMatch;
     
     while ((markdownMatch = markdownLinkRegex.exec(text)) !== null) {
-      if (markdownMatch[2]) {
-        const url = markdownMatch[2].trim();
+      // Wenn es kein Selbst-Link ist (bereits oben behandelt)
+      if (markdownMatch[1] && markdownMatch[2] && !markdownMatch[1].startsWith('http')) {
+        const url = markdownMatch[2].replace(/\s+/g, '');
+        // Link-Text als Titel verwenden
         const title = markdownMatch[1].trim() || 'Link';
         
-        // Link zur Liste hinzufügen
-        links.push({ url, title });
+        // Prüfen, ob dieser Link bereits erkannt wurde
+        if (!links.some(link => link.url === url)) {
+          links.push({ url, title });
+        }
       }
     }
     
     // Einfache URLs ohne Markdown-Formatierung erkennen
-    // Jetzt auch mit Unterstützung für URLs in Klammern oder anderen Strukturen
     const plainUrlRegex = /(?<!\]\()(https?:\/\/[^\s\)\]"',<>]+)/g;
     let urlMatch;
     
     while ((urlMatch = plainUrlRegex.exec(text)) !== null) {
-      if (urlMatch[1]) {
-        const url = urlMatch[1].trim();
+      if (urlMatch[0]) {
+        const url = urlMatch[0].replace(/\s+/g, '');
         
-        // Prüfen, ob diese URL bereits als Teil eines Markdown-Links erkannt wurde
+        // Prüfen, ob dieser Link bereits erkannt wurde
         if (!links.some(link => link.url === url)) {
           // Versuchen, einen aussagekräftigen Titel zu extrahieren
           let title = `Link ${links.length + 1}`;
@@ -127,7 +201,7 @@ export const extractLinks = (text: string): LinkItem[] => {
       }
     }
     
-    // Normalisieren der URLs (Leerzeichen entfernen, etc.)
+    // Normalisieren der URLs (sicherstellen, dass keine Leerzeichen enthalten sind)
     return links.map(link => ({
       url: link.url.replace(/\s+/g, ''), // Leerzeichen in URLs entfernen
       title: link.title
