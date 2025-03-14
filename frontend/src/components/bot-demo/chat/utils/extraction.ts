@@ -29,9 +29,9 @@ export const extractNumberedSections = (text: string): NumberedSection[] => {
     
     // Wenn keine Treffer, dann die anderen Formate probieren
     if (sections.length === 0) {
-      // Robusterer Regex, der mit verschiedenen Formaten umgehen kann
-      // Unterstützt sowohl "1." als auch "1)" als Nummerierungsformate
-      const numberedSectionRegex = /(\d+)[\.)\s]+\s*([^:\n]+)(?::)?([\s\S]*?)(?=\s*\d+[\.)\s]+\s*[^:\n]+(?::)?|$)/g;
+      // Verbesserte Regex für verschiedene Formate mit korrekter Doppelpunktbehandlung
+      // Nummerierung (1. oder 1)), gefolgt von Titel, optional ein Doppelpunkt, dann Inhalt
+      const numberedSectionRegex = /(\d+)[\.)\s]+\s*([^:\n]+)(?::\s*)?(.+?)(?=\s*\d+[\.)\s]+\s*[^:\n]+(?::\s*)?|$)/g;
       
       while ((match = numberedSectionRegex.exec(fullText)) !== null) {
         const [_, number, title, content] = match;
@@ -47,7 +47,7 @@ export const extractNumberedSections = (text: string): NumberedSection[] => {
     
     // Dritte Alternative für "X. **Titel**: Content" Format
     if (sections.length === 0) {
-      const boldTitleWithColonRegex = /(\d+)[\.)\s]+\s+\*\*([^*:]+):\s*\*\*([\s\S]*?)(?=\s*\d+[\.)\s]+\s+\*\*|$)/g;
+      const boldTitleWithColonRegex = /(\d+)[\.)\s]+\s+\*\*([^*:]+)(?::\s*)\*\*([\s\S]*?)(?=\s*\d+[\.)\s]+\s+\*\*|$)/g;
       while ((match = boldTitleWithColonRegex.exec(fullText)) !== null) {
         const [_, number, title, content] = match;
         if (title && title.trim()) {
