@@ -12,7 +12,7 @@ import { ChatMessage, ExtendedChatMessage } from "./utils/types";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Import der DevTools für das lokale Testen
-import { DevTools } from "./tenant-renderers/DevTools";
+import { DevTools, TEST_MESSAGE_EVENT } from "./tenant-renderers/DevTools";
 
 interface ChatContainerProps {
   tenant: Tenant;
@@ -35,23 +35,26 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
   const currentAssistantMessageRef = useRef<string>("");
   const interactiveElementsRef = useRef<InteractiveElement[]>([]);
 
-  // DevTools-Integration im Entwicklungsmodus
+  // useEffect für laufenden Chat und Speichern im localStorage
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      // Prüfen, ob Test-Nachricht im localStorage vorhanden ist
-      const testMessageJson = localStorage.getItem('devTestMessage');
-      if (testMessageJson) {
-        try {
-          const testMessage = JSON.parse(testMessageJson) as ExtendedChatMessage;
-          setMessages((prev) => [...prev, testMessage]);
-          // Nach dem Hinzufügen die Test-Nachricht aus dem localStorage entfernen
-          localStorage.removeItem('devTestMessage');
-        } catch (error) {
-          console.error("Fehler beim Parsen der Test-Nachricht:", error);
-        }
-      }
+    // Wenn es bereits Nachrichten gibt, im localStorage speichern
+    if (messages.length > 0) {
+      localStorage.setItem(`chat_${tenant?.id}`, JSON.stringify(messages));
     }
-  }, []);
+
+    // Event-Listener für Test-Nachrichten
+    const handleTestMessage = (event: CustomEvent<{message: ExtendedChatMessage}>) => {
+      setMessages(prevMessages => [...prevMessages, event.detail.message]);
+    };
+
+    // Event-Listener hinzufügen
+    window.addEventListener(TEST_MESSAGE_EVENT, handleTestMessage as EventListener);
+
+    // Cleanup-Funktion
+    return () => {
+      window.removeEventListener(TEST_MESSAGE_EVENT, handleTestMessage as EventListener);
+    };
+  }, [messages, tenant?.id]);
 
   const handleSendMessage = async (inputValue: string) => {
     if (!inputValue.trim() || isLoading) return;

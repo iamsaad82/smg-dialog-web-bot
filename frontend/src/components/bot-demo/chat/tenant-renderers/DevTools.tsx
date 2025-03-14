@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { availableTenantRenderers } from './config';
 import { StructuredData } from './types';
 
+// Event für Test-Nachricht-Updates
+export const TEST_MESSAGE_EVENT = 'dev-test-message-created';
+
 /**
  * Hilfsfunktion zum Generieren von Test-Nachrichtendaten
  */
@@ -106,9 +109,11 @@ export const DevTools: React.FC = () => {
               const testMessage = generateTestMessage(selectedDataType);
               localStorage.setItem('devTestMessage', JSON.stringify(testMessage));
               
-              // Wenn möglich, die Nachricht direkt an den Chat senden
-              // Dies erfordert eine Integration mit der Chat-Komponente
-              alert(`Test-Nachricht für Typ '${selectedDataType}' generiert! Überprüfe den localStorage.`);
+              // Benutzerdefiniertes Event auslösen
+              const event = new CustomEvent(TEST_MESSAGE_EVENT, { 
+                detail: { message: testMessage }
+              });
+              window.dispatchEvent(event);
             }}
           >
             Test-Nachricht
