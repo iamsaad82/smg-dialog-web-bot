@@ -17,18 +17,18 @@ export const NumberedCardContent = ({
   const cleanTitle = title.endsWith(':') ? title.slice(0, -1) : title;
   
   return (
-    <div className="rounded-xl overflow-hidden bg-gray-50 dark:bg-gray-800/30 mb-3 relative shadow-sm hover:shadow-md transition-all duration-200">
-      <div className="flex items-center p-4 pb-2">
-        <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium text-sm mr-3 shadow-sm">
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+      <div className="flex items-start">
+        <div className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-medium text-sm mr-3">
           {number}
         </div>
-        <h3 className="text-sm font-bold">{cleanTitle}</h3>
+        <h3 className="text-base font-medium pt-1">{cleanTitle}</h3>
       </div>
-      <div className="px-4 pb-4 text-sm leading-relaxed">
-        <div className="ml-11">
+      {content && content.trim().length > 0 && (
+        <div className="ml-11 mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
           {formatTextWithBold(content)}
         </div>
-      </div>
+      )}
     </div>
   );
 }; 

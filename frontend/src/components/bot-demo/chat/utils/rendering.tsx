@@ -15,16 +15,16 @@ export const renderFormattedContent = (content: string) => {
     content,
     // Render numbered list
     (sections, introText, links) => (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {/* Zeige Einführungstext, falls vorhanden */}
-        {introText && (
-          <p className="text-sm leading-relaxed whitespace-pre-wrap mb-1">
+        {introText && introText.trim().length > 0 && (
+          <div className="text-sm leading-relaxed whitespace-pre-wrap mb-2">
             {formatTextWithBold(introText)}
-          </p>
+          </div>
         )}
         
         {/* Container für die nummerierten Abschnitte */}
-        <div className="space-y-2 rounded-xl overflow-hidden">
+        <div className="space-y-3 rounded-xl overflow-hidden">
           {/* Zeige nummerierte Abschnitte */}
           {sections.map((section, index) => (
             <NumberedStructuredContent
@@ -38,66 +38,74 @@ export const renderFormattedContent = (content: string) => {
         
         {/* Link-Cards am Ende anzeigen */}
         {links.length > 0 && (
-          <LinkCardSlider links={links} />
+          <div className="mt-4">
+            <LinkCardSlider links={links} />
+          </div>
         )}
       </div>
     ),
     // Render bulleted list
     (sections, introText, links) => (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {/* Zeige Inhalte, die vor den strukturierten Daten stehen könnten */}
-        {introText && (
-          <p className="text-sm leading-relaxed whitespace-pre-wrap">
+        {introText && introText.trim().length > 0 && (
+          <div className="text-sm leading-relaxed whitespace-pre-wrap mb-2">
             {formatTextWithBold(introText)}
-          </p>
+          </div>
         )}
         
         {/* Zeige strukturierte Abschnitte */}
-        {sections.map((section, index) => (
-          <StructuredContent 
-            key={index} 
-            title={section.title} 
-            items={section.items} 
-          />
-        ))}
+        <div className="space-y-3">
+          {sections.map((section, index) => (
+            <StructuredContent 
+              key={index} 
+              title={section.title} 
+              items={section.items} 
+            />
+          ))}
+        </div>
         
         {/* Link-Cards am Ende anzeigen */}
         {links.length > 0 && (
-          <LinkCardSlider links={links} />
+          <div className="mt-4">
+            <LinkCardSlider links={links} />
+          </div>
         )}
       </div>
     ),
     // Render simple text
     (text, links) => (
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="text-sm space-y-3 leading-relaxed">
-          {text.split(/\n\s*\n/).map((section, sectionIndex) => {
-            return (
+          {text.split(/\n\s*\n/).map((section, sectionIndex) => 
+            section.trim().length > 0 ? (
               <p key={sectionIndex} className="whitespace-pre-wrap">
                 {formatTextWithBold(section)}
               </p>
-            );
-          })}
+            ) : null
+          )}
         </div>
         
         {/* Link-Cards am Ende anzeigen */}
         {links.length > 0 && (
-          <LinkCardSlider links={links} />
+          <div className="mt-4">
+            <LinkCardSlider links={links} />
+          </div>
         )}
       </div>
     ),
     // Render screenshot format
     (sections, introText, links) => (
-      <div className="space-y-3">
+      <div className="space-y-4">
         {/* Zeige Einführungstext, falls vorhanden */}
-        {introText && (
-          <p className="text-sm leading-relaxed whitespace-pre-wrap mb-1">
+        {introText && introText.trim().length > 0 && (
+          <div className="text-sm leading-relaxed whitespace-pre-wrap mb-2">
             {formatTextWithBold(introText)}
-          </p>
+          </div>
         )}
         
         {/* Container für die nummerierten Cards */}
-        <div>
+        <div className="space-y-3">
           {/* Zeige nummerierte Cards */}
           {sections.map((section, index) => (
             <NumberedCardContent
@@ -111,7 +119,9 @@ export const renderFormattedContent = (content: string) => {
         
         {/* Link-Cards am Ende anzeigen */}
         {links.length > 0 && (
-          <LinkCardSlider links={links} />
+          <div className="mt-4">
+            <LinkCardSlider links={links} />
+          </div>
         )}
       </div>
     )

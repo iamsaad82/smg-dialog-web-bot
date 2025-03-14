@@ -206,7 +206,7 @@ export const formatTextWithBoldTitle = (
     const linkUrls = links.map(link => link.url);
     
     // Links aus dem Text entfernen für saubere Anzeige
-    const textWithoutLinks = text.replace(/(https?:\/\/[^\s]+)/g, '');
+    let textWithoutLinks = text.replace(/(https?:\/\/[^\s]+)/g, '');
     
     // Prüfe direkt auf das Format aus dem Screenshot (mit Nummer und fettgedrucktem Titel)
     const listWithBoldTitlesRegex = /\d+\.\s+\*\*[^*]+\*\*/;
@@ -219,13 +219,41 @@ export const formatTextWithBoldTitle = (
     if (hasScreenshotFormat && structuredContent.type === 'numbered' && structuredContent.sections.length > 0) {
       // Finde den Einleitungstext
       let introText = '';
+      let cleanedText = textWithoutLinks;
+      
       try {
+        // Erkenne den Text vor der ersten nummerierten Sektion
         const introRegex = /^([\s\S]*?)(?=\d+\.\s+\*\*)/;
         const introMatch = textWithoutLinks.match(introRegex);
         introText = introMatch && introMatch[1] ? introMatch[1].trim() : '';
+        
+        // Entferne die nummerierten Sektionen aus dem Text
+        for (const section of structuredContent.sections) {
+          const sectionRegex = new RegExp(`${section.number}\\.\\s+\\*\\*${section.title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\*\\*[\\s\\S]*?(?=\\d+\\.\\s+\\*\\*|$)`, 'g');
+          cleanedText = cleanedText.replace(sectionRegex, '');
+        }
+        
+        // Wenn nach dem Entfernen nur noch der Einleitungstext übrig ist, setze den bereinigten Text auf leer
+        if (cleanedText.trim() === introText.trim()) {
+          cleanedText = '';
+        }
+        
+        // Wenn der bereinigte Text immer noch strukturierte Informationen enthält, zeigen wir den Einleitungstext und behalten den Rest
+        if (cleanedText.includes(introText)) {
+          cleanedText = cleanedText.replace(introText, '').trim();
+        }
+        
       } catch (e) {
+        console.error("Fehler bei der Textbereinigung:", e);
+        // Fallback-Methode
         const firstNumberPos = textWithoutLinks.search(/\d+\.\s+\*\*/);
         introText = firstNumberPos > 0 ? textWithoutLinks.substring(0, firstNumberPos).trim() : '';
+      }
+      
+      // Wenn der bereinigte Text nur aus Leerzeichen oder Zeilenumbrüchen besteht, ignorieren wir ihn
+      if (cleanedText && cleanedText.trim().length > 0) {
+        // Wenn wir einen gereinigten Text haben, fügen wir ihn als zusätzlichen Absatz zum Einleitungstext hinzu
+        introText = introText ? `${introText}\n\n${cleanedText.trim()}` : cleanedText.trim();
       }
       
       return renderScreenshotFormat(structuredContent.sections, introText, links);
@@ -233,17 +261,44 @@ export const formatTextWithBoldTitle = (
     
     // Bei normalen nummerierten Listen
     if (structuredContent.type === 'numbered' && structuredContent.sections.length > 0) {
-      // Finde den Einleitungstext
+      // Finde den Einleitungstext und entferne die nummerierten Sektionen
       let introText = '';
+      let cleanedText = textWithoutLinks;
+      
       try {
+        // Erkenne den Text vor der ersten nummerierten Sektion
         const firstSection = structuredContent.sections[0];
         const pattern = new RegExp(`\\d+[\.)]\\s*${firstSection.title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}`);
         const parts = textWithoutLinks.split(pattern);
         introText = parts[0].trim();
+        
+        // Entferne die nummerierten Sektionen aus dem Text
+        for (const section of structuredContent.sections) {
+          const sectionRegex = new RegExp(`${section.number}[\.)]\\s*${section.title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}[\\s\\S]*?(?=\\d+[\.)]\\s*|$)`, 'g');
+          cleanedText = cleanedText.replace(sectionRegex, '');
+        }
+        
+        // Wenn nach dem Entfernen nur noch der Einleitungstext übrig ist, setze den bereinigten Text auf leer
+        if (cleanedText.trim() === introText.trim()) {
+          cleanedText = '';
+        }
+        
+        // Wenn der bereinigte Text immer noch strukturierte Informationen enthält, zeigen wir den Einleitungstext und behalten den Rest
+        if (cleanedText.includes(introText)) {
+          cleanedText = cleanedText.replace(introText, '').trim();
+        }
+        
       } catch (e) {
-        // Fallback, falls RegEx schlägt fehl
+        console.error("Fehler bei der Textbereinigung:", e);
+        // Fallback-Methode
         const firstNumberPos = textWithoutLinks.search(/\d+[\.)](\s+|\s*\*\*)/);
         introText = firstNumberPos > 0 ? textWithoutLinks.substring(0, firstNumberPos).trim() : '';
+      }
+      
+      // Wenn der bereinigte Text nur aus Leerzeichen oder Zeilenumbrüchen besteht, ignorieren wir ihn
+      if (cleanedText && cleanedText.trim().length > 0) {
+        // Wenn wir einen gereinigten Text haben, fügen wir ihn als zusätzlichen Absatz zum Einleitungstext hinzu
+        introText = introText ? `${introText}\n\n${cleanedText.trim()}` : cleanedText.trim();
       }
       
       return renderNumberedList(structuredContent.sections, introText, links);
@@ -253,16 +308,41 @@ export const formatTextWithBoldTitle = (
     if (structuredContent.type === 'bulleted' && structuredContent.sections.length > 0) {
       // Extrahiere den Einleitungstext - alles vor dem ersten identifizierten Abschnitt
       let introText = '';
+      let cleanedText = textWithoutLinks;
       const firstSectionWithTitle = structuredContent.sections.find(s => s.title);
       
       if (firstSectionWithTitle && firstSectionWithTitle.title) {
-        const parts = textWithoutLinks.split(new RegExp(`${firstSectionWithTitle.title}[:\\s]`));
+        const parts = textWithoutLinks.split(new RegExp(`${firstSectionWithTitle.title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}[:\\s]`));
         if (parts.length > 1) {
           introText = parts[0].trim();
+          
+          // Entferne die Abschnitte aus dem Text
+          for (const section of structuredContent.sections) {
+            if (section.title) {
+              const sectionRegex = new RegExp(`${section.title.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}[:\\s][\\s\\S]*?(?=\\n\\n|$)`, 'g');
+              cleanedText = cleanedText.replace(sectionRegex, '');
+            }
+          }
         }
       } else {
         // Wenn kein Titel gefunden wurde, verwende den ersten Absatz
         introText = textWithoutLinks.split('\n\n')[0];
+      }
+      
+      // Wenn nach dem Entfernen nur noch der Einleitungstext übrig ist, setze den bereinigten Text auf leer
+      if (cleanedText.trim() === introText.trim()) {
+        cleanedText = '';
+      }
+      
+      // Wenn der bereinigte Text noch strukturierte Informationen enthält, behalten wir ihn
+      if (cleanedText.includes(introText)) {
+        cleanedText = cleanedText.replace(introText, '').trim();
+      }
+      
+      // Wenn der bereinigte Text nur aus Leerzeichen oder Zeilenumbrüchen besteht, ignorieren wir ihn
+      if (cleanedText && cleanedText.trim().length > 0) {
+        // Wenn wir einen gereinigten Text haben, fügen wir ihn als zusätzlichen Absatz zum Einleitungstext hinzu
+        introText = introText ? `${introText}\n\n${cleanedText.trim()}` : cleanedText.trim();
       }
       
       return renderBulletedList(structuredContent.sections, introText, links);
@@ -273,6 +353,6 @@ export const formatTextWithBoldTitle = (
   } catch (error) {
     console.error("Fehler bei der Textformatierung:", error);
     // Fallback bei Fehler - einfacher Text
-    return <p className="text-sm whitespace-pre-wrap">{text}</p>;
+    return renderSimpleText(text, []);
   }
 }; 

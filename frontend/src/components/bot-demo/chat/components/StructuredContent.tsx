@@ -11,13 +11,15 @@ export const StructuredContent = ({ title, items }: StructuredContentProps) => {
   const cleanTitle = title.endsWith(':') ? title.slice(0, -1) : title;
   
   return (
-    <div className="mt-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border-l-2 border-blue-500">
-      <h4 className="font-medium text-sm mb-1.5">{cleanTitle}</h4>
-      <ul className="space-y-1">
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition-all duration-200">
+      {cleanTitle && cleanTitle.trim().length > 0 && (
+        <h3 className="text-base font-medium mb-2">{cleanTitle}</h3>
+      )}
+      <ul className="space-y-2">
         {items.map((item, index) => (
           <li key={index} className="flex items-start text-sm">
-            <span className="mr-2 text-blue-500">•</span>
-            <span>{item}</span>
+            <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 text-xs mr-2">•</span>
+            <span className="text-gray-700 dark:text-gray-300">{item}</span>
           </li>
         ))}
       </ul>
