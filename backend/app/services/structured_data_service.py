@@ -29,6 +29,18 @@ class StructuredDataService:
         "service", "local_law", "kindergarten", "webpage", "waste_management"
     ]
     
+    # Mapping von XML-Namen zu Weaviate-Typen
+    TYPE_MAPPING = {
+        "schools": "school",
+        "offices": "office",
+        "events": "event",
+        "dienstleistungen": "service",
+        "ortsrecht": "local_law",
+        "kitas": "kindergarten",
+        "webseiten": "webpage",
+        "entsorgungen": "waste_management"
+    }
+    
     def __init__(self, weaviate_service: WeaviateService):
         """
         Initialisiert den Service.
@@ -262,6 +274,10 @@ class StructuredDataService:
         except Exception as e:
             logger.error(f"Fehler beim Parsen der XML-Datei: {str(e)}")
             return {"schools": 0, "offices": 0, "events": 0, "dienstleistungen": 0, "ortsrecht": 0, "kitas": 0, "webseiten": 0, "entsorgungen": 0}
+        
+        # Vor dem Import alle Schemas erstellen, um sicherzustellen, dass sie existieren
+        for data_type in self.SUPPORTED_TYPES:
+            self.create_schema_for_type(tenant_id, data_type)
             
         result = {
             "schools": 0, 

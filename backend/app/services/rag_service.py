@@ -259,24 +259,26 @@ class RAGService:
                     break
         
         # Wenn keine strukturierten Daten in der Anfrage erkannt wurden, 
-        # versuche trotzdem eine allgemeine Suche mit dem Haupttypen
+        # versuche trotzdem eine allgemeine Suche mit allen Datentypen
         # Das verbessert die Chancen, dass strukturierte Daten in die Antworten einfließen
         if not detected_types:
-            # Versuche proaktiv mit den Hauptdatentypen zu suchen
+            # Versuche proaktiv mit allen Datentypen zu suchen
+            logger.info("Proaktive Suche nach strukturierten Daten...")
             if tenant_id:
                 try:
-                    # Überprüfe, ob wir für diesen Tenant strukturierte Daten haben
-                    for main_type in ['school', 'office', 'event']:
+                    # Alle unterstützten Datentypen durchsuchen
+                    all_data_types = list(structured_data_types.keys())
+                    for data_type in all_data_types:
                         # Nur eine kurze Probeanfrage
                         test_results = structured_data_service.search_structured_data(
                             tenant_id=tenant_id,
-                            data_type=main_type,
+                            data_type=data_type,
                             query=query,
-                            limit=1
+                            limit=2  # Nur wenige Ergebnisse zur Probe
                         )
                         if test_results:
-                            detected_types.append(main_type)
-                            logger.info(f"Proaktiv strukturierte Daten vom Typ {main_type} gefunden")
+                            detected_types.append(data_type)
+                            logger.info(f"Proaktiv {len(test_results)} Einträge vom Typ {data_type} gefunden")
                 except Exception as e:
                     logger.error(f"Fehler bei der proaktiven Suche nach strukturierten Daten: {str(e)}")
             
@@ -449,64 +451,75 @@ class RAGService:
                         context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
                         if "contact" in data:
                             contact = data["contact"]
-                            context += f"Telefon: {contact.get('phone', 'Unbekannt')}\n"
-                            context += f"E-Mail: {contact.get('email', 'Unbekannt')}\n"
-                            context += f"Website: {contact.get('website', 'Unbekannt')}\n"
-                        context += "\n"
+                            context += f"Kontakt: Tel: {contact.get('phone', '-')}, E-Mail: {contact.get('email', '-')}, Website: {contact.get('website', '-')}\n"
+                        context += f"Weitere Infos: {data.get('additionalInfo', '-')}\n"
+                        context += f"Beschreibung: {data.get('description', '-')}\n"
+                    
                     elif data_type == "office":
-                        context += f"--- Amt: {data.get('name', 'Unbekannt')} ---\n"
-                        context += f"Abteilung: {data.get('department', 'Unbekannt')}\n"
+                        context += f"--- Amt/Behörde: {data.get('name', 'Unbekannt')} ---\n"
+                        context += f"Abteilung: {data.get('department', '-')}\n"
                         context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
-                        context += f"Öffnungszeiten: {data.get('openingHours', 'Unbekannt')}\n"
+                        context += f"Öffnungszeiten: {data.get('openingHours', '-')}\n"
                         if "contact" in data:
                             contact = data["contact"]
-                            context += f"Telefon: {contact.get('phone', 'Unbekannt')}\n"
-                            context += f"E-Mail: {contact.get('email', 'Unbekannt')}\n"
-                            context += f"Website: {contact.get('website', 'Unbekannt')}\n"
-                        context += "\n"
+                            context += f"Kontakt: Tel: {contact.get('phone', '-')}, E-Mail: {contact.get('email', '-')}, Website: {contact.get('website', '-')}\n"
+                        if "services" in data and data["services"]:
+                            context += f"Angebotene Dienstleistungen: {', '.join(data['services'])}\n"
+                        context += f"Beschreibung: {data.get('description', '-')}\n"
+                    
                     elif data_type == "event":
                         context += f"--- Veranstaltung: {data.get('title', 'Unbekannt')} ---\n"
-                        context += f"Datum: {data.get('date', 'Unbekannt')}\n"
-                        context += f"Zeit: {data.get('time', 'Unbekannt')}\n"
-                        context += f"Ort: {data.get('location', 'Unbekannt')}\n"
-                        context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
-                        context += f"Veranstalter: {data.get('organizer', 'Unbekannt')}\n"
+                        context += f"Datum: {data.get('date', '-')}\n"
+                        context += f"Uhrzeit: {data.get('time', '-')}\n"
+                        context += f"Ort: {data.get('location', '-')}\n"
+                        context += f"Veranstalter: {data.get('organizer', '-')}\n"
                         if "contact" in data:
                             contact = data["contact"]
-                            context += f"Telefon: {contact.get('phone', 'Unbekannt')}\n"
-                            context += f"E-Mail: {contact.get('email', 'Unbekannt')}\n"
-                            context += f"Website: {contact.get('website', 'Unbekannt')}\n"
-                        context += "\n"
+                            context += f"Kontakt: Tel: {contact.get('phone', '-')}, E-Mail: {contact.get('email', '-')}, Website: {contact.get('website', '-')}\n"
+                        context += f"Beschreibung: {data.get('description', '-')}\n"
+                        context += f"Inhalt: {data.get('content', '-')}\n"
+                    
                     elif data_type == "service":
                         context += f"--- Dienstleistung: {data.get('name', 'Unbekannt')} ---\n"
-                        context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
-                        context += f"Zuständiges Amt: {data.get('office', 'Unbekannt')}\n"
-                        context += f"Link: {data.get('link', 'Unbekannt')}\n"
-                        context += "\n"
+                        context += f"Kostenpflichtig: {data.get('kostenpflichtig', False)}\n"
+                        context += f"Online verfügbar: {data.get('onlinedienst', False)}\n"
+                        context += f"Zuständiges Amt: {data.get('amt', '-')}\n"
+                        context += f"Beschreibung: {data.get('beschreibung', '-')}\n"
+                        context += f"Link: {data.get('link', '-')}\n"
+                    
                     elif data_type == "local_law":
-                        context += f"--- Ortsrecht: {data.get('title', 'Unbekannt')} ---\n"
-                        context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
-                        context += f"Text: {data.get('text', 'Unbekannt')}\n"
-                        context += f"Link: {data.get('link', 'Unbekannt')}\n"
-                        context += "\n"
+                        context += f"--- Ortsrecht/Satzung: {data.get('title', 'Unbekannt')} ---\n"
+                        context += f"Beschreibung: {data.get('beschreibung', '-')}\n"
+                        context += f"Inhalt: {data.get('text', '-')}\n"
+                        context += f"Link: {data.get('link', '-')}\n"
+                    
                     elif data_type == "kindergarten":
-                        context += f"--- Kindergarten: {data.get('name', 'Unbekannt')} ---\n"
-                        context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
-                        context += f"Öffnungszeiten: {data.get('opening_hours', 'Unbekannt')}\n"
-                        context += f"Kontakt: {data.get('contact', 'Unbekannt')}\n"
-                        context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
-                        context += f"Link: {data.get('link', 'Unbekannt')}\n"
-                        context += "\n"
+                        context += f"--- Kindergarten/Kita: {data.get('name', 'Unbekannt')} ---\n"
+                        context += f"Adresse: {data.get('address', '-')}\n"
+                        context += f"Öffnungszeiten: {data.get('openingHours', '-')}\n"
+                        if "contact" in data:
+                            contact = data["contact"]
+                            context += f"Kontakt: Tel: {contact.get('phone', '-')}, E-Mail: {contact.get('email', '-')}, Website: {contact.get('website', '-')}\n"
+                        context += f"Link: {data.get('link', '-')}\n"
+                    
                     elif data_type == "webpage":
                         context += f"--- Webseite: {data.get('title', 'Unbekannt')} ---\n"
-                        context += f"URL: {data.get('url', 'Unbekannt')}\n"
-                        context += f"Inhalt: {data.get('content', 'Unbekannt')}\n"
-                        context += "\n"
+                        context += f"URL: {data.get('url', '-')}\n"
+                        context += f"Inhalt: {data.get('content', '-')}\n"
+                    
                     elif data_type == "waste_management":
                         context += f"--- Abfallentsorgung: {data.get('name', 'Unbekannt')} ---\n"
-                        context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
-                        context += f"Inhalt: {data.get('content', 'Unbekannt')}\n"
-                        context += "\n"
+                        context += f"Beschreibung: {data.get('description', '-')}\n"
+                        context += f"Inhalt: {data.get('content', '-')}\n"
+                    
+                    else:
+                        # Generische Darstellung für unbekannte Typen
+                        context += f"--- {data_type.capitalize()}: {data.get('name', data.get('title', 'Unbekannt'))} ---\n"
+                        for key, value in data.items():
+                            if key not in ['id', 'name', 'title'] and not isinstance(value, dict) and not isinstance(value, list):
+                                context += f"{key}: {value}\n"
+                    
+                    context += "\n"
             else:
                 # Auch wenn keine Schlüsselwörter erkannt wurden, versuche trotzdem nach strukturierten Daten zu suchen
                 proactive_structured_data = []
