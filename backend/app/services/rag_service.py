@@ -6,6 +6,9 @@ from ..services.structured_data_service import structured_data_service
 from ..db.models import Tenant, TenantModel
 import json
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RAGService:
@@ -17,11 +20,13 @@ class RAGService:
     def format_ui_components_instructions(self, query: str, components_config) -> str:
         """
         Formatiert Anweisungen für UI-Komponenten basierend auf der Anfrage und Konfiguration.
+        Verwendet nur explizit konfigurierte Layouts vom Tenant.
         """
         if not components_config or not components_config.rules:
             return ""
         
         instructions = "\n\nWICHTIG - UI-KOMPONENTEN FORMATIERUNG:\n"
+        instructions += "Verwende für deine Antwort die folgenden spezifischen Layoutvorgaben:\n"
         
         # Standard-Komponenten und Beispielformate laden
         from ..db.session import get_db
@@ -46,6 +51,7 @@ class RAGService:
                 components_examples[comp_name] = example
         
         # Für jede aktive Regel prüfen, ob sie auf die Anfrage zutrifft
+        matching_rules = []
         for rule in components_config.rules:
             if not rule.isEnabled:
                 continue
@@ -55,26 +61,33 @@ class RAGService:
             for trigger in rule.triggers:
                 if trigger.lower() in query.lower():
                     matches = True
+                    matching_rules.append(rule)
                     break
+        
+        # Wenn keine Regeln zutreffen, keine speziellen Anweisungen
+        if not matching_rules:
+            logger.info(f"Keine passenden UI-Komponenten-Regeln für die Anfrage: '{query}'")
+            return ""
+        
+        # Ansonsten die gefundenen Regeln anwenden
+        for rule in matching_rules:
+            instructions += f"\n\nDie Anfrage enthält '{rule.triggers[0]}'. "
+            instructions += f"Verwende die {rule.component}-Komponente für deine Antwort.\n"
             
-            if matches:
-                instructions += f"\nDie Anfrage enthält '{rule.triggers[0]}'. "
-                instructions += f"Verwende die {rule.component}-Komponente für deine Antwort.\n"
-                
-                # Beispielformat für die Antwort - aus Regel, Konfiguration oder Standardbeispiel
-                example_format = None
-                
-                # 1. Prüfe, ob die Regel ein eigenes Beispielformat hat
-                if hasattr(rule, 'exampleFormat') and rule.exampleFormat:
-                    example_format = rule.exampleFormat
-                # 2. Prüfe, ob es ein Standardbeispiel für diese Komponente gibt
-                elif rule.component in components_examples:
-                    example_format = components_examples[rule.component]
-                # 3. Fallback auf hartcodierte Beispiele, falls nichts gefunden wurde
-                else:
-                    # Bekannte Komponenten mit Standardbeispielen
-                    if rule.component == "OpeningHoursTable":
-                        example_format = """
+            # Beispielformat für die Antwort - aus Regel, Konfiguration oder Standardbeispiel
+            example_format = None
+            
+            # 1. Prüfe, ob die Regel ein eigenes Beispielformat hat
+            if hasattr(rule, 'exampleFormat') and rule.exampleFormat:
+                example_format = rule.exampleFormat
+            # 2. Prüfe, ob es ein Standardbeispiel für diese Komponente gibt
+            elif rule.component in components_examples:
+                example_format = components_examples[rule.component]
+            # 3. Fallback auf hartcodierte Beispiele, falls nichts gefunden wurde
+            else:
+                # Bekannte Komponenten mit Standardbeispielen
+                if rule.component == "OpeningHoursTable":
+                    example_format = """
 ```json
 {
   "text": "Hier sind die Öffnungszeiten:",
@@ -91,8 +104,8 @@ class RAGService:
 }
 ```
 """
-                    elif rule.component == "StoreMap":
-                        example_format = """
+                elif rule.component == "StoreMap":
+                    example_format = """
 ```json
 {
   "text": "Hier ist eine Übersicht unserer Standorte:",
@@ -112,8 +125,8 @@ class RAGService:
 }
 ```
 """
-                    elif rule.component == "ProductShowcase":
-                        example_format = """
+                elif rule.component == "ProductShowcase":
+                    example_format = """
 ```json
 {
   "text": "Hier sind unsere aktuellen Angebote:",
@@ -133,8 +146,8 @@ class RAGService:
 }
 ```
 """
-                    elif rule.component == "ContactCard":
-                        example_format = """
+                elif rule.component == "ContactCard":
+                    example_format = """
 ```json
 {
   "text": "Hier sind unsere Kontaktinformationen:",
@@ -153,11 +166,11 @@ class RAGService:
 }
 ```
 """
-                
-                # Beispielformat zur Anleitung hinzufügen
-                if example_format:
-                    instructions += "\nDeine Antwort MUSS folgendes Format haben:\n"
-                    instructions += example_format
+            
+            # Beispielformat zur Anleitung hinzufügen
+            if example_format:
+                instructions += "\nDeine Antwort MUSS folgendes Format haben:\n"
+                instructions += example_format
         
         return instructions
     
@@ -384,10 +397,22 @@ class RAGService:
             # UI-Komponenten-Konfiguration abrufen
             ui_config = tenant_service.get_ui_components_config(db, tenant_id)
             
-            if ui_config:
-                ui_components_instructions = self.format_ui_components_instructions(query, ui_config)
-                if ui_components_instructions:
-                    system_prompt_text += ui_components_instructions
+            # NUR tenant-spezifische Komponenten-Konfiguration laden und Anweisungen generieren
+            # Keine generischen UI-Komponenten mehr, wenn nicht explizit konfiguriert
+            tenant = db.query(TenantModel).filter(TenantModel.id == tenant_id).first()
+            
+            if tenant and tenant.ui_components_config:
+                try:
+                    # Verwende die vom Tenant konfigurierte UI-Komponenten-Konfiguration
+                    ui_instructions = self.format_ui_components_instructions(query, ui_config)
+                    if ui_instructions:
+                        system_prompt_text += ui_instructions
+                        logger.info(f"Tenant-spezifische UI-Anweisungen für {tenant_id} hinzugefügt")
+                except Exception as e:
+                    logger.error(f"Fehler beim Verarbeiten der UI-Komponenten-Konfiguration: {str(e)}")
+            else:
+                # Keine UI-Komponenten, wenn nicht explizit konfiguriert
+                logger.info(f"Keine UI-Komponenten-Konfiguration für Tenant {tenant_id} gefunden - verwende reinen Text")
             
             # Strukturierte Daten suchen und Anweisungen hinzufügen
             structured_data = await self.get_structured_data_for_query(tenant_id, query)
@@ -432,20 +457,6 @@ class RAGService:
                         context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
                         context += f"Veranstalter: {data.get('organizer', 'Unbekannt')}\n"
                         context += "\n"
-            
-            # Tenant-spezifische Komponenten-Konfiguration laden und Anweisungen generieren
-            tenant = db.query(TenantModel).filter(TenantModel.id == tenant_id).first()
-            
-            if tenant and tenant.ui_components_config:
-                try:
-                    components_config = interactive_factory.build_ui_components_config(tenant.ui_components_config)
-                    components_instructions = self.format_ui_components_instructions(query, components_config)
-                    
-                    # System-Prompt um UI-Komponenten-Anweisungen erweitern
-                    if components_instructions:
-                        system_prompt_text += components_instructions
-                except Exception as e:
-                    print(f"Fehler beim Verarbeiten der UI-Komponenten-Konfiguration: {str(e)}")
             
             # Strukturierte Daten-Anweisungen hinzufügen
             if structured_data_instructions:
