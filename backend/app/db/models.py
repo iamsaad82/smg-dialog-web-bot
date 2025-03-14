@@ -278,4 +278,38 @@ class UIComponentsConfigResponse(BaseModel):
     updated_at: datetime
     
     class Config:
-        from_attributes = True 
+        from_attributes = True
+
+# Aktualisieren weiterer Modelle mit UUID-Kompatibilität
+class User(BaseModel):
+    """Vollständiges Benutzermodell."""
+    id: Union[str, UUID4]
+    email: str
+    full_name: Optional[str] = None
+    is_active: bool = True
+    is_superuser: bool = False
+    role: str
+    created_at: datetime
+    updated_at: datetime
+    agency_id: Optional[Union[str, UUID4]] = None
+    
+    class Config:
+        from_attributes = True
+
+class TokenData(BaseModel):
+    """Token-Daten für JWT."""
+    sub: Optional[str] = None
+    exp: Optional[int] = None
+    type: Optional[str] = None
+
+# Füge any_str_to_uuid Hilfsfunktion für globale Verwendung hinzu
+def any_str_to_uuid(value):
+    """Konvertiert einen String zu einer UUID, wenn möglich.
+    Lässt UUID-Objekte unverändert durch. Rückgabe ist immer ein UUID-Objekt.
+    """
+    if isinstance(value, uuid.UUID):
+        return value
+    try:
+        return uuid.UUID(str(value))
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError(f"Konnte {value} nicht zu UUID konvertieren") 

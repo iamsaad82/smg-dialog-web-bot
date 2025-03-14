@@ -7,6 +7,7 @@ from typing import Dict, Any, Optional, List
 import weaviate
 import weaviate.classes as wvc
 from .client import weaviate_client
+from ...utils.uuid_helper import to_str  # Importiere die UUID-Hilfsfunktion
 
 class SchemaManager:
     """Manager für die Verwaltung von Weaviate-Schemas und Klassen."""
@@ -14,8 +15,8 @@ class SchemaManager:
     @staticmethod
     def get_tenant_class_name(tenant_id) -> str:
         """Erzeugt einen eindeutigen Klassennamen für jeden Tenant."""
-        # Sicherstellen, dass tenant_id ein String ist, unabhängig davon, ob UUID oder String übergeben wird
-        tenant_str = str(tenant_id)
+        # Konvertiere tenant_id zu String mit der Hilfsfunktion
+        tenant_str = to_str(tenant_id)
         return f"Tenant{tenant_str.replace('-', '')}"
     
     @staticmethod
