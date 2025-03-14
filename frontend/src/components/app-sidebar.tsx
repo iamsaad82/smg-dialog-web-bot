@@ -88,12 +88,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       isActive: mounted && router.pathname.includes("/agencies"),
     },
     {
-      title: "Strukturierte Daten",
-      url: "/structured-data",
-      icon: Database,
-      isActive: mounted && router.pathname.includes("/structured-data"),
-    },
-    {
       title: "Kunden",
       url: "/tenants",
       icon: Building,
@@ -190,6 +184,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           url: `/tenants/${tenantId}/interactive`,
           icon: Layers,
           isActive: mounted && router.pathname.includes("/interactive"),
+        },
+        {
+          title: "Datenimporte",
+          url: `/tenants/${tenantId}/data-imports`,
+          icon: Database,
+          isActive: mounted && router.pathname.includes("/data-imports"),
         },
         {
           title: "Bot testen",

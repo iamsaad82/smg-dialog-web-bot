@@ -63,6 +63,7 @@ async def search_structured_data(
 @router.post("/import/brandenburg")
 async def import_brandenburg_data(
     file: UploadFile = File(...),
+    tenant_id: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -71,6 +72,7 @@ async def import_brandenburg_data(
     Erfordert Admin-Rechte.
     
     - **file**: XML-Datei mit Brandenburg-Daten
+    - **tenant_id**: Optional - ID eines spezifischen Tenants für den Import
     """
     # Prüfen, ob Benutzer Admin ist
     if not current_user.is_admin:
@@ -86,9 +88,29 @@ async def import_brandenburg_data(
             detail="Nur XML-Dateien werden unterstützt"
         )
     
-    # Alle Tenants mit Brandenburg-Konfiguration holen
-    tenants = tenant_service.get_all_tenants(db)
-    brandenburg_tenants = [t for t in tenants if getattr(t, 'is_brandenburg', False)]
+    # Spezifischer Tenant oder alle Brandenburg-Tenants
+    brandenburg_tenants = []
+    
+    if tenant_id:
+        # Nur den angegebenen Tenant verwenden, wenn er Brandenburg aktiviert hat
+        tenant = tenant_service.get_tenant_by_id(db, tenant_id)
+        if not tenant:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tenant mit ID {tenant_id} nicht gefunden"
+            )
+        
+        if not getattr(tenant, 'is_brandenburg', False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tenant {tenant.name} hat die Brandenburg-Integration nicht aktiviert"
+            )
+        
+        brandenburg_tenants = [tenant]
+    else:
+        # Alle Tenants mit Brandenburg-Konfiguration holen
+        tenants = tenant_service.get_all_tenants(db)
+        brandenburg_tenants = [t for t in tenants if getattr(t, 'is_brandenburg', False)]
     
     if not brandenburg_tenants:
         raise HTTPException(
@@ -136,6 +158,7 @@ async def import_brandenburg_data(
 class ImportFromUrlRequest(BaseModel):
     """Schema für URL-Import-Anfragen."""
     url: str = "https://www.stadt-brandenburg.de/_/a/chatbot/daten.xml"
+    tenant_id: Optional[str] = None
 
 
 @router.post("/import/brandenburg/url")
@@ -145,10 +168,11 @@ async def import_brandenburg_data_from_url(
     db: Session = Depends(get_db)
 ):
     """
-    Importiert strukturierte Daten aus einer Brandenburg-XML-Datei über eine URL.
+    Importiert strukturierte Daten von einer URL mit Brandenburg-XML.
     Erfordert Admin-Rechte.
     
-    - **url**: URL zur XML-Datei (Standard: https://www.stadt-brandenburg.de/_/a/chatbot/daten.xml)
+    - **url**: URL der XML-Datei mit Brandenburg-Daten
+    - **tenant_id**: Optional - ID eines spezifischen Tenants für den Import
     """
     # Prüfen, ob Benutzer Admin ist
     if not current_user.is_admin:
@@ -157,16 +181,29 @@ async def import_brandenburg_data_from_url(
             detail="Nur Administratoren können diese Funktion nutzen"
         )
     
-    # Prüfen, ob die URL valide ist
-    if not request.url.startswith(('http://', 'https://')) or not request.url.endswith('.xml'):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Die URL muss mit http:// oder https:// beginnen und auf .xml enden"
-        )
+    # Spezifischer Tenant oder alle Brandenburg-Tenants
+    brandenburg_tenants = []
     
-    # Alle Tenants mit Brandenburg-Konfiguration holen
-    tenants = tenant_service.get_all_tenants(db)
-    brandenburg_tenants = [t for t in tenants if getattr(t, 'is_brandenburg', False)]
+    if request.tenant_id:
+        # Nur den angegebenen Tenant verwenden, wenn er Brandenburg aktiviert hat
+        tenant = tenant_service.get_tenant_by_id(db, request.tenant_id)
+        if not tenant:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Tenant mit ID {request.tenant_id} nicht gefunden"
+            )
+        
+        if not getattr(tenant, 'is_brandenburg', False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tenant {tenant.name} hat die Brandenburg-Integration nicht aktiviert"
+            )
+        
+        brandenburg_tenants = [tenant]
+    else:
+        # Alle Tenants mit Brandenburg-Konfiguration holen
+        tenants = tenant_service.get_all_tenants(db)
+        brandenburg_tenants = [t for t in tenants if getattr(t, 'is_brandenburg', False)]
     
     if not brandenburg_tenants:
         raise HTTPException(
