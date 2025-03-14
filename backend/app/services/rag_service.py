@@ -180,9 +180,14 @@ class RAGService:
         Gibt Hinweise, wie strukturierte Daten im Response-Format zu integrieren sind.
         """
         structured_data_types = {
-            'school': ['schule', 'grundschule', 'gesamtschule', 'gymnasium', 'oberschule', 'schulen'],
-            'office': ['amt', 'ämter', 'behörde', 'verwaltung', 'bürgeramt', 'bürgerbüro', 'rathaus'],
-            'event': ['veranstaltung', 'event', 'termin', 'termine', 'veranstaltungen', 'events']
+            'school': ['schule', 'grundschule', 'gesamtschule', 'gymnasium', 'oberschule', 'schulen', 'bildung', 'bildungseinrichtung'],
+            'office': ['amt', 'ämter', 'behörde', 'verwaltung', 'bürgeramt', 'bürgerbüro', 'rathaus', 'verwaltungsstelle', 'bürgerdienst'],
+            'event': ['veranstaltung', 'event', 'termin', 'termine', 'veranstaltungen', 'events', 'festival', 'konzert', 'messe'],
+            'service': ['dienstleistung', 'service', 'dienst', 'angebot', 'servicebereich', 'serviceangebot'],
+            'local_law': ['ortsrecht', 'satzung', 'verordnung', 'rechtsvorschrift', 'kommunalrecht', 'recht', 'gesetz', 'regelung'],
+            'kindergarten': ['kita', 'kindergarten', 'krippe', 'kinderbetreuung', 'tagespflege', 'vorschule'],
+            'webpage': ['webseite', 'homepage', 'internetseite', 'website', 'online', 'portal'],
+            'waste_management': ['abfall', 'müll', 'entsorgung', 'wertstoff', 'recycling', 'mülltrennung', 'abfallentsorgung']
         }
         
         # Anfrage auf Kleinbuchstaben normalisieren für die Erkennung
@@ -232,9 +237,14 @@ class RAGService:
             Liste von gefundenen strukturierten Daten-Elementen
         """
         structured_data_types = {
-            'school': ['schule', 'grundschule', 'gesamtschule', 'gymnasium', 'oberschule', 'schulen'],
-            'office': ['amt', 'ämter', 'behörde', 'verwaltung', 'bürgeramt', 'bürgerbüro', 'rathaus'],
-            'event': ['veranstaltung', 'event', 'termin', 'termine', 'veranstaltungen', 'events']
+            'school': ['schule', 'grundschule', 'gesamtschule', 'gymnasium', 'oberschule', 'schulen', 'bildung', 'bildungseinrichtung'],
+            'office': ['amt', 'ämter', 'behörde', 'verwaltung', 'bürgeramt', 'bürgerbüro', 'rathaus', 'verwaltungsstelle', 'bürgerdienst'],
+            'event': ['veranstaltung', 'event', 'termin', 'termine', 'veranstaltungen', 'events', 'festival', 'konzert', 'messe'],
+            'service': ['dienstleistung', 'service', 'dienst', 'angebot', 'servicebereich', 'serviceangebot'],
+            'local_law': ['ortsrecht', 'satzung', 'verordnung', 'rechtsvorschrift', 'kommunalrecht', 'recht', 'gesetz', 'regelung'],
+            'kindergarten': ['kita', 'kindergarten', 'krippe', 'kinderbetreuung', 'tagespflege', 'vorschule'],
+            'webpage': ['webseite', 'homepage', 'internetseite', 'website', 'online', 'portal'],
+            'waste_management': ['abfall', 'müll', 'entsorgung', 'wertstoff', 'recycling', 'mülltrennung', 'abfallentsorgung']
         }
         
         # Anfrage auf Kleinbuchstaben normalisieren für die Erkennung
@@ -248,34 +258,39 @@ class RAGService:
                     detected_types.append(data_type)
                     break
         
-        # Wenn keine strukturierten Daten in der Anfrage erkannt wurden, leere Liste zurückgeben
+        # Wenn keine strukturierten Daten in der Anfrage erkannt wurden, 
+        # versuche trotzdem eine allgemeine Suche mit dem Haupttypen
+        # Das verbessert die Chancen, dass strukturierte Daten in die Antworten einfließen
+        if not detected_types:
+            # Versuche proaktiv mit den Hauptdatentypen zu suchen
+            if tenant_id:
+                try:
+                    # Überprüfe, ob wir für diesen Tenant strukturierte Daten haben
+                    for main_type in ['school', 'office', 'event']:
+                        # Nur eine kurze Probeanfrage
+                        test_results = structured_data_service.search_structured_data(
+                            tenant_id=tenant_id,
+                            data_type=main_type,
+                            query=query,
+                            limit=1
+                        )
+                        if test_results:
+                            detected_types.append(main_type)
+                            logger.info(f"Proaktiv strukturierte Daten vom Typ {main_type} gefunden")
+                except Exception as e:
+                    logger.error(f"Fehler bei der proaktiven Suche nach strukturierten Daten: {str(e)}")
+            
         if not detected_types:
             return []
-        
-        # Spezifische Entitäten oder Namen in der Anfrage identifizieren
-        # Beispiel: "Grundschule Wir" oder "Gymnasium Brandenburg"
-        entity_matches = []
-        for data_type in detected_types:
-            for keyword in structured_data_types[data_type]:
-                # Regex-Muster für "[Keyword] [Name]" oder "[Name] [Keyword]"
-                patterns = [
-                    rf"{keyword}\s+([A-Z][a-zäöüß\-]+(?:\s+[A-Z][a-zäöüß\-]+)*)",  # Keyword Name
-                    rf"([A-Z][a-zäöüß\-]+(?:\s+[A-Z][a-zäöüß\-]+)*)\s+{keyword}"   # Name Keyword
-                ]
-                
-                for pattern in patterns:
-                    matches = re.findall(pattern, query, re.IGNORECASE)
-                    if matches:
-                        entity_matches.extend([(data_type, match.strip()) for match in matches])
         
         results = []
         
         # Wenn spezifische Entitäten erkannt wurden, nach diesen suchen
-        for data_type, entity_name in entity_matches:
+        for data_type in detected_types:
             entity_results = structured_data_service.search_structured_data(
                 tenant_id=tenant_id,
                 data_type=data_type,
-                query=entity_name,
+                query=query,
                 limit=3  # Limit auf wenige, aber hochrelevante Ergebnisse
             )
             results.extend(entity_results)
@@ -456,10 +471,140 @@ class RAGService:
                         context += f"Ort: {data.get('location', 'Unbekannt')}\n"
                         context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
                         context += f"Veranstalter: {data.get('organizer', 'Unbekannt')}\n"
+                        if "contact" in data:
+                            contact = data["contact"]
+                            context += f"Telefon: {contact.get('phone', 'Unbekannt')}\n"
+                            context += f"E-Mail: {contact.get('email', 'Unbekannt')}\n"
+                            context += f"Website: {contact.get('website', 'Unbekannt')}\n"
                         context += "\n"
+                    elif data_type == "service":
+                        context += f"--- Dienstleistung: {data.get('name', 'Unbekannt')} ---\n"
+                        context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
+                        context += f"Zuständiges Amt: {data.get('office', 'Unbekannt')}\n"
+                        context += f"Link: {data.get('link', 'Unbekannt')}\n"
+                        context += "\n"
+                    elif data_type == "local_law":
+                        context += f"--- Ortsrecht: {data.get('title', 'Unbekannt')} ---\n"
+                        context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
+                        context += f"Text: {data.get('text', 'Unbekannt')}\n"
+                        context += f"Link: {data.get('link', 'Unbekannt')}\n"
+                        context += "\n"
+                    elif data_type == "kindergarten":
+                        context += f"--- Kindergarten: {data.get('name', 'Unbekannt')} ---\n"
+                        context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
+                        context += f"Öffnungszeiten: {data.get('opening_hours', 'Unbekannt')}\n"
+                        context += f"Kontakt: {data.get('contact', 'Unbekannt')}\n"
+                        context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
+                        context += f"Link: {data.get('link', 'Unbekannt')}\n"
+                        context += "\n"
+                    elif data_type == "webpage":
+                        context += f"--- Webseite: {data.get('title', 'Unbekannt')} ---\n"
+                        context += f"URL: {data.get('url', 'Unbekannt')}\n"
+                        context += f"Inhalt: {data.get('content', 'Unbekannt')}\n"
+                        context += "\n"
+                    elif data_type == "waste_management":
+                        context += f"--- Abfallentsorgung: {data.get('name', 'Unbekannt')} ---\n"
+                        context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
+                        context += f"Inhalt: {data.get('content', 'Unbekannt')}\n"
+                        context += "\n"
+            else:
+                # Auch wenn keine Schlüsselwörter erkannt wurden, versuche trotzdem nach strukturierten Daten zu suchen
+                proactive_structured_data = []
+                
+                try:
+                    logger.info("Proaktive Suche nach strukturierten Daten...")
+                    for main_type in ['school', 'office', 'event']:
+                        type_results = structured_data_service.search_structured_data(
+                            tenant_id=tenant_id,
+                            data_type=main_type,
+                            query=query,
+                            limit=2
+                        )
+                        if type_results:
+                            logger.info(f"Proaktiv {len(type_results)} Einträge vom Typ {main_type} gefunden")
+                            proactive_structured_data.extend(type_results)
+                except Exception as e:
+                    logger.error(f"Fehler bei der proaktiven Suche nach strukturierten Daten: {str(e)}")
+                    
+                if proactive_structured_data:
+                    structured_data_instructions = self.format_structured_data_instructions(query)
+                    # Kontext mit strukturierten Daten erweitern
+                    context += "\n\nStrukturierte Daten (proaktiv gefunden):\n"
+                    for item in proactive_structured_data:
+                        data_type = item.get("type", "unknown")
+                        data = item.get("data", {})
+                        
+                        if data_type == "school":
+                            context += f"--- Schule: {data.get('name', 'Unbekannt')} ---\n"
+                            context += f"Typ: {data.get('type', 'Unbekannt')}\n"
+                            context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
+                            if "contact" in data:
+                                contact = data["contact"]
+                                context += f"Telefon: {contact.get('phone', 'Unbekannt')}\n"
+                                context += f"E-Mail: {contact.get('email', 'Unbekannt')}\n"
+                                context += f"Website: {contact.get('website', 'Unbekannt')}\n"
+                            context += "\n"
+                        elif data_type == "office":
+                            context += f"--- Amt: {data.get('name', 'Unbekannt')} ---\n"
+                            context += f"Abteilung: {data.get('department', 'Unbekannt')}\n"
+                            context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
+                            context += f"Öffnungszeiten: {data.get('openingHours', 'Unbekannt')}\n"
+                            if "contact" in data:
+                                contact = data["contact"]
+                                context += f"Telefon: {contact.get('phone', 'Unbekannt')}\n"
+                                context += f"E-Mail: {contact.get('email', 'Unbekannt')}\n"
+                                context += f"Website: {contact.get('website', 'Unbekannt')}\n"
+                            context += "\n"
+                        elif data_type == "event":
+                            context += f"--- Veranstaltung: {data.get('title', 'Unbekannt')} ---\n"
+                            context += f"Datum: {data.get('date', 'Unbekannt')}\n"
+                            context += f"Zeit: {data.get('time', 'Unbekannt')}\n"
+                            context += f"Ort: {data.get('location', 'Unbekannt')}\n"
+                            context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
+                            context += f"Veranstalter: {data.get('organizer', 'Unbekannt')}\n"
+                            if "contact" in data:
+                                contact = data["contact"]
+                                context += f"Telefon: {contact.get('phone', 'Unbekannt')}\n"
+                                context += f"E-Mail: {contact.get('email', 'Unbekannt')}\n"
+                                context += f"Website: {contact.get('website', 'Unbekannt')}\n"
+                            context += "\n"
+                        elif data_type == "service":
+                            context += f"--- Dienstleistung: {data.get('name', 'Unbekannt')} ---\n"
+                            context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
+                            context += f"Zuständiges Amt: {data.get('office', 'Unbekannt')}\n"
+                            context += f"Link: {data.get('link', 'Unbekannt')}\n"
+                            context += "\n"
+                        elif data_type == "local_law":
+                            context += f"--- Ortsrecht: {data.get('title', 'Unbekannt')} ---\n"
+                            context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
+                            context += f"Text: {data.get('text', 'Unbekannt')}\n"
+                            context += f"Link: {data.get('link', 'Unbekannt')}\n"
+                            context += "\n"
+                        elif data_type == "kindergarten":
+                            context += f"--- Kindergarten: {data.get('name', 'Unbekannt')} ---\n"
+                            context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
+                            context += f"Öffnungszeiten: {data.get('opening_hours', 'Unbekannt')}\n"
+                            context += f"Kontakt: {data.get('contact', 'Unbekannt')}\n"
+                            context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
+                            context += f"Link: {data.get('link', 'Unbekannt')}\n"
+                            context += "\n"
+                        elif data_type == "webpage":
+                            context += f"--- Webseite: {data.get('title', 'Unbekannt')} ---\n"
+                            context += f"URL: {data.get('url', 'Unbekannt')}\n"
+                            context += f"Inhalt: {data.get('content', 'Unbekannt')}\n"
+                            context += "\n"
+                        elif data_type == "waste_management":
+                            context += f"--- Abfallentsorgung: {data.get('name', 'Unbekannt')} ---\n"
+                            context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
+                            context += f"Inhalt: {data.get('content', 'Unbekannt')}\n"
+                            context += "\n"
+                
+                # Füge die Anweisungen zum System-Prompt hinzu, wenn noch nicht getan
+                if structured_data_instructions and structured_data_instructions not in system_prompt_text:
+                    system_prompt_text += structured_data_instructions
             
-            # Strukturierte Daten-Anweisungen hinzufügen
-            if structured_data_instructions:
+            # Strukturierte Daten-Anweisungen hinzufügen, falls nicht bereits geschehen
+            if structured_data_instructions and structured_data_instructions not in system_prompt_text:
                 system_prompt_text += structured_data_instructions
             
             # LLM mit Kontext, System-Prompt und UI-Komponenten-Anweisungen aufrufen

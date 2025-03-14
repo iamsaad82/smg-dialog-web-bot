@@ -7,7 +7,6 @@ import json
 import uuid
 from typing import Dict, Any, Optional, List, Union
 import weaviate
-# import weaviate.classes as wvc  # Diesen Import entfernen, da er in v4 anders strukturiert ist
 from datetime import datetime
 from .xml_parser_service import BrandenburgXMLParser
 from .weaviate.client import weaviate_client
@@ -72,63 +71,105 @@ class StructuredDataService:
         
         if data_type == "school":
             properties = [
-                wvc.config.Property(name="name", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="type", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="schoolId", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="address", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="management", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="contactPhone", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="contactEmail", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="contactWebsite", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="allDayCare", data_type=wvc.config.DataType.BOOL),
-                wvc.config.Property(name="additionalInfo", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="description", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="link", data_type=wvc.config.DataType.TEXT),
+                {"name": "name", "dataType": ["text"]},
+                {"name": "type", "dataType": ["text"]},
+                {"name": "schoolId", "dataType": ["text"]},
+                {"name": "address", "dataType": ["text"]},
+                {"name": "management", "dataType": ["text"]},
+                {"name": "contactPhone", "dataType": ["text"]},
+                {"name": "contactEmail", "dataType": ["text"]},
+                {"name": "contactWebsite", "dataType": ["text"]},
+                {"name": "allDayCare", "dataType": ["boolean"]},
+                {"name": "additionalInfo", "dataType": ["text"]},
+                {"name": "description", "dataType": ["text"]},
+                {"name": "link", "dataType": ["text"]},
                 # Suchfeld für alle Inhalte
-                wvc.config.Property(name="fullTextSearch", data_type=wvc.config.DataType.TEXT)
+                {"name": "fullTextSearch", "dataType": ["text"]}
             ]
         elif data_type == "office":
             properties = [
-                wvc.config.Property(name="name", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="department", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="address", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="openingHours", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="contactPhone", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="contactEmail", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="contactWebsite", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="services", data_type=wvc.config.DataType.TEXT_ARRAY),
-                wvc.config.Property(name="description", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="content", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="link", data_type=wvc.config.DataType.TEXT),
+                {"name": "name", "dataType": ["text"]},
+                {"name": "department", "dataType": ["text"]},
+                {"name": "address", "dataType": ["text"]},
+                {"name": "openingHours", "dataType": ["text"]},
+                {"name": "contactPhone", "dataType": ["text"]},
+                {"name": "contactEmail", "dataType": ["text"]},
+                {"name": "contactWebsite", "dataType": ["text"]},
+                {"name": "services", "dataType": ["text[]"]},
+                {"name": "description", "dataType": ["text"]},
+                {"name": "content", "dataType": ["text"]},
+                {"name": "link", "dataType": ["text"]},
                 # Suchfeld für alle Inhalte
-                wvc.config.Property(name="fullTextSearch", data_type=wvc.config.DataType.TEXT)
+                {"name": "fullTextSearch", "dataType": ["text"]}
             ]
         elif data_type == "event":
             properties = [
-                wvc.config.Property(name="title", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="date", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="time", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="location", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="description", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="content", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="organizer", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="contactPhone", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="contactEmail", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="contactWebsite", data_type=wvc.config.DataType.TEXT),
-                wvc.config.Property(name="link", data_type=wvc.config.DataType.TEXT),
+                {"name": "title", "dataType": ["text"]},
+                {"name": "date", "dataType": ["text"]},
+                {"name": "time", "dataType": ["text"]},
+                {"name": "location", "dataType": ["text"]},
+                {"name": "description", "dataType": ["text"]},
+                {"name": "content", "dataType": ["text"]},
+                {"name": "organizer", "dataType": ["text"]},
+                {"name": "contactPhone", "dataType": ["text"]},
+                {"name": "contactEmail", "dataType": ["text"]},
+                {"name": "contactWebsite", "dataType": ["text"]},
+                {"name": "link", "dataType": ["text"]},
                 # Suchfeld für alle Inhalte
-                wvc.config.Property(name="fullTextSearch", data_type=wvc.config.DataType.TEXT)
+                {"name": "fullTextSearch", "dataType": ["text"]}
+            ]
+        elif data_type == "service":
+            properties = [
+                {"name": "name", "dataType": ["text"]},
+                {"name": "description", "dataType": ["text"]},
+                {"name": "content", "dataType": ["text"]},
+                {"name": "link", "dataType": ["text"]},
+                # Suchfeld für alle Inhalte
+                {"name": "fullTextSearch", "dataType": ["text"]}
+            ]
+        elif data_type == "local_law":
+            properties = [
+                {"name": "title", "dataType": ["text"]},
+                {"name": "description", "dataType": ["text"]},
+                {"name": "content", "dataType": ["text"]},
+                {"name": "link", "dataType": ["text"]},
+                # Suchfeld für alle Inhalte
+                {"name": "fullTextSearch", "dataType": ["text"]}
+            ]
+        elif data_type == "kindergarten":
+            properties = [
+                {"name": "name", "dataType": ["text"]},
+                {"name": "address", "dataType": ["text"]},
+                {"name": "contact", "dataType": ["text"]},
+                {"name": "description", "dataType": ["text"]},
+                {"name": "link", "dataType": ["text"]},
+                # Suchfeld für alle Inhalte
+                {"name": "fullTextSearch", "dataType": ["text"]}
+            ]
+        elif data_type == "webpage":
+            properties = [
+                {"name": "title", "dataType": ["text"]},
+                {"name": "url", "dataType": ["text"]},
+                {"name": "content", "dataType": ["text"]},
+                # Suchfeld für alle Inhalte
+                {"name": "fullTextSearch", "dataType": ["text"]}
+            ]
+        elif data_type == "waste_management":
+            properties = [
+                {"name": "name", "dataType": ["text"]},
+                {"name": "description", "dataType": ["text"]},
+                {"name": "content", "dataType": ["text"]},
+                # Suchfeld für alle Inhalte
+                {"name": "fullTextSearch", "dataType": ["text"]}
             ]
         
         try:
-            # Schema erstellen
+            # Schema erstellen mit Weaviate v4 API
             weaviate_client.collections.create(
                 name=class_name,
                 description=f"Strukturierte {data_type.capitalize()}-Daten für Tenant {tenant_id}",
-                vectorizer_config=wvc.config.Configure.Vectorizer.text2vec_transformers(
-                    vectorize_collection_name=False
-                ),
-                properties=properties
+                properties=properties,
+                vectorizer_config={"text2vec-transformers": {"vectorize_collection_name": False}}
             )
             
             logger.info(f"Schema für {data_type}-Daten von Tenant {tenant_id} erstellt")
@@ -192,7 +233,7 @@ class StructuredDataService:
         flattened_data["fullTextSearch"] = " ".join(str(value) for value in flattened_data.values() if value)
         
         try:
-            # Daten speichern
+            # Daten speichern mit Weaviate v4 API
             collection = weaviate_client.collections.get(class_name)
             collection.data.insert(
                 uuid=data_id,
