@@ -392,7 +392,14 @@ async def get_tenant_details(
     try:
         # Ausführliches Logging für Debugging
         print(f"[get_tenant_details] API-Aufruf mit tenant_id={tenant_id}, authenticated_tenant_id={current_tenant_id}")
+        print(f"[get_tenant_details] Umgebung (ENV): {settings.ENV}")
         
+        # Im Dev-Modus erlauben wir direkten Zugriff ohne API-Key-Prüfung
+        if settings.ENV == "dev" and current_tenant_id != tenant_id:
+            print(f"[get_tenant_details] DEV-MODUS: Erlaube direkten Zugriff ohne API-Key-Prüfung")
+            # Im Dev-Modus setzen wir current_tenant_id = tenant_id
+            current_tenant_id = tenant_id
+            
         # Sicherheitsabfrage: Stellen Sie sicher, dass der Benutzer zum angeforderten Tenant gehört
         if current_tenant_id != tenant_id:
             print(f"[get_tenant_details] Zugriff verweigert: Anfragender Tenant ({current_tenant_id}) ≠ Angeforderter Tenant ({tenant_id})")
@@ -412,7 +419,7 @@ async def get_tenant_details(
         
         # Debugging-Informationen
         print(f"[get_tenant_details] Tenant mit ID {tenant_id} gefunden")
-        print(f"[get_tenant_details] is_brandenburg Wert: {tenant.is_brandenburg}")
+        print(f"[get_tenant_details] Tenant-Daten: {tenant.model_dump()}")
         
         # Erfolgreiche Rückgabe
         return tenant
