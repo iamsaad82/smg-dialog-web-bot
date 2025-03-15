@@ -357,7 +357,13 @@ class RAGService:
         
         print(f"Ist allgemeine Frage: {is_general_question}")
         
-        # 1. Dokumente abrufen (nur wenn es keine allgemeine Frage ist)
+        # WICHTIG: Zuerst nach strukturierten Daten suchen
+        structured_data = await self.get_structured_data_for_query(tenant_id, query)
+        has_structured_data = bool(structured_data)
+        
+        print(f"Strukturierte Daten gefunden: {has_structured_data} (Anzahl: {len(structured_data)})")
+        
+        # Dann nach regulären Dokumenten suchen
         retrieved_docs = [] if is_general_question else weaviate_service.search(
             tenant_id=tenant_id,
             query=query,
@@ -388,10 +394,10 @@ class RAGService:
                 print(f"Zweiter Versuch - Erster Dokumenttitel: {retrieved_docs[0].get('title', 'Kein Titel')}")
                 print(f"Zweiter Versuch - Alle gefundenen Dokumente: {[doc.get('title', 'Kein Titel') for doc in retrieved_docs]}")
         
-        # Wenn immer noch keine Dokumente gefunden wurden
-        if not retrieved_docs and not is_general_question:
+        # Wenn weder Dokumente noch strukturierte Daten gefunden wurden und es keine allgemeine Frage ist
+        if not retrieved_docs and not has_structured_data and not is_general_question:
             # Gib eine Standardantwort zurück
-            print("FEHLER: Keine Dokumente gefunden und keine allgemeine Frage")
+            print("FEHLER: Weder Dokumente noch strukturierte Daten gefunden und keine allgemeine Frage")
             yield "Ich konnte leider keine relevanten Informationen zu Ihrer Anfrage finden. Könnte ich Ihnen mit etwas anderem helfen?"
             return
         
@@ -431,8 +437,7 @@ class RAGService:
                 # Keine UI-Komponenten, wenn nicht explizit konfiguriert
                 logger.info(f"Keine UI-Komponenten-Konfiguration für Tenant {tenant_id} gefunden - verwende reinen Text")
             
-            # Strukturierte Daten suchen und Anweisungen hinzufügen
-            structured_data = await self.get_structured_data_for_query(tenant_id, query)
+            # Strukturierte Daten bereits gefunden, jetzt nur noch Anweisungen hinzufügen
             structured_data_instructions = ""
             
             if structured_data:
@@ -520,103 +525,8 @@ class RAGService:
                                 context += f"{key}: {value}\n"
                     
                     context += "\n"
-            else:
-                # Auch wenn keine Schlüsselwörter erkannt wurden, versuche trotzdem nach strukturierten Daten zu suchen
-                proactive_structured_data = []
-                
-                try:
-                    logger.info("Proaktive Suche nach strukturierten Daten...")
-                    for main_type in ['school', 'office', 'event']:
-                        type_results = structured_data_service.search_structured_data(
-                            tenant_id=tenant_id,
-                            data_type=main_type,
-                            query=query,
-                            limit=2
-                        )
-                        if type_results:
-                            logger.info(f"Proaktiv {len(type_results)} Einträge vom Typ {main_type} gefunden")
-                            proactive_structured_data.extend(type_results)
-                except Exception as e:
-                    logger.error(f"Fehler bei der proaktiven Suche nach strukturierten Daten: {str(e)}")
-                    
-                if proactive_structured_data:
-                    structured_data_instructions = self.format_structured_data_instructions(query)
-                    # Kontext mit strukturierten Daten erweitern
-                    context += "\n\nStrukturierte Daten (proaktiv gefunden):\n"
-                    for item in proactive_structured_data:
-                        data_type = item.get("type", "unknown")
-                        data = item.get("data", {})
-                        
-                        if data_type == "school":
-                            context += f"--- Schule: {data.get('name', 'Unbekannt')} ---\n"
-                            context += f"Typ: {data.get('type', 'Unbekannt')}\n"
-                            context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
-                            if "contact" in data:
-                                contact = data["contact"]
-                                context += f"Telefon: {contact.get('phone', 'Unbekannt')}\n"
-                                context += f"E-Mail: {contact.get('email', 'Unbekannt')}\n"
-                                context += f"Website: {contact.get('website', 'Unbekannt')}\n"
-                            context += "\n"
-                        elif data_type == "office":
-                            context += f"--- Amt: {data.get('name', 'Unbekannt')} ---\n"
-                            context += f"Abteilung: {data.get('department', 'Unbekannt')}\n"
-                            context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
-                            context += f"Öffnungszeiten: {data.get('openingHours', 'Unbekannt')}\n"
-                            if "contact" in data:
-                                contact = data["contact"]
-                                context += f"Telefon: {contact.get('phone', 'Unbekannt')}\n"
-                                context += f"E-Mail: {contact.get('email', 'Unbekannt')}\n"
-                                context += f"Website: {contact.get('website', 'Unbekannt')}\n"
-                            context += "\n"
-                        elif data_type == "event":
-                            context += f"--- Veranstaltung: {data.get('title', 'Unbekannt')} ---\n"
-                            context += f"Datum: {data.get('date', 'Unbekannt')}\n"
-                            context += f"Zeit: {data.get('time', 'Unbekannt')}\n"
-                            context += f"Ort: {data.get('location', 'Unbekannt')}\n"
-                            context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
-                            context += f"Veranstalter: {data.get('organizer', 'Unbekannt')}\n"
-                            if "contact" in data:
-                                contact = data["contact"]
-                                context += f"Telefon: {contact.get('phone', 'Unbekannt')}\n"
-                                context += f"E-Mail: {contact.get('email', 'Unbekannt')}\n"
-                                context += f"Website: {contact.get('website', 'Unbekannt')}\n"
-                            context += "\n"
-                        elif data_type == "service":
-                            context += f"--- Dienstleistung: {data.get('name', 'Unbekannt')} ---\n"
-                            context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
-                            context += f"Zuständiges Amt: {data.get('office', 'Unbekannt')}\n"
-                            context += f"Link: {data.get('link', 'Unbekannt')}\n"
-                            context += "\n"
-                        elif data_type == "local_law":
-                            context += f"--- Ortsrecht: {data.get('title', 'Unbekannt')} ---\n"
-                            context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
-                            context += f"Text: {data.get('text', 'Unbekannt')}\n"
-                            context += f"Link: {data.get('link', 'Unbekannt')}\n"
-                            context += "\n"
-                        elif data_type == "kindergarten":
-                            context += f"--- Kindergarten: {data.get('name', 'Unbekannt')} ---\n"
-                            context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
-                            context += f"Öffnungszeiten: {data.get('opening_hours', 'Unbekannt')}\n"
-                            context += f"Kontakt: {data.get('contact', 'Unbekannt')}\n"
-                            context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
-                            context += f"Link: {data.get('link', 'Unbekannt')}\n"
-                            context += "\n"
-                        elif data_type == "webpage":
-                            context += f"--- Webseite: {data.get('title', 'Unbekannt')} ---\n"
-                            context += f"URL: {data.get('url', 'Unbekannt')}\n"
-                            context += f"Inhalt: {data.get('content', 'Unbekannt')}\n"
-                            context += "\n"
-                        elif data_type == "waste_management":
-                            context += f"--- Abfallentsorgung: {data.get('name', 'Unbekannt')} ---\n"
-                            context += f"Beschreibung: {data.get('description', 'Unbekannt')}\n"
-                            context += f"Inhalt: {data.get('content', 'Unbekannt')}\n"
-                            context += "\n"
-                
-                # Füge die Anweisungen zum System-Prompt hinzu, wenn noch nicht getan
-                if structured_data_instructions and structured_data_instructions not in system_prompt_text:
-                    system_prompt_text += structured_data_instructions
             
-            # Strukturierte Daten-Anweisungen hinzufügen, falls nicht bereits geschehen
+            # Füge die Anweisungen zum System-Prompt hinzu, wenn noch nicht getan
             if structured_data_instructions and structured_data_instructions not in system_prompt_text:
                 system_prompt_text += structured_data_instructions
             
