@@ -385,9 +385,19 @@ class StructuredDataService:
         
         if not parser.parse_file(url):
             logger.error(f"Konnte XML-Datei nicht von URL parsen: {url}")
-            return {"schools": 0, "offices": 0, "events": 0}
+            return {"schools": 0, "offices": 0, "events": 0, "dienstleistungen": 0, "ortsrecht": 0, "kitas": 0, "webseiten": 0, "entsorgungen": 0}
         
-        result = {"schools": 0, "offices": 0, "events": 0}
+        # Vollständige Ergebnisliste mit allen Datentypen
+        result = {
+            "schools": 0, 
+            "offices": 0, 
+            "events": 0,
+            "dienstleistungen": 0,
+            "ortsrecht": 0,
+            "kitas": 0,
+            "webseiten": 0,
+            "entsorgungen": 0
+        }
         
         # Schulen importieren
         schools = parser.extract_schools()
@@ -409,6 +419,41 @@ class StructuredDataService:
         for event in events:
             if StructuredDataService.store_structured_data(tenant_id, "event", event["data"]):
                 result["events"] += 1
+        
+        # Dienstleistungen importieren
+        dienstleistungen = parser.extract_dienstleistungen()
+        logger.info(f"Extrahierte {len(dienstleistungen)} Dienstleistungen aus URL {url}")
+        for dienstleistung in dienstleistungen:
+            if StructuredDataService.store_structured_data(tenant_id, "service", dienstleistung["data"]):
+                result["dienstleistungen"] += 1
+        
+        # Ortsrecht importieren
+        ortsrecht_entries = parser.extract_ortsrecht()
+        logger.info(f"Extrahierte {len(ortsrecht_entries)} Ortsrecht-Einträge aus URL {url}")
+        for ortsrecht in ortsrecht_entries:
+            if StructuredDataService.store_structured_data(tenant_id, "local_law", ortsrecht["data"]):
+                result["ortsrecht"] += 1
+        
+        # Kitas importieren
+        kitas = parser.extract_kitas()
+        logger.info(f"Extrahierte {len(kitas)} Kitas aus URL {url}")
+        for kita in kitas:
+            if StructuredDataService.store_structured_data(tenant_id, "kindergarten", kita["data"]):
+                result["kitas"] += 1
+        
+        # Webseiten importieren
+        webseiten = parser.extract_webseiten()
+        logger.info(f"Extrahierte {len(webseiten)} Webseiten aus URL {url}")
+        for webseite in webseiten:
+            if StructuredDataService.store_structured_data(tenant_id, "webpage", webseite["data"]):
+                result["webseiten"] += 1
+        
+        # Entsorgungen importieren
+        entsorgungen = parser.extract_entsorgungen()
+        logger.info(f"Extrahierte {len(entsorgungen)} Entsorgungsmöglichkeiten aus URL {url}")
+        for entsorgung in entsorgungen:
+            if StructuredDataService.store_structured_data(tenant_id, "waste_management", entsorgung["data"]):
+                result["entsorgungen"] += 1
         
         logger.info(f"Import von URL für Tenant {tenant_id} abgeschlossen: {result}")
         return result
