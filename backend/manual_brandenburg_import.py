@@ -56,7 +56,8 @@ def main():
         # Korrigierte Import-Pfade für die Docker-Container-Umgebung
         from app.db.session import SessionLocal
         from app.db.models import TenantModel
-        from app.services.structured_data_service import StructuredDataService
+        from app.services.structured_data_service import structured_data_service
+        from app.services.weaviate import weaviate_service
         
         # Weaviate-Client initialisieren
         from app.services.weaviate.client import get_weaviate_client
@@ -95,26 +96,24 @@ def main():
             
             try:
                 # Daten importieren (lokale Datei statt URL)
-                result = StructuredDataService.import_brandenburg_data(
+                # Verwende die globale Instanz des structured_data_service
+                result = structured_data_service.import_brandenburg_data(
                     xml_file_path=brandenburg_xml_path,
                     tenant_id=tenant_id
                 )
                 
-                # Ergebnisse protokollieren
-                total = result['schools'] + result['offices'] + result['events']
-                logger.info(f"Import für {tenant_name} abgeschlossen: {total} Einträge importiert")
-                logger.info(f"  - Schulen: {result['schools']}")
-                logger.info(f"  - Ämter: {result['offices']}")
-                logger.info(f"  - Veranstaltungen: {result['events']}")
+                logger.info(f"Import für Tenant {tenant_name} abgeschlossen.")
+                logger.info(f"Importierte Daten: {result}")
                 
             except Exception as e:
-                logger.error(f"Fehler beim Import für Tenant {tenant_name}: {e}")
+                logger.error(f"Fehler beim Import für Tenant {tenant_name}: {str(e)}")
         
-        db.close()
         logger.info("Brandenburg-Daten-Import abgeschlossen.")
         
     except Exception as e:
-        logger.error(f"Fehler beim Ausführen des Brandenburg-Imports: {e}")
+        logger.error(f"Unbehandelter Fehler: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 if __name__ == "__main__":
     main() 

@@ -275,17 +275,61 @@ async def get_tenant_id_from_api_key(
 
 # Alternative Authentifizierung über Query-Parameter für Einbettungen
 async def get_tenant_id_from_query(
-    api_key: Optional[str] = None,
+    request: Request,
+    api_key_header: Optional[str] = Security(API_KEY_HEADER),
     db: Session = Depends(get_db)
 ) -> Optional[str]:
     """
     Überprüft den API-Key aus einem Query-Parameter und gibt die entsprechende Tenant-ID zurück.
     Gibt None zurück, wenn kein API-Key angegeben wurde oder der API-Key ungültig ist.
     """
-    if not api_key:
+    try:
+        print(f"[get_tenant_id_from_query] API-Key-Header: {api_key_header}")
+        
+        # Zuerst den API-Key aus dem Header verwenden
+        api_key = api_key_header
+        
+        # Wenn kein Header-API-Key, dann aus Query-Parametern holen
+        if not api_key:
+            api_key = request.query_params.get("api_key")
+            print(f"[get_tenant_id_from_query] API-Key aus Query: {api_key}")
+        
+        if not api_key:
+            print("[get_tenant_id_from_query] Kein API-Key gefunden.")
+            return None
+        
+        # Direkter Check auf Admin-API-Key
+        if api_key == settings.ADMIN_API_KEY:
+            print("[get_tenant_id_from_query] Admin-API-Key erkannt")
+            
+            # Extrahiere tenant_id aus dem Pfad für Admin-API-Key
+            path_parts = str(request.url.path).split('/')
+            for i, part in enumerate(path_parts):
+                if part == 'tenants' and i+1 < len(path_parts) and path_parts[i+1] != 'current':
+                    tenant_id_from_path = path_parts[i+1]
+                    if tenant_id_from_path and tenant_id_from_path != "current":
+                        # Prüfen, ob dieser Tenant existiert
+                        tenant = tenant_service.get_tenant_by_id(db, tenant_id_from_path)
+                        if tenant:
+                            print(f"[get_tenant_id_from_query] Admin-API-Key verwendet für Tenant-ID {tenant_id_from_path}")
+                            return tenant_id_from_path
+            
+            # Wenn keine Tenant-ID im Pfad, ersten verfügbaren Tenant verwenden
+            tenants = tenant_service.get_all_tenants(db)
+            if tenants and len(tenants) > 0:
+                print(f"[get_tenant_id_from_query] Admin-API-Key: Verwende ersten Tenant: {tenants[0].id}")
+                return tenants[0].id
+        
+        # Reguläre API-Key-Verifizierung
+        tenant_id = tenant_service.verify_api_key(db, api_key)
+        print(f"[get_tenant_id_from_query] Verifizierter Tenant: {tenant_id}")
+        return tenant_id
+        
+    except Exception as e:
+        import traceback
+        print(f"[get_tenant_id_from_query] Fehler: {str(e)}")
+        print(f"[get_tenant_id_from_query] Stacktrace: {traceback.format_exc()}")
         return None
-    
-    return tenant_service.verify_api_key(db, api_key)
 
 
 # Admin-Authentifizierung für Verwaltungsfunktionen
