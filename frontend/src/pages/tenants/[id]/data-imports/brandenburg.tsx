@@ -27,6 +27,7 @@ import { toast } from "@/utils/toast";
 import { Tenant } from "@/types/api";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
+import { API_BASE_URL } from '@/api/core';
 
 export default function TenantBrandenburgImportPage() {
   const router = useRouter();
@@ -40,6 +41,7 @@ export default function TenantBrandenburgImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [fetchingTenant, setFetchingTenant] = useState<boolean>(true);
+  const [isLoadingFixScript, setIsLoadingFixScript] = useState<boolean>(false);
 
   // Tenant-Daten laden
   useEffect(() => {
@@ -48,14 +50,13 @@ export default function TenantBrandenburgImportPage() {
       
       try {
         setFetchingTenant(true);
-        const backendUrl = "http://localhost:8000"; // Backend-URL für direkte Anfragen
-        console.log("Anfrage an API wird gesendet:", `${backendUrl}/api/v1/tenants/${tenantId}/details`);
+        console.log("Anfrage an API wird gesendet:", `${API_BASE_URL}/tenants/${tenantId}/details`);
         
         // Admin-API-Key direkt verwenden (nur für Entwicklung)
         const adminApiKey = "admin-secret-key-12345";
         
         // Zuerst versuchen, den Tenant über den /details-Endpunkt zu laden
-        let response = await fetch(`${backendUrl}/api/v1/tenants/${tenantId}/details`, {
+        let response = await fetch(`${API_BASE_URL}/tenants/${tenantId}/details`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -69,7 +70,7 @@ export default function TenantBrandenburgImportPage() {
         // Wenn der /details-Endpunkt fehlschlägt, den normalen Tenant-Endpunkt versuchen
         if (response.status === 500) {
           console.log("Fallback: Verwende normalen Tenant-Endpunkt");
-          response = await fetch(`${backendUrl}/api/v1/tenants/${tenantId}`, {
+          response = await fetch(`${API_BASE_URL}/tenants/${tenantId}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
@@ -137,6 +138,12 @@ export default function TenantBrandenburgImportPage() {
     setError(null);
     setImportResults(null);
 
+    // Benutzer informieren, dass der Import gestartet wurde
+    toast.info("Import wird gestartet...", {
+      description: "Bitte warten Sie, während die Daten importiert werden.",
+      duration: 3000
+    });
+
     try {
       const formData = new FormData();
       formData.append("file", xmlFile);
@@ -148,6 +155,9 @@ export default function TenantBrandenburgImportPage() {
       const backendUrl = "http://localhost:8000"; // Backend-URL für direkte Anfragen
       
       console.log("Sende Import-Anfrage mit API-Key:", adminApiKey);
+      console.log("Dateiname:", xmlFile.name);
+      console.log("Dateigröße:", xmlFile.size, "Bytes");
+      console.log("Tenant-ID:", tenantId);
       
       const response = await fetch(`${backendUrl}/api/v1/structured-data/import/brandenburg`, {
         method: "POST",
@@ -158,18 +168,43 @@ export default function TenantBrandenburgImportPage() {
         credentials: 'omit' // Keine Cookies senden, da wir den API-Key verwenden
       });
 
+      // Detaillierte Fehlerbehandlung
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API-Fehlerdetails:", errorText);
-        throw new Error(
-          `Import fehlgeschlagen: ${response.status} ${response.statusText}`
-        );
+        let errorMessage = `Import fehlgeschlagen: ${response.status} ${response.statusText}`;
+        
+        try {
+          const errorText = await response.text();
+          console.error("API-Fehlerdetails:", errorText);
+          
+          // Versuchen, JSON zu parsen
+          try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.detail) {
+              errorMessage = errorJson.detail;
+            }
+          } catch (e) {
+            // Nicht JSON, Text verwenden
+            if (errorText) {
+              errorMessage = errorText;
+            }
+          }
+        } catch (e) {
+          console.error("Fehler beim Lesen der Fehlermeldung:", e);
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
+      console.log("Import-Ergebnis:", result);
       setImportResults(result);
-      toast.success("Import erfolgreich", {
-        description: "Die Daten wurden erfolgreich importiert.",
+      
+      // Zeige Erfolgsmeldung mit mehr Details
+      const resultDetails = result.results?.[tenant.name] || {};
+      const totalImported = Object.values(resultDetails).reduce((sum: any, val: any) => sum + val, 0);
+      
+      toast.success(`Import erfolgreich (${totalImported} Einträge)`, {
+        description: "Die Daten wurden erfolgreich importiert und alte Daten wurden gelöscht.",
       });
     } catch (err) {
       console.error("Fehler beim Import:", err);
@@ -204,6 +239,12 @@ export default function TenantBrandenburgImportPage() {
     setError(null);
     setImportResults(null);
 
+    // Benutzer informieren, dass der Import gestartet wurde
+    toast.info("Import wird gestartet...", {
+      description: "Bitte warten Sie, während die Daten importiert werden.",
+      duration: 3000
+    });
+
     try {
       // Admin-API-Key für die Authentifizierung verwenden
       const adminApiKey = "admin-secret-key-12345";
@@ -211,7 +252,9 @@ export default function TenantBrandenburgImportPage() {
       const backendUrl = "http://localhost:8000"; // Backend-URL für direkte Anfragen
       
       console.log("Sende URL-Import-Anfrage mit API-Key:", adminApiKey);
-      
+      console.log("Import-URL:", xmlUrl);
+      console.log("Tenant-ID:", tenantId);
+
       const response = await fetch(
         `${backendUrl}/api/v1/structured-data/import/brandenburg/url`,
         {
@@ -228,18 +271,43 @@ export default function TenantBrandenburgImportPage() {
         }
       );
 
+      // Detaillierte Fehlerbehandlung
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API-Fehlerdetails:", errorText);
-        throw new Error(
-          `Import fehlgeschlagen: ${response.status} ${response.statusText}`
-        );
+        let errorMessage = `Import fehlgeschlagen: ${response.status} ${response.statusText}`;
+        
+        try {
+          const errorText = await response.text();
+          console.error("API-Fehlerdetails:", errorText);
+          
+          // Versuchen, JSON zu parsen
+          try {
+            const errorJson = JSON.parse(errorText);
+            if (errorJson.detail) {
+              errorMessage = errorJson.detail;
+            }
+          } catch (e) {
+            // Nicht JSON, Text verwenden
+            if (errorText) {
+              errorMessage = errorText;
+            }
+          }
+        } catch (e) {
+          console.error("Fehler beim Lesen der Fehlermeldung:", e);
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
+      console.log("Import-Ergebnis:", result);
       setImportResults(result);
-      toast.success("Import erfolgreich", {
-        description: "Die Daten wurden erfolgreich importiert.",
+      
+      // Zeige Erfolgsmeldung mit mehr Details
+      const resultDetails = result.results?.[tenant.name] || {};
+      const totalImported = Object.values(resultDetails).reduce((sum: any, val: any) => sum + val, 0);
+      
+      toast.success(`Import erfolgreich (${totalImported} Einträge)`, {
+        description: "Die Daten wurden erfolgreich importiert und alte Daten wurden gelöscht.",
       });
     } catch (err) {
       console.error("Fehler beim Import von URL:", err);
@@ -249,6 +317,51 @@ export default function TenantBrandenburgImportPage() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Handler für den Fix-Brandenburg-Import
+  const handleFixImport = async () => {
+    if (!tenantId) return;
+
+    try {
+      setIsLoadingFixScript(true);
+      setError(null);
+      setImportResults(null);
+
+      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+      const response = await fetch(`${backendUrl}/api/v1/structured-data/admin/fix-brandenburg-import`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": "admin-secret-key-12345",
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Fehler beim Starten des Fix-Brandenburg-Imports: ${response.status} ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      toast.success("Fix-Brandenburg-Import wurde im Hintergrund gestartet", {
+        description: "Überprüfen Sie die Server-Logs für die Ergebnisse",
+      });
+
+      setImportResults({
+        message: data.message,
+        timestamp: new Date().toLocaleString(),
+      });
+    } catch (err) {
+      console.error("Fehler beim Starten des Fix-Brandenburg-Imports:", err);
+      setError(`${err}`);
+      toast.error("Fehler beim Starten des Fix-Brandenburg-Imports", {
+        description: `${err}`,
+      });
+    } finally {
+      setIsLoadingFixScript(false);
     }
   };
 
@@ -364,6 +477,7 @@ export default function TenantBrandenburgImportPage() {
           <TabsList>
             <TabsTrigger value="url">Import per URL</TabsTrigger>
             <TabsTrigger value="file">Import per Datei-Upload</TabsTrigger>
+            <TabsTrigger value="fix">Fix-Skript</TabsTrigger>
           </TabsList>
 
           <TabsContent value="url" className="space-y-4">
@@ -444,6 +558,75 @@ export default function TenantBrandenburgImportPage() {
                 Unterstützte Dateiformate: XML
               </CardFooter>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="fix" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Fix-Brandenburg-Import-Skript ausführen</CardTitle>
+                <CardDescription>
+                  Führt das fix_brandenburg_import.py-Skript im Hintergrund aus
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-sm text-muted-foreground space-y-4">
+                  <p>
+                    Das Fix-Skript führt folgende Schritte aus:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 ml-4">
+                    <li>Download der Brandenburg-XML-Datei mit verschiedenen User-Agents und URLs</li>
+                    <li>Validierung der XML-Struktur</li>
+                    <li>Erstellen der Weaviate-Schemas</li>
+                    <li>Löschen bestehender Daten</li>
+                    <li>Import aller Brandenburg-Daten für alle aktivierten Tenants</li>
+                  </ul>
+                  <p className="mt-4">
+                    Dieser Prozess kann einige Minuten dauern. Die Ergebnisse werden in den Server-Logs gespeichert.
+                  </p>
+                </div>
+                <div className="flex justify-center mt-4">
+                  <Button
+                    onClick={handleFixImport}
+                    disabled={isLoadingFixScript}
+                    className="min-w-[200px]"
+                  >
+                    {isLoadingFixScript ? (
+                      <>
+                        <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        Wird ausgeführt...
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="mr-2 h-4 w-4" />
+                        Fix-Skript starten
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {importResults && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Ergebnis des Fix-Brandenburg-Imports</CardTitle>
+                  <CardDescription>Bestätigung der Skript-Ausführung</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-md p-4 bg-muted/50">
+                    <div className="text-sm font-mono">
+                      <p><strong>Zeitpunkt:</strong> {importResults.timestamp}</p>
+                      <p><strong>Status:</strong> {importResults.message}</p>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <div className="text-sm text-muted-foreground">
+                    Der Import läuft im Hintergrund. Überprüfen Sie die Server-Logs für detaillierte Ergebnisse.
+                  </div>
+                </CardFooter>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
 

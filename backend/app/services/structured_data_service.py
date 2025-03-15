@@ -63,13 +63,9 @@ class StructuredDataService:
     
     @staticmethod
     def create_schema_for_type(tenant_id: str, data_type: str) -> bool:
-        """Erstellt das Weaviate-Schema für einen bestimmten Datentyp."""
+        """Erstellt ein Schema (Klasse) für einen strukturierten Datentyp und Tenant."""
         if not weaviate_client:
             logger.error("Weaviate-Client ist nicht initialisiert")
-            return False
-            
-        if data_type not in StructuredDataService.SUPPORTED_TYPES:
-            logger.error(f"Nicht unterstützter Datentyp: {data_type}")
             return False
             
         class_name = StructuredDataService.get_class_name(tenant_id, data_type)
@@ -78,116 +74,136 @@ class StructuredDataService:
         if SchemaManager.class_exists(class_name):
             return True
         
-        # Eigenschaften basierend auf dem Datentyp definieren
-        properties = []
-        
-        if data_type == "school":
-            properties = [
-                {"name": "name", "data_type": ["text"]},
-                {"name": "type", "data_type": ["text"]},
-                {"name": "schoolId", "data_type": ["text"]},
-                {"name": "address", "data_type": ["text"]},
-                {"name": "management", "data_type": ["text"]},
-                {"name": "contactPhone", "data_type": ["text"]},
-                {"name": "contactEmail", "data_type": ["text"]},
-                {"name": "contactWebsite", "data_type": ["text"]},
-                {"name": "allDayCare", "data_type": ["boolean"]},
-                {"name": "additionalInfo", "data_type": ["text"]},
-                {"name": "description", "data_type": ["text"]},
-                {"name": "link", "data_type": ["text"]},
-                # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "data_type": ["text"]}
-            ]
-        elif data_type == "office":
-            properties = [
-                {"name": "name", "data_type": ["text"]},
-                {"name": "department", "data_type": ["text"]},
-                {"name": "address", "data_type": ["text"]},
-                {"name": "openingHours", "data_type": ["text"]},
-                {"name": "contactPhone", "data_type": ["text"]},
-                {"name": "contactEmail", "data_type": ["text"]},
-                {"name": "contactWebsite", "data_type": ["text"]},
-                {"name": "services", "data_type": ["text[]"]},
-                {"name": "description", "data_type": ["text"]},
-                {"name": "content", "data_type": ["text"]},
-                {"name": "link", "data_type": ["text"]},
-                # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "data_type": ["text"]}
-            ]
-        elif data_type == "event":
-            properties = [
-                {"name": "title", "data_type": ["text"]},
-                {"name": "date", "data_type": ["text"]},
-                {"name": "time", "data_type": ["text"]},
-                {"name": "location", "data_type": ["text"]},
-                {"name": "description", "data_type": ["text"]},
-                {"name": "content", "data_type": ["text"]},
-                {"name": "organizer", "data_type": ["text"]},
-                {"name": "contactPhone", "data_type": ["text"]},
-                {"name": "contactEmail", "data_type": ["text"]},
-                {"name": "contactWebsite", "data_type": ["text"]},
-                {"name": "link", "data_type": ["text"]},
-                # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "data_type": ["text"]}
-            ]
-        elif data_type == "service":
-            properties = [
-                {"name": "name", "data_type": ["text"]},
-                {"name": "description", "data_type": ["text"]},
-                {"name": "content", "data_type": ["text"]},
-                {"name": "link", "data_type": ["text"]},
-                # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "data_type": ["text"]}
-            ]
-        elif data_type == "local_law":
-            properties = [
-                {"name": "title", "data_type": ["text"]},
-                {"name": "description", "data_type": ["text"]},
-                {"name": "content", "data_type": ["text"]},
-                {"name": "link", "data_type": ["text"]},
-                # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "data_type": ["text"]}
-            ]
-        elif data_type == "kindergarten":
-            properties = [
-                {"name": "name", "data_type": ["text"]},
-                {"name": "address", "data_type": ["text"]},
-                {"name": "contact", "data_type": ["text"]},
-                {"name": "description", "data_type": ["text"]},
-                {"name": "link", "data_type": ["text"]},
-                # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "data_type": ["text"]}
-            ]
-        elif data_type == "webpage":
-            properties = [
-                {"name": "title", "data_type": ["text"]},
-                {"name": "url", "data_type": ["text"]},
-                {"name": "content", "data_type": ["text"]},
-                # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "data_type": ["text"]}
-            ]
-        elif data_type == "waste_management":
-            properties = [
-                {"name": "name", "data_type": ["text"]},
-                {"name": "description", "data_type": ["text"]},
-                {"name": "content", "data_type": ["text"]},
-                # Suchfeld für alle Inhalte
-                {"name": "fullTextSearch", "data_type": ["text"]}
-            ]
-        
+        from weaviate.classes.config import Property, DataType, Configure
+
         try:
-            # Schema erstellen mit Weaviate v4 API
+            # Eigenschaften für den Datentyp definieren
+            properties = []
+            
+            if data_type == "school":
+                properties = [
+                    Property(name="name", data_type=DataType.TEXT),
+                    Property(name="type", data_type=DataType.TEXT),
+                    Property(name="schoolId", data_type=DataType.TEXT),
+                    Property(name="street", data_type=DataType.TEXT),
+                    Property(name="city", data_type=DataType.TEXT),
+                    Property(name="zip", data_type=DataType.TEXT),
+                    Property(name="phone", data_type=DataType.TEXT),
+                    Property(name="email", data_type=DataType.TEXT),
+                    Property(name="website", data_type=DataType.TEXT),
+                    Property(name="description", data_type=DataType.TEXT),
+                    Property(name="fullTextSearch", data_type=DataType.TEXT)
+                ]
+            elif data_type == "office":
+                properties = [
+                    Property(name="name", data_type=DataType.TEXT),
+                    Property(name="type", data_type=DataType.TEXT),
+                    Property(name="officeId", data_type=DataType.TEXT),
+                    Property(name="street", data_type=DataType.TEXT),
+                    Property(name="city", data_type=DataType.TEXT),
+                    Property(name="zip", data_type=DataType.TEXT),
+                    Property(name="phone", data_type=DataType.TEXT),
+                    Property(name="email", data_type=DataType.TEXT),
+                    Property(name="website", data_type=DataType.TEXT),
+                    Property(name="description", data_type=DataType.TEXT),
+                    Property(name="openingHours", data_type=DataType.TEXT),
+                    Property(name="fullTextSearch", data_type=DataType.TEXT)
+                ]
+            elif data_type == "event":
+                properties = [
+                    Property(name="title", data_type=DataType.TEXT),
+                    Property(name="date", data_type=DataType.TEXT),
+                    Property(name="time", data_type=DataType.TEXT),
+                    Property(name="location", data_type=DataType.TEXT),
+                    Property(name="description", data_type=DataType.TEXT),
+                    Property(name="organizer", data_type=DataType.TEXT),
+                    Property(name="eventId", data_type=DataType.TEXT),
+                    Property(name="category", data_type=DataType.TEXT),
+                    Property(name="link", data_type=DataType.TEXT),
+                    Property(name="fullTextSearch", data_type=DataType.TEXT)
+                ]
+            elif data_type == "service":
+                properties = [
+                    Property(name="title", data_type=DataType.TEXT),
+                    Property(name="description", data_type=DataType.TEXT),
+                    Property(name="requirements", data_type=DataType.TEXT),
+                    Property(name="costs", data_type=DataType.TEXT),
+                    Property(name="processTime", data_type=DataType.TEXT),
+                    Property(name="serviceId", data_type=DataType.TEXT),
+                    Property(name="officeId", data_type=DataType.TEXT),
+                    Property(name="formUrl", data_type=DataType.TEXT),
+                    Property(name="fullTextSearch", data_type=DataType.TEXT)
+                ]
+            elif data_type == "local_law":
+                properties = [
+                    Property(name="title", data_type=DataType.TEXT),
+                    Property(name="description", data_type=DataType.TEXT),
+                    Property(name="content", data_type=DataType.TEXT),
+                    Property(name="lawId", data_type=DataType.TEXT),
+                    Property(name="category", data_type=DataType.TEXT),
+                    Property(name="validFrom", data_type=DataType.TEXT),
+                    Property(name="validUntil", data_type=DataType.TEXT),
+                    Property(name="link", data_type=DataType.TEXT),
+                    Property(name="fullTextSearch", data_type=DataType.TEXT)
+                ]
+            elif data_type == "kindergarten":
+                properties = [
+                    Property(name="name", data_type=DataType.TEXT),
+                    Property(name="type", data_type=DataType.TEXT),
+                    Property(name="kitaId", data_type=DataType.TEXT),
+                    Property(name="street", data_type=DataType.TEXT),
+                    Property(name="city", data_type=DataType.TEXT),
+                    Property(name="zip", data_type=DataType.TEXT),
+                    Property(name="phone", data_type=DataType.TEXT),
+                    Property(name="email", data_type=DataType.TEXT),
+                    Property(name="website", data_type=DataType.TEXT),
+                    Property(name="description", data_type=DataType.TEXT),
+                    Property(name="openingHours", data_type=DataType.TEXT),
+                    Property(name="ageGroups", data_type=DataType.TEXT),
+                    Property(name="pedagogicalConcept", data_type=DataType.TEXT),
+                    Property(name="fullTextSearch", data_type=DataType.TEXT)
+                ]
+            elif data_type == "webpage":
+                properties = [
+                    Property(name="title", data_type=DataType.TEXT),
+                    Property(name="description", data_type=DataType.TEXT),
+                    Property(name="content", data_type=DataType.TEXT),
+                    Property(name="url", data_type=DataType.TEXT),
+                    Property(name="lastUpdated", data_type=DataType.TEXT),
+                    Property(name="category", data_type=DataType.TEXT),
+                    Property(name="fullTextSearch", data_type=DataType.TEXT)
+                ]
+            elif data_type == "waste_management":
+                properties = [
+                    Property(name="title", data_type=DataType.TEXT),
+                    Property(name="description", data_type=DataType.TEXT),
+                    Property(name="content", data_type=DataType.TEXT),
+                    Property(name="date", data_type=DataType.TEXT),
+                    Property(name="wasteType", data_type=DataType.TEXT),
+                    Property(name="link", data_type=DataType.TEXT),
+                    Property(name="fullTextSearch", data_type=DataType.TEXT)
+                ]
+            else:
+                logger.error(f"Unbekannter Datentyp: {data_type}")
+                return False
+
+            # Schemaklasse erstellen mit korrektem Format für Weaviate v4
+            logger.info(f"Erstelle Schema für {data_type} - Tenant {tenant_id}")
+            
+            # Vektorkonfiguration für Weaviate v4 korrekt einrichten
+            vectorizer_config = Configure.Vectorizer.text2vec_transformers()
+            
             weaviate_client.collections.create(
                 name=class_name,
-                description=f"Strukturierte {data_type.capitalize()}-Daten für Tenant {tenant_id}",
+                description=f"Strukturierte Daten vom Typ {data_type} für Tenant {tenant_id}",
                 properties=properties,
-                vectorizer_config={"vectorizer": "text2vec-transformers"}
+                vectorizer_config=vectorizer_config
             )
-            
-            logger.info(f"Schema für {data_type}-Daten von Tenant {tenant_id} erstellt")
+
+            logger.info(f"Schema für {data_type} erfolgreich erstellt")
             return True
         except Exception as e:
-            logger.error(f"Fehler beim Erstellen des Schemas für {data_type}: {e}")
+            logger.error(f"Fehler beim Erstellen des Schemas für {data_type}: {str(e)}")
             return False
     
     @staticmethod
@@ -268,6 +284,8 @@ class StructuredDataService:
         Returns:
             Dict[str, int]: Dictionary mit Anzahl der importierten Elemente pro Typ
         """
+        logger.info(f"Beginne Brandenburg-Import aus Datei {xml_file_path} für Tenant {tenant_id}")
+        
         parser = BrandenburgXMLParser(xml_file_path)
         try:
             parser.parse_file()
@@ -278,6 +296,10 @@ class StructuredDataService:
         # Vor dem Import alle Schemas erstellen, um sicherzustellen, dass sie existieren
         for data_type in self.SUPPORTED_TYPES:
             self.create_schema_for_type(tenant_id, data_type)
+        
+        # Alle vorhandenen Daten löschen
+        if not self.clear_existing_data(tenant_id):
+            logger.warning(f"Konnte vorhandene Daten für Tenant {tenant_id} nicht vollständig löschen")
             
         result = {
             "schools": 0, 
@@ -292,6 +314,7 @@ class StructuredDataService:
         
         # Schulen importieren
         schools = parser.extract_schools()
+        logger.info(f"Extrahierte {len(schools)} Schulen aus XML-Datei")
         for school in schools:
             try:
                 self.store_structured_data(tenant_id, school["type"], school["data"])
@@ -301,6 +324,7 @@ class StructuredDataService:
                 
         # Ämter importieren
         offices = parser.extract_offices()
+        logger.info(f"Extrahierte {len(offices)} Ämter aus XML-Datei")
         for office in offices:
             try:
                 self.store_structured_data(tenant_id, office["type"], office["data"])
@@ -310,6 +334,7 @@ class StructuredDataService:
                 
         # Veranstaltungen importieren
         events = parser.extract_events()
+        logger.info(f"Extrahierte {len(events)} Veranstaltungen aus XML-Datei")
         for event in events:
             try:
                 self.store_structured_data(tenant_id, event["type"], event["data"])
@@ -319,6 +344,7 @@ class StructuredDataService:
                 
         # Dienstleistungen importieren
         dienstleistungen = parser.extract_dienstleistungen()
+        logger.info(f"Extrahierte {len(dienstleistungen)} Dienstleistungen aus XML-Datei")
         for dienstleistung in dienstleistungen:
             try:
                 self.store_structured_data(tenant_id, dienstleistung["type"], dienstleistung["data"])
@@ -328,6 +354,7 @@ class StructuredDataService:
                 
         # Ortsrecht importieren
         ortsrecht_entries = parser.extract_ortsrecht()
+        logger.info(f"Extrahierte {len(ortsrecht_entries)} Ortsrecht-Einträge aus XML-Datei")
         for ortsrecht in ortsrecht_entries:
             try:
                 self.store_structured_data(tenant_id, ortsrecht["type"], ortsrecht["data"])
@@ -337,6 +364,7 @@ class StructuredDataService:
                 
         # Kitas importieren
         kitas = parser.extract_kitas()
+        logger.info(f"Extrahierte {len(kitas)} Kitas aus XML-Datei")
         for kita in kitas:
             try:
                 self.store_structured_data(tenant_id, kita["type"], kita["data"])
@@ -346,6 +374,7 @@ class StructuredDataService:
                 
         # Webseiten importieren
         webseiten = parser.extract_webseiten()
+        logger.info(f"Extrahierte {len(webseiten)} Webseiten aus XML-Datei")
         for webseite in webseiten:
             try:
                 self.store_structured_data(tenant_id, webseite["type"], webseite["data"])
@@ -355,6 +384,7 @@ class StructuredDataService:
                 
         # Entsorgungen importieren
         entsorgungen = parser.extract_entsorgungen()
+        logger.info(f"Extrahierte {len(entsorgungen)} Entsorgungsmöglichkeiten aus XML-Datei")
         for entsorgung in entsorgungen:
             try:
                 self.store_structured_data(tenant_id, entsorgung["type"], entsorgung["data"])
@@ -377,15 +407,22 @@ class StructuredDataService:
         Returns:
             Dict mit Anzahl der importierten Elemente pro Typ
         """
+        logger.info(f"Beginne Brandenburg-Import von URL {url} für Tenant {tenant_id}")
+        
         # Sicherstellen, dass Schemas existieren
         for data_type in StructuredDataService.SUPPORTED_TYPES:
             StructuredDataService.create_schema_for_type(tenant_id, data_type)
         
         parser = BrandenburgXMLParser()
         
+        # URL direkt an parse_file übergeben
         if not parser.parse_file(url):
             logger.error(f"Konnte XML-Datei nicht von URL parsen: {url}")
             return {"schools": 0, "offices": 0, "events": 0, "dienstleistungen": 0, "ortsrecht": 0, "kitas": 0, "webseiten": 0, "entsorgungen": 0}
+        
+        # Alle vorhandenen Daten löschen
+        if not StructuredDataService.clear_existing_data(tenant_id):
+            logger.warning(f"Konnte vorhandene Daten für Tenant {tenant_id} nicht vollständig löschen")
         
         # Vollständige Ergebnisliste mit allen Datentypen
         result = {
@@ -399,64 +436,252 @@ class StructuredDataService:
             "entsorgungen": 0
         }
         
-        # Schulen importieren
-        schools = parser.extract_schools()
-        logger.info(f"Extrahierte {len(schools)} Schulen aus URL {url}")
-        for school in schools:
-            if StructuredDataService.store_structured_data(tenant_id, "school", school["data"]):
-                result["schools"] += 1
-        
-        # Ämter importieren
-        offices = parser.extract_offices()
-        logger.info(f"Extrahierte {len(offices)} Ämter aus URL {url}")
-        for office in offices:
-            if StructuredDataService.store_structured_data(tenant_id, "office", office["data"]):
-                result["offices"] += 1
-        
-        # Veranstaltungen importieren
-        events = parser.extract_events()
-        logger.info(f"Extrahierte {len(events)} Veranstaltungen aus URL {url}")
-        for event in events:
-            if StructuredDataService.store_structured_data(tenant_id, "event", event["data"]):
-                result["events"] += 1
-        
-        # Dienstleistungen importieren
-        dienstleistungen = parser.extract_dienstleistungen()
-        logger.info(f"Extrahierte {len(dienstleistungen)} Dienstleistungen aus URL {url}")
-        for dienstleistung in dienstleistungen:
-            if StructuredDataService.store_structured_data(tenant_id, "service", dienstleistung["data"]):
-                result["dienstleistungen"] += 1
-        
-        # Ortsrecht importieren
-        ortsrecht_entries = parser.extract_ortsrecht()
-        logger.info(f"Extrahierte {len(ortsrecht_entries)} Ortsrecht-Einträge aus URL {url}")
-        for ortsrecht in ortsrecht_entries:
-            if StructuredDataService.store_structured_data(tenant_id, "local_law", ortsrecht["data"]):
-                result["ortsrecht"] += 1
-        
-        # Kitas importieren
-        kitas = parser.extract_kitas()
-        logger.info(f"Extrahierte {len(kitas)} Kitas aus URL {url}")
-        for kita in kitas:
-            if StructuredDataService.store_structured_data(tenant_id, "kindergarten", kita["data"]):
-                result["kitas"] += 1
-        
-        # Webseiten importieren
-        webseiten = parser.extract_webseiten()
-        logger.info(f"Extrahierte {len(webseiten)} Webseiten aus URL {url}")
-        for webseite in webseiten:
-            if StructuredDataService.store_structured_data(tenant_id, "webpage", webseite["data"]):
-                result["webseiten"] += 1
-        
-        # Entsorgungen importieren
-        entsorgungen = parser.extract_entsorgungen()
-        logger.info(f"Extrahierte {len(entsorgungen)} Entsorgungsmöglichkeiten aus URL {url}")
-        for entsorgung in entsorgungen:
-            if StructuredDataService.store_structured_data(tenant_id, "waste_management", entsorgung["data"]):
-                result["entsorgungen"] += 1
+        try:
+            # Schulen importieren
+            schools = parser.extract_schools()
+            logger.info(f"Extrahierte {len(schools)} Schulen aus URL {url}")
+            for school in schools:
+                if StructuredDataService.store_structured_data(tenant_id, "school", school["data"]):
+                    result["schools"] += 1
+            
+            # Ämter importieren
+            offices = parser.extract_offices()
+            logger.info(f"Extrahierte {len(offices)} Ämter aus URL {url}")
+            for office in offices:
+                if StructuredDataService.store_structured_data(tenant_id, "office", office["data"]):
+                    result["offices"] += 1
+            
+            # Veranstaltungen importieren
+            events = parser.extract_events()
+            logger.info(f"Extrahierte {len(events)} Veranstaltungen aus URL {url}")
+            for event in events:
+                if StructuredDataService.store_structured_data(tenant_id, "event", event["data"]):
+                    result["events"] += 1
+            
+            # Dienstleistungen importieren
+            dienstleistungen = parser.extract_dienstleistungen()
+            logger.info(f"Extrahierte {len(dienstleistungen)} Dienstleistungen aus URL {url}")
+            for dienstleistung in dienstleistungen:
+                if StructuredDataService.store_structured_data(tenant_id, "service", dienstleistung["data"]):
+                    result["dienstleistungen"] += 1
+            
+            # Ortsrecht importieren
+            ortsrecht_entries = parser.extract_ortsrecht()
+            logger.info(f"Extrahierte {len(ortsrecht_entries)} Ortsrecht-Einträge aus URL {url}")
+            for ortsrecht in ortsrecht_entries:
+                if StructuredDataService.store_structured_data(tenant_id, "local_law", ortsrecht["data"]):
+                    result["ortsrecht"] += 1
+            
+            # Kitas importieren
+            kitas = parser.extract_kitas()
+            logger.info(f"Extrahierte {len(kitas)} Kitas aus URL {url}")
+            for kita in kitas:
+                if StructuredDataService.store_structured_data(tenant_id, "kindergarten", kita["data"]):
+                    result["kitas"] += 1
+            
+            # Webseiten importieren
+            webseiten = parser.extract_webseiten()
+            logger.info(f"Extrahierte {len(webseiten)} Webseiten aus URL {url}")
+            for webseite in webseiten:
+                if StructuredDataService.store_structured_data(tenant_id, "webpage", webseite["data"]):
+                    result["webseiten"] += 1
+            
+            # Entsorgungen importieren
+            entsorgungen = parser.extract_entsorgungen()
+            logger.info(f"Extrahierte {len(entsorgungen)} Entsorgungsmöglichkeiten aus URL {url}")
+            for entsorgung in entsorgungen:
+                if StructuredDataService.store_structured_data(tenant_id, "waste_management", entsorgung["data"]):
+                    result["entsorgungen"] += 1
+        except Exception as e:
+            logger.error(f"Fehler während des Imports: {str(e)}")
         
         logger.info(f"Import von URL für Tenant {tenant_id} abgeschlossen: {result}")
         return result
+    
+    @staticmethod
+    def import_brandenburg_data_from_xml(xml_data: str, tenant_id: str) -> Dict[str, int]:
+        """
+        Importiert strukturierte Daten für Brandenburg direkt aus einem XML-String.
+        
+        Args:
+            xml_data: XML-Daten als String
+            tenant_id: ID des Tenants
+            
+        Returns:
+            Dict mit Anzahl der importierten Elemente pro Typ
+        """
+        logger.info(f"Beginne Brandenburg-Import aus XML-Daten für Tenant {tenant_id}")
+        
+        # Sicherstellen, dass Schemas existieren
+        for data_type in StructuredDataService.SUPPORTED_TYPES:
+            StructuredDataService.create_schema_for_type(tenant_id, data_type)
+        
+        parser = BrandenburgXMLParser()
+        
+        # XML-Daten direkt parsen
+        if not parser.parse_xml_string(xml_data):
+            logger.error("Konnte XML-Daten nicht parsen")
+            return {"schools": 0, "offices": 0, "events": 0, "dienstleistungen": 0, "ortsrecht": 0, "kitas": 0, "webseiten": 0, "entsorgungen": 0}
+        
+        # Alle vorhandenen Daten löschen
+        if not StructuredDataService.clear_existing_data(tenant_id):
+            logger.warning(f"Konnte vorhandene Daten für Tenant {tenant_id} nicht vollständig löschen")
+        
+        # Vollständige Ergebnisliste mit allen Datentypen
+        result = {
+            "schools": 0, 
+            "offices": 0, 
+            "events": 0,
+            "dienstleistungen": 0,
+            "ortsrecht": 0,
+            "kitas": 0,
+            "webseiten": 0,
+            "entsorgungen": 0
+        }
+        
+        try:
+            # Schulen importieren
+            schools = parser.extract_schools()
+            logger.info(f"Extrahierte {len(schools)} Schulen aus XML-Daten")
+            for school in schools:
+                if StructuredDataService.store_structured_data(tenant_id, "school", school["data"]):
+                    result["schools"] += 1
+            
+            # Ämter importieren
+            offices = parser.extract_offices()
+            logger.info(f"Extrahierte {len(offices)} Ämter aus XML-Daten")
+            for office in offices:
+                if StructuredDataService.store_structured_data(tenant_id, "office", office["data"]):
+                    result["offices"] += 1
+            
+            # Veranstaltungen importieren
+            events = parser.extract_events()
+            logger.info(f"Extrahierte {len(events)} Veranstaltungen aus XML-Daten")
+            for event in events:
+                if StructuredDataService.store_structured_data(tenant_id, "event", event["data"]):
+                    result["events"] += 1
+            
+            # Dienstleistungen importieren
+            dienstleistungen = parser.extract_dienstleistungen()
+            logger.info(f"Extrahierte {len(dienstleistungen)} Dienstleistungen aus XML-Daten")
+            for dienstleistung in dienstleistungen:
+                if StructuredDataService.store_structured_data(tenant_id, "service", dienstleistung["data"]):
+                    result["dienstleistungen"] += 1
+            
+            # Ortsrecht importieren
+            ortsrecht_entries = parser.extract_ortsrecht()
+            logger.info(f"Extrahierte {len(ortsrecht_entries)} Ortsrecht-Einträge aus XML-Daten")
+            for ortsrecht in ortsrecht_entries:
+                if StructuredDataService.store_structured_data(tenant_id, "local_law", ortsrecht["data"]):
+                    result["ortsrecht"] += 1
+            
+            # Kitas importieren
+            kitas = parser.extract_kitas()
+            logger.info(f"Extrahierte {len(kitas)} Kitas aus XML-Daten")
+            for kita in kitas:
+                if StructuredDataService.store_structured_data(tenant_id, "kindergarten", kita["data"]):
+                    result["kitas"] += 1
+            
+            # Webseiten importieren
+            webseiten = parser.extract_webseiten()
+            logger.info(f"Extrahierte {len(webseiten)} Webseiten aus XML-Daten")
+            for webseite in webseiten:
+                if StructuredDataService.store_structured_data(tenant_id, "webpage", webseite["data"]):
+                    result["webseiten"] += 1
+            
+            # Entsorgungen importieren
+            entsorgungen = parser.extract_entsorgungen()
+            logger.info(f"Extrahierte {len(entsorgungen)} Entsorgungsmöglichkeiten aus XML-Daten")
+            for entsorgung in entsorgungen:
+                if StructuredDataService.store_structured_data(tenant_id, "waste_management", entsorgung["data"]):
+                    result["entsorgungen"] += 1
+        except Exception as e:
+            logger.error(f"Fehler während des Imports: {str(e)}")
+        
+        logger.info(f"Import aus XML-Daten für Tenant {tenant_id} abgeschlossen: {result}")
+        return result
+    
+    @staticmethod
+    def clear_existing_data(tenant_id: str) -> bool:
+        """
+        Löscht alle existierenden strukturierten Daten für einen Tenant.
+        
+        Args:
+            tenant_id: ID des Tenants
+            
+        Returns:
+            bool: True bei Erfolg, False bei Fehler
+        """
+        logger.info(f"Beginne Löschung existierender Daten für Tenant {tenant_id}")
+        
+        try:
+            if not weaviate_client:
+                logger.error("Weaviate-Client konnte nicht initialisiert werden")
+                return False
+            
+            deleted_count = 0
+            
+            # Für jeden unterstützten Datentyp die entsprechende Klasse löschen oder zurücksetzen
+            for data_type in StructuredDataService.SUPPORTED_TYPES:
+                class_name = StructuredDataService.get_class_name(tenant_id, data_type)
+                
+                try:
+                    # Prüfen, ob die Klasse existiert
+                    if weaviate_client.collections.exists(class_name):
+                        # Sammlung abrufen
+                        collection = weaviate_client.collections.get(class_name)
+                        
+                        # In Weaviate v4 kann man direkt die gesamte Sammlung löschen und neu erstellen
+                        # oder alle Objekte über eine Abfrage löschen
+                        try:
+                            # Zuerst versuchen, die Anzahl der Objekte zu ermitteln
+                            count_result = collection.query.fetch_objects(limit=1, include_vector=False)
+                            
+                            # Wenn Objekte existieren, führe eine Löschabfrage aus
+                            if count_result and len(count_result.objects) > 0:
+                                # Alle Objekte löschen mit einer WHERE-Abfrage, die alle Objekte einschließt
+                                # In Weaviate v4 nutzen wir dafür die Batch-API oder delete_many mit einem Filter
+                                deleted = collection.data.delete_many(
+                                    where={"path": ["id"], "operator": "LessThanEqual", "valueString": "ffffffff-ffff-ffff-ffff-ffffffffffff"}
+                                )
+                                deleted_count += deleted
+                                logger.info(f"Gelöschte Objekte in {class_name}: {deleted}")
+                            else:
+                                logger.info(f"Keine Objekte in {class_name} vorhanden")
+                        except Exception as delete_error:
+                            # Wenn die Löschabfrage fehlschlägt, versuchen wir es mit einer alternativen Methode
+                            logger.warning(f"Fehler bei der Löschabfrage, versuche alternative Methode: {delete_error}")
+                            
+                            # Alternative: Sammlung löschen und neu erstellen
+                            try:
+                                # Schema-Definition speichern
+                                schema_info = collection.config
+                                # Sammlung löschen
+                                weaviate_client.collections.delete(class_name)
+                                logger.info(f"Sammlung {class_name} gelöscht")
+                                
+                                # Sammlung mit gleichem Schema neu erstellen
+                                weaviate_client.collections.create(
+                                    name=class_name,
+                                    description=schema_info.description,
+                                    properties=schema_info.properties,
+                                    vectorizer_config=schema_info.vectorizer_config
+                                )
+                                logger.info(f"Sammlung {class_name} neu erstellt")
+                                deleted_count += 1  # Als eine Operation zählen
+                            except Exception as recreate_error:
+                                logger.error(f"Fehler beim Neuerstellen der Sammlung {class_name}: {recreate_error}")
+                    else:
+                        logger.info(f"Klasse {class_name} existiert nicht, keine Löschung erforderlich")
+                except Exception as e:
+                    logger.error(f"Fehler beim Löschen der Daten vom Typ {data_type}: {str(e)}")
+            
+            logger.info(f"Insgesamt {deleted_count} strukturierte Daten-Objekte gelöscht")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Fehler beim Löschen existierender Daten: {str(e)}")
+            return False
     
     @staticmethod
     def search_structured_data(

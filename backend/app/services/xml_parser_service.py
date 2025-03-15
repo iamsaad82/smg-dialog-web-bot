@@ -98,25 +98,39 @@ class BrandenburgXMLParser:
             response = requests.get(url, timeout=30)
             
             if response.status_code != 200:
-                logger.error(f"Fehler beim Laden der XML-Datei von URL: {url} (Status-Code: {response.status_code})")
-                return False
-            
-            xml_content = response.content
-            
-            try:
-                self.root = ET.fromstring(xml_content)
-                self.tree = ET.ElementTree(self.root)
-                logger.info(f"XML-Daten erfolgreich von URL geladen: {url}")
-                return True
-            except Exception as e:
-                logger.error(f"Fehler beim Parsen der XML-Daten von URL: {str(e)}")
+                logger.error(f"Fehler beim Laden der XML-Datei von URL: HTTP-Status {response.status_code}")
                 return False
                 
-        except ImportError:
-            logger.error("Das 'requests' Paket ist nicht installiert. Führen Sie 'pip install requests' aus.")
-            return False
+            return self.parse_xml_string(response.text)
         except Exception as e:
             logger.error(f"Fehler beim Laden der XML-Datei von URL: {str(e)}")
+            return False
+            
+    def parse_xml_string(self, xml_data: str) -> bool:
+        """
+        Parst XML-Daten direkt aus einem String.
+        
+        Args:
+            xml_data: XML-Daten als String
+            
+        Returns:
+            bool: True, wenn das Parsen erfolgreich war, sonst False
+        """
+        try:
+            import io
+            from xml.etree.ElementTree import parse
+            
+            logger.info("Parse XML-Daten aus String")
+            
+            # XML-Daten in einen BytesIO-Stream umwandeln und parsen
+            xml_stream = io.StringIO(xml_data)
+            self.tree = parse(xml_stream)
+            self.root = self.tree.getroot()
+            
+            logger.info("XML-Daten erfolgreich geparst")
+            return True
+        except Exception as e:
+            logger.error(f"Fehler beim Parsen der XML-Daten: {str(e)}")
             return False
     
     def _categorize_message(self, title: str, description: str, content: str) -> str:

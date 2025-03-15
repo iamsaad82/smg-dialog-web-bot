@@ -6,7 +6,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
-  interactiveElements?: InteractiveElement[];
+  structured_data?: StructuredData[];
 }
 
 /**

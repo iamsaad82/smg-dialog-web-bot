@@ -33,7 +33,7 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
   
   // Refs für die aktuelle Bot-Antwort während des Streamings
   const currentAssistantMessageRef = useRef<string>("");
-  const interactiveElementsRef = useRef<InteractiveElement[]>([]);
+  const structuredDataRef = useRef<any[]>([]);
 
   // useEffect für laufenden Chat und Speichern im localStorage
   useEffect(() => {
@@ -76,7 +76,7 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
 
     // Streaming-Zustand zurücksetzen
     currentAssistantMessageRef.current = "";
-    interactiveElementsRef.current = [];
+    structuredDataRef.current = [];
 
     // Füge eine leere Assistentennachricht hinzu, die während des Streamings gefüllt wird
     const assistantMessageId = `assistant-${Date.now()}`;
@@ -85,7 +85,7 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
       role: "assistant",
       content: "",
       timestamp: new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }),
-      interactiveElements: []
+      structured_data: []
     }]);
 
     try {
@@ -116,41 +116,6 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
           // Aktuellen Text aktualisieren
           currentAssistantMessageRef.current += chunk;
           
-          // Versuch, auch während des Streamings JSON zu erkennen und zu parsen
-          try {
-            // Prüfen, ob die aktuelle Nachricht ein komplettes JSON-Objekt enthält
-            const currentText = currentAssistantMessageRef.current;
-            
-            if (currentText.trim().startsWith('{') && currentText.trim().endsWith('}')) {
-              // Versuchen, das JSON zu parsen
-              const { text, interactiveElements } = parseBotResponse(currentText);
-              
-              // Wenn interaktive Elemente gefunden wurden, speichern
-              if (interactiveElements && interactiveElements.length > 0) {
-                interactiveElementsRef.current = interactiveElements;
-                
-                // Text aktualisieren (ohne JSON)
-                setMessages(prev => {
-                  const updatedMessages = [...prev];
-                  const lastIndex = updatedMessages.length - 1;
-                  
-                  if (lastIndex >= 0 && updatedMessages[lastIndex].role === "assistant") {
-                    updatedMessages[lastIndex] = {
-                      ...updatedMessages[lastIndex],
-                      content: text,
-                      interactiveElements: interactiveElements
-                    };
-                  }
-                  
-                  return updatedMessages;
-                });
-                return; // Nicht mehr als normalen Text behandeln
-              }
-            }
-          } catch (error) {
-            console.log("Kein vollständiges/gültiges JSON während Streaming, behandle als Text:", error);
-          }
-          
           // Assistentennachricht in Echtzeit aktualisieren
           setMessages(prev => {
             const updatedMessages = [...prev];
@@ -160,7 +125,7 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
               updatedMessages[lastIndex] = {
                 ...updatedMessages[lastIndex],
                 content: currentAssistantMessageRef.current,
-                interactiveElements: interactiveElementsRef.current
+                structured_data: structuredDataRef.current
               };
             }
             
@@ -169,35 +134,6 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
         },
         // Abschluss-Handler
         () => {
-          // Versuchen, Komponenten aus der vollständigen Antwort zu extrahieren
-          try {
-            const { text, interactiveElements } = parseBotResponse(currentAssistantMessageRef.current);
-            
-            // Wenn Komponenten erkannt wurden, aktualisieren wir die letzte Nachricht
-            if (interactiveElements && interactiveElements.length > 0) {
-              console.log("UI-Komponenten erkannt:", interactiveElements);
-              interactiveElementsRef.current = interactiveElements;
-              
-              // Nachricht mit extrahierten Komponenten und bereinigtem Text aktualisieren
-              setMessages(prev => {
-                const updatedMessages = [...prev];
-                const lastIndex = updatedMessages.length - 1;
-                
-                if (lastIndex >= 0 && updatedMessages[lastIndex].role === "assistant") {
-                  updatedMessages[lastIndex] = {
-                    ...updatedMessages[lastIndex],
-                    content: text,  // Bereinigter Text ohne JSON
-                    interactiveElements: interactiveElements
-                  };
-                }
-                
-                return updatedMessages;
-              });
-            }
-          } catch (error) {
-            console.error("Fehler beim Parsen der UI-Komponenten:", error);
-          }
-          
           setIsLoading(false);
           console.log("Chat-Stream abgeschlossen.");
         },
@@ -222,10 +158,10 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
             return updatedMessages;
           });
         },
-        // Interaktive Elemente Handler
-        (elements) => {
-          console.log("Interaktive Elemente empfangen:", elements);
-          interactiveElementsRef.current = elements;
+        // Strukturierte Daten Handler
+        (data) => {
+          console.log("Strukturierte Daten empfangen:", data);
+          structuredDataRef.current = data;
           
           setMessages(prev => {
             const updatedMessages = [...prev];
@@ -234,7 +170,7 @@ export function ChatContainer({ tenant }: ChatContainerProps) {
             if (lastIndex >= 0 && updatedMessages[lastIndex].role === "assistant") {
               updatedMessages[lastIndex] = {
                 ...updatedMessages[lastIndex],
-                interactiveElements: elements
+                structured_data: data
               };
             }
             

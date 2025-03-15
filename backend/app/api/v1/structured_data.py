@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import JSONResponse
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union, Tuple
 import json
 import os
 import tempfile
+import subprocess
 from pydantic import BaseModel
 from ...services.structured_data_service import structured_data_service
 from ...services.tenant_service import tenant_service
@@ -12,6 +13,8 @@ from ...core.deps import get_current_user
 from sqlalchemy.orm import Session
 from ...db.session import get_db
 from ...db.models import User, Tenant
+import hashlib
+import requests
 
 router = APIRouter()
 
@@ -178,6 +181,75 @@ class ImportFromUrlRequest(BaseModel):
     tenant_id: Optional[str] = None
 
 
+# Konstanten aus dem Cron-Job-Skript
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+
+def download_and_import_brandenburg_xml(url: str, tenant_id: str) -> Tuple[bool, Dict[str, int]]:
+    """
+    Lädt eine Brandenburg-XML-Datei von einer URL herunter und importiert sie.
+    Entspricht der Funktionalität des Cron-Jobs.
+    
+    Args:
+        url: URL der XML-Datei
+        tenant_id: ID des Tenants
+        
+    Returns:
+        Tuple[bool, Dict[str, int]]: (Erfolg, Importergebnisse)
+    """
+    print(f"[download_and_import_brandenburg_xml] Starte Download und Import von URL: {url} für Tenant: {tenant_id}")
+    
+    # Temporäre Datei für den Download erstellen
+    with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as temp_file:
+        temp_path = temp_file.name
+    
+    try:
+        # XML-Datei herunterladen
+        print(f"[download_and_import_brandenburg_xml] Lade XML-Datei von {url} herunter")
+        response = requests.get(url, headers={
+            'User-Agent': USER_AGENT
+        }, timeout=120)
+        
+        if response.status_code != 200:
+            print(f"[download_and_import_brandenburg_xml] Fehler beim Download: HTTP-Statuscode {response.status_code}")
+            return False, {"schools": 0, "offices": 0, "events": 0, "dienstleistungen": 0, "ortsrecht": 0, "kitas": 0, "webseiten": 0, "entsorgungen": 0}
+            
+        # XML-Datei speichern
+        with open(temp_path, 'wb') as f:
+            f.write(response.content)
+            
+        file_size = len(response.content)
+        print(f"[download_and_import_brandenburg_xml] XML-Datei erfolgreich heruntergeladen: {file_size} Bytes")
+        
+        # Existierende Daten löschen
+        if not structured_data_service.clear_existing_data(tenant_id):
+            print(f"[download_and_import_brandenburg_xml] Warnung: Konnte existierende Daten für Tenant {tenant_id} nicht vollständig löschen")
+        
+        # Neue Daten importieren
+        result = structured_data_service.import_brandenburg_data(
+            xml_file_path=temp_path,
+            tenant_id=tenant_id
+        )
+        
+        # Erfolg melden
+        total = sum(result.values())
+        print(f"[download_and_import_brandenburg_xml] Import abgeschlossen: {total} Einträge importiert")
+        for type_name, count in result.items():
+            print(f"[download_and_import_brandenburg_xml]   - {type_name}: {count}")
+            
+        return True, result
+        
+    except Exception as e:
+        print(f"[download_and_import_brandenburg_xml] Fehler beim Import: {str(e)}")
+        import traceback
+        print(traceback.format_exc())
+        return False, {"schools": 0, "offices": 0, "events": 0, "dienstleistungen": 0, "ortsrecht": 0, "kitas": 0, "webseiten": 0, "entsorgungen": 0}
+    finally:
+        # Temporäre Datei aufräumen
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+
 @router.post("/import/brandenburg/url")
 async def import_brandenburg_data_from_url(
     request: ImportFromUrlRequest,
@@ -187,6 +259,7 @@ async def import_brandenburg_data_from_url(
     """
     Importiert strukturierte Daten von einer URL mit Brandenburg-XML.
     Authentifizierung erfolgt über API-Key.
+    Verwendet den gleichen Prozess wie der automatische Cron-Job.
     
     - **url**: URL der XML-Datei mit Brandenburg-Daten
     - **tenant_id**: Optional - ID eines spezifischen Tenants für den Import
@@ -245,11 +318,17 @@ async def import_brandenburg_data_from_url(
         for tenant in brandenburg_tenants:
             tenant_id = str(tenant.id)
             print(f"[import_brandenburg_data_from_url] Importiere Daten für Tenant: {tenant.name} (ID: {tenant_id})")
-            result = structured_data_service.import_brandenburg_data_from_url(
+            
+            # Neue Funktion verwenden, die den gleichen Prozess wie der Cron-Job nutzt
+            success, result = download_and_import_brandenburg_xml(
                 url=request.url,
                 tenant_id=tenant_id
             )
-            results[tenant.name] = result
+            
+            if success:
+                results[tenant.name] = result
+            else:
+                results[tenant.name] = {"error": "Import fehlgeschlagen"}
             
         print(f"[import_brandenburg_data_from_url] Import erfolgreich. Ergebnisse: {results}")
         return {"message": "Import erfolgreich", "results": results}
@@ -260,4 +339,65 @@ async def import_brandenburg_data_from_url(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_message
-        ) 
+        )
+
+@router.post("/admin/fix-brandenburg-import")
+async def trigger_fix_brandenburg_import(
+    background_tasks: BackgroundTasks,
+    api_tenant_id: str = Depends(get_tenant_id_from_api_key),
+    db: Session = Depends(get_db)
+):
+    """
+    Startet den Fix-Brandenburg-Import-Prozess im Hintergrund.
+    Dieser Endpoint führt das Skript fix_brandenburg_import.py aus.
+    
+    Der Import wird asynchron durchgeführt und liefert sofort eine Erfolgsbestätigung.
+    Die tatsächlichen Ergebnisse werden in Logs gespeichert.
+    """
+    # Überprüfen, ob der Benutzer berechtigt ist
+    if not api_tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentifizierung erforderlich"
+        )
+    
+    # Pfad zum Skript ermitteln
+    script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 
+                              "fix_brandenburg_import.py")
+    
+    if not os.path.exists(script_path):
+        error_message = f"Fix-Brandenburg-Import-Skript nicht gefunden: {script_path}"
+        print(f"[trigger_fix_brandenburg_import] FEHLER: {error_message}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=error_message
+        )
+    
+    def run_import_script():
+        try:
+            print(f"[trigger_fix_brandenburg_import] Starte Fix-Brandenburg-Import-Skript: {script_path}")
+            # Skript mit Python-Interpreter ausführen
+            result = subprocess.run(["python3", script_path], 
+                                   capture_output=True, 
+                                   text=True,
+                                   check=False)
+            
+            if result.returncode == 0:
+                print(f"[trigger_fix_brandenburg_import] Fix-Brandenburg-Import erfolgreich durchgeführt")
+                print(f"[trigger_fix_brandenburg_import] Ausgabe: {result.stdout}")
+            else:
+                print(f"[trigger_fix_brandenburg_import] Fehler beim Ausführen des Fix-Brandenburg-Imports")
+                print(f"[trigger_fix_brandenburg_import] Exit-Code: {result.returncode}")
+                print(f"[trigger_fix_brandenburg_import] Fehlerausgabe: {result.stderr}")
+                print(f"[trigger_fix_brandenburg_import] Ausgabe: {result.stdout}")
+        except Exception as e:
+            print(f"[trigger_fix_brandenburg_import] Ausnahme beim Ausführen des Fix-Brandenburg-Imports: {str(e)}")
+            import traceback
+            print(traceback.format_exc())
+    
+    # Import-Prozess im Hintergrund starten
+    background_tasks.add_task(run_import_script)
+    
+    return {
+        "message": "Fix-Brandenburg-Import wurde im Hintergrund gestartet. Überprüfen Sie die Server-Logs für Ergebnisse."
+    } 

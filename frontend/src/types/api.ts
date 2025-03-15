@@ -85,6 +85,7 @@ export interface ChatQuery {
   stream?: boolean;
   use_mistral?: boolean;
   custom_instructions?: string;
+  tenant_id?: string;
 }
 
 // Suchanfrage-Typen

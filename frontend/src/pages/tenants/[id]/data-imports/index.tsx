@@ -24,6 +24,7 @@ import { toast } from "@/utils/toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tenant } from "@/types/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { API_BASE_URL } from '@/api/core';
 
 export default function TenantDataImportsPage() {
   const router = useRouter();
@@ -38,14 +39,13 @@ export default function TenantDataImportsPage() {
       
       try {
         setIsLoading(true);
-        const backendUrl = "http://localhost:8000"; // Backend-URL für direkte Anfragen
-        console.log("Anfrage an API wird gesendet:", `${backendUrl}/api/v1/tenants/${tenantId}/details`);
+        console.log("Anfrage an API wird gesendet:", `${API_BASE_URL}/tenants/${tenantId}/details`);
         
         // Admin-API-Key direkt verwenden (nur für Entwicklung)
         const adminApiKey = "admin-secret-key-12345";
         
         // Zuerst versuchen, den Tenant über den /details-Endpunkt zu laden
-        let response = await fetch(`${backendUrl}/api/v1/tenants/${tenantId}/details`, {
+        let response = await fetch(`${API_BASE_URL}/tenants/${tenantId}/details`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -59,7 +59,7 @@ export default function TenantDataImportsPage() {
         // Wenn der /details-Endpunkt fehlschlägt, den normalen Tenant-Endpunkt versuchen
         if (response.status === 500) {
           console.log("Fallback: Verwende normalen Tenant-Endpunkt");
-          response = await fetch(`${backendUrl}/api/v1/tenants/${tenantId}`, {
+          response = await fetch(`${API_BASE_URL}/tenants/${tenantId}`, {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',

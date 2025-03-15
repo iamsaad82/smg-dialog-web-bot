@@ -17,7 +17,7 @@ export class ChatApi {
     onChunk: (chunk: string) => void, 
     onDone: () => void, 
     onError: (error: Error) => void,
-    onInteractiveElements?: (elements: any[]) => void
+    onStructuredData?: (data: any[]) => void
   ) {
     if (!apiCore.getApiKey()) {
       onError(new Error('API-Key nicht gesetzt'));
@@ -28,18 +28,8 @@ export class ChatApi {
     const { signal } = controller;
     let streamActive = true;
     
-    // Puffer für strukturierte Daten und Streaming-Steuerung
+    // Puffer für Inhalte und Streaming-Steuerung
     let buffer = '';
-    let structureDetected = false;
-    let potentialStructuredContent = false;
-    let headerDetected = false;
-    let keyValuePairsCount = 0;
-    
-    // Verbesserte Regex für strukturierte Inhalte
-    const structureHeaderRegex = /^###\s+(.+?)(?:\s*[-:]\s*|$)/;
-    const keyValueRegex = /^\s*\**([^:*]+):\s*\**(.+)\**$/;
-    const websiteRegex = /(?:Website|Webseite):\s+\[?(?:https?:\/\/|www\.)([^\s\]]+)/i;
-    const linkInParensRegex = /\(\s*(?:https?:\/\/|www\.)([^\s\)]+)/;
     
     // Verbesserte URL-Erkennung
     const containsUrl = (text: string): boolean => {
@@ -70,17 +60,7 @@ export class ChatApi {
     
     // Funktion zur Verarbeitung des Buffers
     const processBuffer = () => {
-      // Wenn es strukturierter Inhalt sein könnte, prüfe nochmal
-      if (potentialStructuredContent) {
-        const lines = buffer.split('\n');
-        const hasHeader = lines.some(line => structureHeaderRegex.test(line));
-        const keyValuePairs = lines.filter(line => keyValueRegex.test(line));
-        
-        structureDetected = Boolean((hasHeader || (lines[0] && !lines[0].includes(':'))) && 
-                          keyValuePairs.length >= 3);
-      }
-      
-      // Bereinige URLs, unabhängig davon, ob es strukturierter Inhalt ist
+      // Bereinige URLs
       const cleanedBuffer = cleanupUrls(buffer);
       
       // Sende gereinigten Buffer
@@ -88,10 +68,6 @@ export class ChatApi {
       
       // Buffer zurücksetzen
       buffer = '';
-      structureDetected = false;
-      potentialStructuredContent = false;
-      keyValuePairsCount = 0;
-      headerDetected = false;
     };
     
     // Stream-Funktion mit Fetch
@@ -134,118 +110,48 @@ export class ChatApi {
             const content = line.substring(5);
             
             try {
-              // Prüfen auf JSON-Format (interaktive Elemente)
-              if (content.includes('interactive_elements')) {
+              // Prüfen, ob content ein JSON ist, bevor wir es parsen
+              if (content.trim().startsWith('{') && content.trim().endsWith('}')) {
+                // Es sieht aus wie JSON, also versuchen wir es zu parsen
                 const parsedData = JSON.parse(content);
                 
-                if (parsedData.interactive_elements && onInteractiveElements) {
-                  console.log("Interaktive Elemente gefunden:", parsedData.interactive_elements);
-                  onInteractiveElements(parsedData.interactive_elements);
+                // Prüfen auf strukturierte Daten
+                if (parsedData.structured_data && onStructuredData) {
+                  console.log("Strukturierte Daten gefunden:", parsedData.structured_data);
+                  onStructuredData(parsedData.structured_data);
                 }
                 
-                // Eventuellen Text dennoch verarbeiten
+                // Eventuellen Text verarbeiten
                 if (parsedData.text !== undefined) {
-                  // Zuerst prüfen, ob der Text strukturierte Information enthalten könnte
-                  if (!structureDetected && !potentialStructuredContent) {
-                    if (parsedData.text.includes('###') || 
-                        keyValueRegex.test(parsedData.text) ||
-                        websiteRegex.test(parsedData.text) ||
-                        parsedData.text.includes('Gymnasium') || 
-                        parsedData.text.includes('Schule') ||
-                        parsedData.text.includes('Kontakt') ||
-                        parsedData.text.includes('Adresse')) {
-                      // Möglicherweise strukturierter Inhalt - zum Buffer hinzufügen
-                      potentialStructuredContent = true;
-                      buffer += parsedData.text;
-                      
-                      // Prüfe auf Header oder Key-Value-Paare
-                      const lines = buffer.split('\n');
-                      if (lines.some(line => structureHeaderRegex.test(line))) {
-                        headerDetected = true;
-                      }
-                      
-                      keyValuePairsCount += lines.filter(line => keyValueRegex.test(line)).length;
-                      
-                      // Wenn wir genug Hinweise haben, markiere als strukturiert
-                      if ((headerDetected && keyValuePairsCount >= 2) || 
-                          keyValuePairsCount >= 3) {
-                        structureDetected = true;
-                      }
-                      
-                      // Wenn wir am Ende eines Absatzes sind, verarbeite den Buffer
-                      if (parsedData.text.endsWith('\n\n') || 
-                          parsedData.text.includes('.') && 
-                          (parsedData.text.endsWith('.') || parsedData.text.endsWith('. '))) {
-                        processBuffer();
-                      }
-                    } else if (containsUrl(parsedData.text)) {
-                      // Einfacher Text mit URLs - reinigen und direkt senden
-                      onChunk(cleanupUrls(parsedData.text));
-                    } else {
-                      // Normaler Text - direkt senden
-                      onChunk(parsedData.text);
-                    }
+                  // Zum Buffer hinzufügen oder direkt senden
+                  if (containsUrl(parsedData.text)) {
+                    // Text mit URLs - reinigen und senden
+                    onChunk(cleanupUrls(parsedData.text));
                   } else {
-                    // Bereits als strukturiert erkannt - zum Buffer hinzufügen
-                    buffer += parsedData.text;
-                    
-                    // Wenn wir am Ende eines Absatzes sind, verarbeite den Buffer
-                    if (parsedData.text.endsWith('\n\n') || 
-                        (parsedData.text.includes('.') && parsedData.text.endsWith('.'))) {
-                      processBuffer();
-                    }
+                    // Normaler Text - direkt senden
+                    onChunk(parsedData.text);
                   }
                 }
               } else {
-                // Regulärer Text-Chunk - Verbesserte Verarbeitungslogik
-                if (structureDetected || potentialStructuredContent) {
-                  // Zum Buffer hinzufügen, wenn wir bereits eine Struktur erkannt haben
-                  buffer += content;
-                  
-                  // Erkennung von Absatzende oder Kontextwechsel
-                  if (content.endsWith('\n\n') || 
-                      (content.includes('.') && content.endsWith('.')) ||
-                      content.endsWith('.]') ||
-                      content.includes('Ja, für weitere Informationen')) {
-                    processBuffer();
-                  }
-                } else if (content.includes('###') || 
-                    keyValueRegex.test(content) ||
-                    websiteRegex.test(content) ||
-                    linkInParensRegex.test(content) ||
-                    content.includes('Schulform') || 
-                    content.includes('Gymnasium') || 
-                    content.includes('Adresse:')) {
-                  // Könnte strukturierter Inhalt sein - puffern
-                  potentialStructuredContent = true;
-                  buffer += content;
-                  
-                  // Prüfe auf Header oder Key-Value-Paare
-                  const lines = buffer.split('\n');
-                  if (lines.some(line => structureHeaderRegex.test(line))) {
-                    headerDetected = true;
-                  }
-                  
-                  keyValuePairsCount += lines.filter(line => keyValueRegex.test(line)).length;
-                  
-                  // Wenn wir genug Hinweise haben, markiere als strukturiert
-                  if ((headerDetected && keyValuePairsCount >= 2) || 
-                      keyValuePairsCount >= 3) {
-                    structureDetected = true;
-                  }
-                } else if (containsUrl(content)) {
-                  // Einfacher Text mit URLs - reinigen und senden
+                // Es ist kein JSON, also behandeln wir es als normalen Text
+                if (containsUrl(content)) {
+                  // Text mit URLs - reinigen und senden
                   onChunk(cleanupUrls(content));
                 } else {
                   // Normaler Text - direkt senden
                   onChunk(content);
                 }
               }
-            } catch (e) {
-              console.error("Fehler bei der Verarbeitung:", e);
-              
-              // Bei Fehlern einfach den bereinigten Inhalt senden
-              onChunk(cleanupUrls(content));
+            } catch (error) {
+              console.warn("Fehler beim Parsen des Inhalts als JSON:", error);
+              // Bei Parsing-Fehler den Inhalt als normalen Text behandeln
+              if (containsUrl(content)) {
+                // Text mit URLs - reinigen und senden
+                onChunk(cleanupUrls(content));
+              } else {
+                // Normaler Text - direkt senden
+                onChunk(content);
+              }
             }
           } else if (line === '[DONE]' || line === 'event: done') {
             console.log('Stream beendet über Event');

@@ -98,15 +98,59 @@ function detectAndStructureOpeningHours(text: string): {[key: string]: { open: s
 }
 
 /**
+ * Erkennt komplexe strukturierte Daten (tenant-spezifisch) im Text und markiert sie für spezielle Renderer
+ */
+function detectStructuredData(text: string): Array<{type: string, data: any}> | null {
+  const structuredData: Array<{type: string, data: any}> = [];
+  
+  // Brandenburg-spezifische Daten erkennen
+  // Schule
+  if (/schule|grundschule|oberschule|gymnasium/i.test(text)) {
+    const schoolMatch = text.match(/([A-Za-zäöüÄÖÜß\s\-]+schule|Gymnasium)[\s\,]+([A-Za-zäöüÄÖÜß\s\-\.]+\d+[\,\s]+\d{5})/i);
+    
+    if (schoolMatch) {
+      structuredData.push({
+        type: 'school',
+        data: {
+          name: schoolMatch[1].trim(),
+          address: schoolMatch[2].trim(),
+          // Weitere Informationen können hier extrahiert werden
+        }
+      });
+    }
+  }
+  
+  // Amt/Behörde
+  if (/amt|behörde|bürgerbüro|rathaus/i.test(text)) {
+    const officeMatch = text.match(/(Stadt|Gemeinde|Amt|Bürgerbüro|Rathaus)[\s\:]([A-Za-zäöüÄÖÜß\s\-\.]+)/i);
+    
+    if (officeMatch) {
+      structuredData.push({
+        type: 'office',
+        data: {
+          name: (officeMatch[1] + ' ' + officeMatch[2]).trim(),
+          // Weitere Informationen können hier extrahiert werden
+        }
+      });
+    }
+  }
+  
+  // Weitere Content-Typen hier hinzufügen...
+  
+  return structuredData.length > 0 ? structuredData : null;
+}
+
+/**
  * Versucht, eine JSON-Antwort vom Bot zu parsen,
  * die eine UI-Komponente enthalten könnte.
  * 
  * @param responseText Die Antwort des Bots als Text
  * @returns Ein Objekt mit dem Text und optionalen interaktiven Elementen
  */
-export function parseBotResponse(responseText: string): {
+export function parseBotResponse(responseText: string, tenantId?: string): {
   text: string;
   interactiveElements?: InteractiveElement[];
+  structuredData?: any[];
 } {
   // Standardantwort mit originalem Text
   const defaultResponse = {
@@ -114,9 +158,9 @@ export function parseBotResponse(responseText: string): {
   };
 
   try {
-    // Wenn der Text kein JSON zu sein scheint, versuchen wir Öffnungszeiten zu erkennen
+    // Wenn der Text kein JSON zu sein scheint, versuchen wir verschiedene Muster zu erkennen
     if (!responseText.trim().startsWith('{')) {
-      // Versuche, Öffnungszeiten im Text zu erkennen
+      // 1. Versuche, Öffnungszeiten im Text zu erkennen
       const openingHours = detectAndStructureOpeningHours(responseText);
       if (openingHours && Object.keys(openingHours).length > 0) {
         console.log("Öffnungszeiten im Text erkannt:", openingHours);
@@ -129,6 +173,19 @@ export function parseBotResponse(responseText: string): {
           }]
         };
       }
+      
+      // 2. Versuche, strukturierte Daten zu erkennen (tenant-spezifisch)
+      if (tenantId) {
+        const structuredData = detectStructuredData(responseText);
+        if (structuredData) {
+          console.log(`Strukturierte Daten für Tenant ${tenantId} erkannt:`, structuredData);
+          return {
+            text: responseText,
+            structuredData: structuredData
+          };
+        }
+      }
+      
       return defaultResponse;
     }
 

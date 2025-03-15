@@ -70,6 +70,8 @@ export function MessageItem({ message, primaryColor, secondaryColor }: MessageIt
                            message.structured_data && 
                            message.structured_data.length > 0;
   
+  console.log("Message hat structured_data:", hasStructuredData, message);
+  
   return (
     <div
       className={`flex items-start gap-2 ${

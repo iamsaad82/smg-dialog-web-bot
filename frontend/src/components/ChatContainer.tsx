@@ -22,6 +22,7 @@ interface ChatContainerProps {
   botMessageTextColor?: string;
   userMessageBgColor?: string;
   userMessageTextColor?: string;
+  tenantId?: string;
 }
 
 interface MessageWithInteractiveElements {
@@ -42,7 +43,8 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
   botMessageBgColor = '#374151',
   botMessageTextColor = '#ffffff',
   userMessageBgColor = '#4f46e5',
-  userMessageTextColor = '#ffffff'
+  userMessageTextColor = '#ffffff',
+  tenantId
 }) => {
   // Verwenden eines Refs für die aktuelle Bot-Antwort während des Streamings
   const currentAssistantMessageRef = useRef<string>('');
@@ -121,7 +123,8 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
           messages: [...chatMessages, userMessage],
           stream: true,
           use_mistral: useMistral,
-          custom_instructions: customInstructions
+          custom_instructions: customInstructions,
+          tenant_id: tenantId
         },
         (chunk) => {
           // Aktuellen Text aktualisieren
@@ -133,8 +136,8 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
             const currentText = currentAssistantMessageRef.current;
             
             if (currentText.trim().startsWith('{') && currentText.trim().endsWith('}')) {
-              // Versuchen, das JSON zu parsen
-              const { text, interactiveElements } = parseBotResponse(currentText);
+              // Versuchen, das JSON zu parsen, jetzt mit Tenant-ID
+              const { text, interactiveElements, structuredData } = parseBotResponse(currentText, tenantId);
               
               // Wenn interaktive Elemente gefunden wurden, speichern
               if (interactiveElements && interactiveElements.length > 0) {
@@ -158,6 +161,29 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
                   return newMessages;
                 });
                 return; // Nicht mehr als normalen Text behandeln
+              }
+              
+              // Wenn strukturierte Daten gefunden wurden (für tenant-spezifische Layouts)
+              if (structuredData && structuredData.length > 0) {
+                // Hier könnten wir die strukturierten Daten für spezielle Layouts speichern
+                console.log("Strukturierte Daten erkannt:", structuredData);
+                
+                // Füge die erkannten Daten zur Nachricht hinzu (kann später für Rendering genutzt werden)
+                setMessagesWithElements(prev => {
+                  const newMessages = [...prev];
+                  const lastIndex = newMessages.length - 1;
+                  
+                  if (lastIndex >= 0 && newMessages[lastIndex].message.role === 'assistant') {
+                    // @ts-ignore - Wir erweitern hier das Message-Objekt um strukturierte Daten
+                    newMessages[lastIndex].message.structured_data = structuredData;
+                    
+                    // Originalen Text beibehalten
+                    newMessages[lastIndex].message.content = text;
+                  }
+                  
+                  return newMessages;
+                });
+                return;
               }
             }
           } catch (error) {
@@ -189,7 +215,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
           
           // Versuchen, Komponenten aus der vollständigen Antwort zu extrahieren
           try {
-            const { text, interactiveElements } = parseBotResponse(currentAssistantMessageRef.current);
+            const { text, interactiveElements, structuredData } = parseBotResponse(currentAssistantMessageRef.current, tenantId);
             
             // Wenn Komponenten erkannt wurden, aktualisieren wir die letzte Nachricht
             if (interactiveElements && interactiveElements.length > 0) {
@@ -209,6 +235,26 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
                     },
                     interactiveElements: interactiveElements
                   };
+                }
+                
+                return newMessages;
+              });
+            }
+            
+            // Wenn strukturierte Daten erkannt wurden (für tenant-spezifische Layouts)
+            if (structuredData && structuredData.length > 0) {
+              console.log("Strukturierte Daten nach Streaming erkannt:", structuredData);
+              
+              setMessagesWithElements(prev => {
+                const newMessages = [...prev];
+                const lastIndex = newMessages.length - 1;
+                
+                if (lastIndex >= 0 && newMessages[lastIndex].message.role === 'assistant') {
+                  // @ts-ignore - Wir erweitern hier das Message-Objekt um strukturierte Daten
+                  newMessages[lastIndex].message.structured_data = structuredData;
+                  
+                  // Originalen Text beibehalten
+                  newMessages[lastIndex].message.content = text;
                 }
                 
                 return newMessages;
@@ -368,6 +414,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
             botMessageTextColor={botMessageTextColor}
             userMessageBgColor={userMessageBgColor}
             userMessageTextColor={userMessageTextColor}
+            tenantId={tenantId}
           />
         ))}
         

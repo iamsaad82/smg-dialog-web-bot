@@ -5,6 +5,7 @@ import { InteractiveElement } from '../types/interactive';
 import InteractiveElementRenderer from './interactive/InteractiveElementRenderer';
 import { Box, Flex, Text } from '@chakra-ui/react';
 import { renderFormattedContent } from './bot-demo/chat/utils/rendering';
+import TenantAwareRenderer from './TenantAwareRenderer';
 
 // Custom CSS für die richtige Textformatierung
 const markdownStyles = {
@@ -23,6 +24,13 @@ interface ChatMessageProps {
   botMessageTextColor?: string;
   userMessageBgColor?: string;
   userMessageTextColor?: string;
+  // Tenant-ID für tenant-spezifische Layouts
+  tenantId?: string;
+}
+
+// Erweiterte Nachricht mit strukturierten Daten für Tenant-spezifische Layouts
+interface ExtendedChatMessage extends ChatMessageType {
+  structured_data?: any[];
 }
 
 const ChatMessage: React.FC<ChatMessageProps> = ({ 
@@ -35,9 +43,16 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   botMessageBgColor = '#374151',
   botMessageTextColor = '#ffffff',
   userMessageBgColor = '#4f46e5',
-  userMessageTextColor = '#ffffff'
+  userMessageTextColor = '#ffffff',
+  // Tenant-ID für spezifische Layouts (optional)
+  tenantId
 }) => {
   const isUser = message.role === 'user';
+  
+  // Prüfen, ob strukturierte Daten vorhanden sind (für tenant-spezifische Layouts)
+  const hasStructuredData = !isUser && 
+    (message as ExtendedChatMessage).structured_data && 
+    (message as ExtendedChatMessage).structured_data!.length > 0;
   
   // Vorverarbeitung des Nachrichtentexts für Bot-Nachrichten
   const processedContent = React.useMemo(() => {
@@ -73,6 +88,12 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
         color: botMessageTextColor,
         borderLeft: `3px solid ${botColor}`
       };
+
+  // Renderung des formatierten Inhalts mit Tenant-ID
+  const renderedContent = React.useMemo(() => {
+    if (isUser) return processedContent;
+    return renderFormattedContent(processedContent, tenantId);
+  }, [processedContent, isUser, tenantId]);
 
   return (
     <motion.div
@@ -133,12 +154,26 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
                     }
                   }
                 }}
+                dangerouslySetInnerHTML={{ __html: renderedContent }}
               >
-                {renderFormattedContent(processedContent)}
               </Box>
             )}
           </Box>
         </Box>
+        
+        {/* Strukturierte Daten mit tenant-spezifischem Renderer anzeigen */}
+        {hasStructuredData && (
+          <Box mt={3} pt={3} borderTop="1px" borderColor="gray.200">
+            {(message as ExtendedChatMessage).structured_data!.map((item, idx) => (
+              <TenantAwareRenderer
+                key={idx}
+                data={item}
+                tenantId={tenantId}
+                className="mt-2"
+              />
+            ))}
+          </Box>
+        )}
         
         {/* Interaktive Elemente nur für Bot-Nachrichten anzeigen */}
         {!isUser && interactiveElements && interactiveElements.length > 0 && (
