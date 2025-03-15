@@ -1,76 +1,166 @@
-# Brandenburg XML-Import auf Render
+# Brandenburg XML-Daten Cronjob
 
-Diese Dokumentation beschreibt, wie der Brandenburg XML-Import als Cronjob in der Render-Umgebung eingerichtet wird.
+Diese Dokumentation beschreibt, wie der automatische Import der Brandenburg XML-Daten als Cronjob eingerichtet wird. Das ermöglicht die regelmäßige Aktualisierung der strukturierten Daten, ohne dass manuelle Eingriffe erforderlich sind.
 
-## Übersicht
+## Funktionsweise des Import-Skripts
 
-Die Stadt Brandenburg stellt regelmäßig aktualisierte Daten unter der URL `https://www.stadt-brandenburg.de/_/a/chatbot/daten.xml` bereit. Um diese Daten automatisch zu importieren, wird ein Cronjob eingerichtet, der das Import-Skript regelmäßig ausführt.
+Das Skript `backend/scripts/brandenburg_xml_cron_import.py` führt folgende Schritte aus:
+
+1. **Herunterladen der XML-Datei** mit angepasstem User-Agent (um 403-Fehler zu umgehen)
+2. **Prüfen auf Änderungen** anhand der MD5-Prüfsumme
+3. **Nur bei Änderungen**: Löschen aller existierenden strukturierten Daten für den Tenant und Import der neuen Daten
+
+Dadurch wird verhindert, dass sich Duplikate ansammeln, und es werden nur dann Daten neu importiert, wenn die Quelldatei tatsächlich aktualisiert wurde.
 
 ## Voraussetzungen
 
-- Ein Render-Konto mit entsprechenden Rechten
-- Zugriff auf die Render-Umgebung, in der die Anwendung läuft
-- Ein gültiger Admin-API-Key für die Anwendung
+- Laufender Docker-Container für den Backend-Dienst
+- Berechtigungen zum Einrichten von Cronjobs auf dem Host-System
+- Das Import-Skript `brandenburg_xml_cron_import.py` ist bereits im Repository vorhanden und ausführbar
 
 ## Einrichtung des Cronjobs
 
-1. Loggen Sie sich in Ihr Render-Konto ein
-2. Navigieren Sie zum Dashboard und wählen Sie "New +" und dann "Cron Job"
-3. Geben Sie folgende Informationen ein:
-   - Name: `brandenburg-xml-import`
-   - Description: `Importiert regelmäßig XML-Daten von der Stadt Brandenburg`
-   - Schedule: `0 3 * * *` (Täglich um 3:00 Uhr morgens)
-   - Command: `cd /app && python -m backend.scripts.brandenburg_xml_import`
-   - Destination Region: (Wählen Sie die Region, die am nächsten an Ihrem Hauptserver liegt)
+### 1. Manuelle Einrichtung auf dem Host-System
 
-4. Unter "Environment Variables" fügen Sie folgende Variablen hinzu:
-   - `ADMIN_API_KEY`: Ihr Admin-API-Key (als "Secret" markieren)
-   - `BRANDENBURG_XML_URL`: `https://www.stadt-brandenburg.de/_/a/chatbot/daten.xml`
-   - `LOG_LEVEL`: `INFO`
-   - `API_BASE_URL`: URL Ihres Backend-Services (z.B. `https://ihr-service.onrender.com`)
+Um den Cronjob direkt auf dem Host-System einzurichten:
 
-5. Klicken Sie auf "Create Cron Job"
+```bash
+# Cronjob-Editor öffnen
+crontab -e
 
-## Überwachung und Wartung
+# Folgende Zeile hinzufügen (Ausführung jeden Tag um 3:00 Uhr morgens)
+0 3 * * * docker exec smg-dialog-web-bot-backend-1 python /app/scripts/brandenburg_xml_cron_import.py >> /var/log/brandenburg-import.log 2>&1
+```
 
-### Logs überprüfen
+### 2. Einrichtung mit Docker-Compose
 
-Um zu überprüfen, ob der Cronjob ordnungsgemäß funktioniert:
+Alternativ kann der Cronjob als separater Dienst in der Docker-Compose-Konfiguration definiert werden:
 
-1. Navigieren Sie zu Ihrem Cronjob in der Render-Konsole
-2. Klicken Sie auf "Logs"
-3. Überprüfen Sie die Ausgabe nach dem letzten Lauf
+1. Öffne die `docker-compose.yml`-Datei und füge folgenden Dienst hinzu:
 
-Eine erfolgreiche Ausführung sollte Meldungen wie `Import erfolgreich` und `Brandenburg XML-Import erfolgreich abgeschlossen` enthalten.
+```yaml
+services:
+  # Vorhandene Dienste...
+  
+  brandenburg-cron:
+    image: alpine
+    depends_on:
+      - backend
+    command: >
+      /bin/sh -c "
+        echo '0 3 * * * docker exec smg-dialog-web-bot-backend-1 python /app/scripts/brandenburg_xml_cron_import.py >> /proc/1/fd/1 2>&1' > /etc/crontabs/root &&
+        crond -f -d 8
+      "
+    restart: unless-stopped
+```
 
-### Manuelle Ausführung
+### 3. Einrichtung als systemd-Timer
 
-Für Testzwecke oder bei Bedarf können Sie den Cronjob manuell ausführen:
+Für eine robustere Lösung kann ein systemd-Timer verwendet werden:
 
-1. Navigieren Sie zu Ihrem Cronjob in der Render-Konsole
-2. Klicken Sie auf "Manual Run"
+1. Erstelle eine Service-Datei:
 
-### Fehlerbehandlung
+```bash
+sudo nano /etc/systemd/system/brandenburg-import.service
+```
 
-Typische Fehler und Lösungen:
+Füge folgenden Inhalt ein:
 
-- **API-Key-Probleme**: Überprüfen Sie, ob der ADMIN_API_KEY korrekt ist und noch gültig
-- **Verbindungsprobleme**: Stellen Sie sicher, dass die XML-URL erreichbar ist und die API-Basis-URL korrekt ist
-- **Timeout-Probleme**: Erhöhen Sie den Timeout-Wert in den Umgebungsvariablen, falls die XML-Datei sehr groß ist
+```ini
+[Unit]
+Description=Brandenburg XML Import
+After=docker.service
 
-## Anpassung der Import-Häufigkeit
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/docker exec smg-dialog-web-bot-backend-1 python /app/scripts/brandenburg_xml_cron_import.py
+StandardOutput=journal
+StandardError=journal
 
-Je nach Aktualisierungshäufigkeit der XML-Datei können Sie den Zeitplan des Cronjobs anpassen:
+[Install]
+WantedBy=multi-user.target
+```
 
-- **Täglich**: `0 3 * * *` (3:00 Uhr morgens)
-- **Zweimal täglich**: `0 3,15 * * *` (3:00 und 15:00 Uhr)
-- **Wöchentlich**: `0 3 * * 1` (Montags um 3:00 Uhr)
+2. Erstelle eine Timer-Datei:
 
-## Deaktivierung
+```bash
+sudo nano /etc/systemd/system/brandenburg-import.timer
+```
 
-Falls Sie den automatischen Import vorübergehend deaktivieren möchten:
+Füge folgenden Inhalt ein:
 
-1. Navigieren Sie zu Ihrem Cronjob in der Render-Konsole
-2. Klicken Sie auf "Settings"
-3. Unter "Schedule" ändern Sie den Wert auf `0 0 31 2 *` (niemals ausführen)
-4. Klicken Sie auf "Save Changes" 
+```ini
+[Unit]
+Description=Täglich Brandenburg XML Import ausführen
+Requires=brandenburg-import.service
+
+[Timer]
+Unit=brandenburg-import.service
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+3. Aktiviere und starte den Timer:
+
+```bash
+sudo systemctl enable brandenburg-import.timer
+sudo systemctl start brandenburg-import.timer
+```
+
+4. Überprüfe den Status des Timers:
+
+```bash
+sudo systemctl status brandenburg-import.timer
+```
+
+## Überwachung und Protokollierung
+
+Das Import-Skript schreibt ausführliche Logs nach:
+
+```
+/app/logs/brandenburg_xml_import.log
+```
+
+Diese Logs enthalten Informationen über:
+- Erfolgreiche Downloads der XML-Datei
+- Festgestellte Änderungen (Prüfsumme)
+- Anzahl der gelöschten und neu importierten Elemente
+- Fehler und Warnungen
+
+## Fehlerbehandlung
+
+Wenn der Import fehlschlägt, enthält die Log-Datei detaillierte Fehlermeldungen. Häufige Ursachen für Fehler:
+
+- XML-Datei konnte nicht heruntergeladen werden (Netzwerkprobleme, geänderte URL)
+- Ungültige oder beschädigte XML-Datei
+- Probleme mit Weaviate (Verbindungsprobleme, fehlende Berechtigungen)
+
+### Manueller Test des Imports
+
+Um den Import-Prozess manuell zu testen:
+
+```bash
+docker exec smg-dialog-web-bot-backend-1 python /app/scripts/brandenburg_xml_cron_import.py
+```
+
+## Strategien für den Produktionsbetrieb
+
+- **Monitoring**: Überwachen Sie regelmäßig die Import-Logs auf Fehler
+- **Benachrichtigungen**: Richten Sie E-Mail-Benachrichtigungen für fehlgeschlagene Imports ein
+- **Regelmäßige Kontrolle**: Überprüfen Sie monatlich die aktuelle XML-Struktur, um sicherzustellen, dass der Parser noch korrekt funktioniert
+
+## Anpassung des Import-Intervalls
+
+Das Standard-Intervall ist täglich um 3:00 Uhr morgens. Um das Intervall anzupassen:
+
+- **Cron**: Ändern Sie das Cron-Pattern (z.B. `0 */6 * * *` für alle 6 Stunden)
+- **systemd-Timer**: Passen Sie den `OnCalendar`-Wert in der Timer-Datei an
+
+## Sicherheitsvorkehrungen
+
+- Das Skript arbeitet idempotent: Mehrfache Ausführung hat keine negativen Auswirkungen
+- Es importiert nur neue Daten bei Änderungen der Quelldatei
+- Alte Daten werden vollständig gelöscht, bevor neue importiert werden 
