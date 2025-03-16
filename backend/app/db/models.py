@@ -31,7 +31,7 @@ class TenantModel(Base):
     bot_message_text_color = Column(String, nullable=False, default="#ffffff")
     user_message_bg_color = Column(String, nullable=False, default="#4f46e5")
     user_message_text_color = Column(String, nullable=False, default="#ffffff")
-    is_brandenburg = Column(Boolean, nullable=False, default=False)
+    renderer_type = Column(String, nullable=False, default="default")
     config = Column(JSON, nullable=True)
     
     # Beziehungen
@@ -108,8 +108,8 @@ class TenantBase(BaseModel):
     bot_message_text_color: str = "#ffffff"
     user_message_bg_color: str = "#4f46e5"
     user_message_text_color: str = "#ffffff"
-    # Brandenburg-Integration
-    is_brandenburg: bool = False
+    # Renderer-Typ für tenant-spezifische Darstellung
+    renderer_type: str = "default"  # Mögliche Werte: 'default', 'brandenburg', etc.
 
 
 class TenantCreate(TenantBase):
@@ -134,8 +134,8 @@ class TenantUpdate(BaseModel):
     bot_message_text_color: Optional[str] = None
     user_message_bg_color: Optional[str] = None
     user_message_text_color: Optional[str] = None
-    # Brandenburg-Integration
-    is_brandenburg: Optional[bool] = None
+    # Renderer-Typ für tenant-spezifische Darstellung
+    renderer_type: Optional[str] = None
 
 
 class Tenant(TenantBase):
@@ -144,7 +144,7 @@ class Tenant(TenantBase):
     api_key: str
     created_at: datetime
     updated_at: datetime
-    is_brandenburg: bool = False  # Explizit als Feld mit Standardwert definieren
+    renderer_type: str = "default"  # Mögliche Werte: 'default', 'brandenburg', etc.
     
     class Config:
         from_attributes = True
@@ -182,7 +182,6 @@ class SearchQuery(BaseModel):
     """Modell für Suchanfragen."""
     query: str
     limit: Optional[int] = 5
-    hybrid_search: Optional[bool] = True
 
 
 class ChatMessage(BaseModel):

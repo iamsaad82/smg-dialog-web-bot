@@ -6,11 +6,14 @@ import logging
 import json
 from typing import Dict, Any, Optional, List, Tuple
 import asyncio
-
-from .client import weaviate_client, get_weaviate_client
-from .schema_manager import SchemaManager
-from .document_manager import DocumentManager
+import weaviate
+from weaviate.util import generate_uuid5
+from ...core.config import settings
+from ...db.models import Tenant
 from .search_manager import SearchManager
+from .schema_manager import SchemaManager
+from .client import weaviate_client, connect_to_local
+from .document_manager import DocumentManager
 from .health_manager import HealthManager
 from app.models.weaviate_status import WeaviateStatus
 
@@ -22,7 +25,7 @@ class WeaviateService:
     
     def __init__(self):
         """Initialisiert den Weaviate-Service und stellt die Verbindung her."""
-        self.client = get_weaviate_client()
+        self.client = connect_to_local()
         self.initialize_schema()
     
     def initialize_schema(self) -> bool:
@@ -97,13 +100,13 @@ class WeaviateService:
         """
         return DocumentManager.update_document(tenant_id, doc_id, title, content, metadata, source)
     
-    def search(self, tenant_id: str, query: str, limit: int = 5, hybrid_search: bool = True) -> List[Dict[str, Any]]:
+    def search(self, tenant_id: str, query: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
         Führt eine semantische Suche in der Wissensbasis eines Tenants durch.
-        Unterstützt Hybrid-Suche (Vektor + Keywords).
+        Die Suche verwendet automatisch die beste verfügbare Suchmethode.
         Gibt eine Liste von Dokumenten zurück, sortiert nach Relevanz.
         """
-        return SearchManager.search(tenant_id, query, limit, hybrid_search)
+        return SearchManager.search(tenant_id, query, limit)
     
     async def reindex_document(self, document: Any) -> bool:
         """

@@ -4,29 +4,41 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface AIModelCardProps {
   useMistral: boolean
   customInstructions: string
-  is_brandenburg?: boolean
-  onChange: (name: string, value: string | boolean) => void
+  rendererType: string
+  config: {
+    xml_url?: string
+    [key: string]: any
+  }
+  onChange: (name: string, value: string | boolean | object) => void
 }
 
 export function AIModelCard({
   useMistral,
   customInstructions,
-  is_brandenburg = false,
+  rendererType = "default",
+  config = {},
   onChange,
 }: AIModelCardProps) {
   
-  // Debug Logging für is_brandenburg
+  // Debug Logging
   useEffect(() => {
-    console.log("AIModelCard - is_brandenburg prop value:", is_brandenburg);
-    console.log("AIModelCard - is_brandenburg type:", typeof is_brandenburg);
-  }, [is_brandenburg]);
+    console.log("AIModelCard - rendererType:", rendererType);
+    console.log("AIModelCard - config:", config);
+  }, [rendererType, config]);
   
-  // Stelle sicher, dass is_brandenburg ein Boolean ist
-  const isBrandenburgBoolean = is_brandenburg === true;
+  const handleConfigChange = (key: string, value: string) => {
+    const newConfig = {
+      ...config,
+      [key]: value
+    };
+    onChange("config", newConfig);
+  };
   
   return (
     <Card>
@@ -44,33 +56,54 @@ export function AIModelCard({
             onCheckedChange={(checked) => onChange("use_mistral", checked)}
           />
         </div>
-
-        <div className="flex items-center justify-between space-x-2">
-          <Label htmlFor="is_brandenburg" className="flex-1">
-            Brandenburg-Integration aktivieren
-            <span className="text-xs block text-gray-500 mt-1">
-              Ermöglicht die Verarbeitung und Anzeige von strukturierten Daten aus Brandenburg.
-            </span>
-          </Label>
-          <Switch
-            id="is_brandenburg"
-            checked={isBrandenburgBoolean}
-            onCheckedChange={(checked) => {
-              console.log("AIModelCard - Switch changed to:", checked, "(type:", typeof checked, ")");
-              onChange("is_brandenburg", checked);
-            }}
-          />
+        
+        <div className="space-y-2">
+          <Label htmlFor="rendererType">Renderer-Typ</Label>
+          <Select 
+            value={rendererType} 
+            onValueChange={(value) => onChange("renderer_type", value)}
+          >
+            <SelectTrigger id="rendererType">
+              <SelectValue placeholder="Renderer-Typ auswählen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">Standard</SelectItem>
+              <SelectItem value="xml">XML (Generisch)</SelectItem>
+              <SelectItem value="stadt">Stadt/Kommune</SelectItem>
+              <SelectItem value="custom">Benutzerdefiniert</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
+        
+        {rendererType === "xml" && (
+          <div className="space-y-2">
+            <Label htmlFor="xmlUrl">XML-URL</Label>
+            <Input
+              id="xmlUrl"
+              value={config.xml_url || ""}
+              onChange={(e) => handleConfigChange("xml_url", e.target.value)}
+              placeholder="https://beispiel.de/daten.xml"
+            />
+            <p className="text-sm text-muted-foreground">
+              URL zur XML-Datei, die periodisch importiert werden soll.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-2">
-          <Label htmlFor="customInstructions">Benutzerdefinierte Anweisungen</Label>
+          <Label htmlFor="customInstructions">
+            Benutzerdefinierte Anweisungen
+          </Label>
           <Textarea
             id="customInstructions"
             value={customInstructions}
             onChange={(e) => onChange("custom_instructions", e.target.value)}
-            placeholder="Spezielle Anweisungen für den Bot..."
-            className="min-h-[100px]"
+            placeholder="Geben Sie spezifische Anweisungen für den Bot ein..."
+            className="min-h-[150px]"
           />
+          <p className="text-sm text-muted-foreground">
+            Diese Anweisungen werden an das KI-Modell gesendet, um sein Verhalten anzupassen.
+          </p>
         </div>
       </CardContent>
     </Card>

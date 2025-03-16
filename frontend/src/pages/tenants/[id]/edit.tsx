@@ -6,6 +6,12 @@ import { Tenant, TenantUpdate } from '../../../types/api';
 import { AdminLayout } from "@/components/layouts/admin-layout";
 import { Button } from "@/components/ui/button";
 
+// Renderer-Typen für Dropdown
+const RENDERER_TYPES = [
+  { value: 'default', label: 'Standard-Renderer' },
+  { value: 'brandenburg', label: 'Brandenburg-Renderer' }
+];
+
 export default function EditTenant() {
   const router = useRouter();
   const { id } = router.query;
@@ -19,7 +25,8 @@ export default function EditTenant() {
     primary_color: '#4f46e5',
     secondary_color: '#ffffff',
     use_mistral: false,
-    is_brandenburg: false
+    renderer_type: 'default',
+    config: {}
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +59,8 @@ export default function EditTenant() {
             use_mistral: tenantData.use_mistral,
             custom_instructions: tenantData.custom_instructions || '',
             logo_url: tenantData.logo_url || '',
-            is_brandenburg: tenantData.is_brandenburg || false
+            renderer_type: tenantData.renderer_type || 'default',
+            config: tenantData.config || {}
           });
           
           setError(null);
@@ -70,14 +78,15 @@ export default function EditTenant() {
     loadTenant();
   }, [id]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, checked } = e.target;
-    setFormData(prev => ({ ...prev, [name]: checked }));
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target as HTMLInputElement;
+    
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData(prev => ({ ...prev, [name]: checked }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -95,18 +104,20 @@ export default function EditTenant() {
         ...formData,
       };
       
-      // Explizit testen und konvertieren für is_brandenburg
-      if (formData.hasOwnProperty('is_brandenburg')) {
-        const boolValue = formData.is_brandenburg === true;
-        console.log(`Converting is_brandenburg from ${formData.is_brandenburg} (${typeof formData.is_brandenburg}) to ${boolValue}`);
-        sanitizedFormData.is_brandenburg = boolValue;
-      }
-      
       // Explizit testen und konvertieren für use_mistral
       if (formData.hasOwnProperty('use_mistral')) {
         const boolValue = formData.use_mistral === true;
         console.log(`Converting use_mistral from ${formData.use_mistral} (${typeof formData.use_mistral}) to ${boolValue}`);
         sanitizedFormData.use_mistral = boolValue;
+      }
+      
+      // XML-URL-Konfiguration
+      const xmlUrl = (document.getElementById('xml_url') as HTMLInputElement)?.value;
+      if (xmlUrl) {
+        sanitizedFormData.config = {
+          ...sanitizedFormData.config,
+          xml_url: xmlUrl
+        };
       }
       
       console.log("Edit page - Sending sanitized data:", JSON.stringify(sanitizedFormData));
@@ -119,8 +130,8 @@ export default function EditTenant() {
       if (tenant) {
         const updatedTenant = await apiClient.getTenant(id as string);
         console.log("Edit page - Fetched updated tenant:", JSON.stringify(updatedTenant));
-        console.log("is_brandenburg in fetched data:", updatedTenant.is_brandenburg);
-        console.log("is_brandenburg type in fetched data:", typeof updatedTenant.is_brandenburg);
+        console.log("renderer_type in fetched data:", updatedTenant.renderer_type);
+        console.log("renderer_type type in fetched data:", typeof updatedTenant.renderer_type);
         
         setTenant(updatedTenant);
         
@@ -136,7 +147,8 @@ export default function EditTenant() {
           logo_url: updatedTenant.logo_url || "",
           use_mistral: updatedTenant.use_mistral === true,
           custom_instructions: updatedTenant.custom_instructions || "",
-          is_brandenburg: updatedTenant.is_brandenburg === true,
+          renderer_type: updatedTenant.renderer_type || 'default',
+          config: updatedTenant.config || {}
         });
       }
       
@@ -311,25 +323,11 @@ export default function EditTenant() {
                         id="use_mistral"
                         name="use_mistral"
                         checked={formData.use_mistral}
-                        onChange={handleCheckboxChange}
+                        onChange={handleInputChange}
                         className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                       />
                       <label htmlFor="use_mistral" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
                         Mistral anstelle von OpenAI verwenden
-                      </label>
-                    </div>
-                    
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="is_brandenburg"
-                        name="is_brandenburg"
-                        checked={formData.is_brandenburg}
-                        onChange={handleCheckboxChange}
-                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                      />
-                      <label htmlFor="is_brandenburg" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                        Brandenburg-Integration aktivieren
                       </label>
                     </div>
                   </div>
@@ -355,6 +353,52 @@ export default function EditTenant() {
                       Diese Anweisungen werden dem Bot übergeben, um sein Verhalten und seine Antworten zu steuern. Sie können beispielsweise einen bestimmten Tonfall, Einschränkungen oder spezifische Informationen vorgeben.
                     </p>
                   </div>
+                </div>
+              </div>
+
+              {/* XML-Import-Konfiguration */}
+              <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white mb-4">
+                  XML-Import-Konfiguration
+                </h3>
+                
+                <div className="mb-4">
+                  <label htmlFor="renderer_type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Renderer-Typ
+                  </label>
+                  <select
+                    id="renderer_type"
+                    name="renderer_type"
+                    value={formData.renderer_type}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  >
+                    {RENDERER_TYPES.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Bestimmt den spezifischen Renderer für diesen Tenant und den XML-Import-Typ.
+                  </p>
+                </div>
+                
+                <div className="mb-4">
+                  <label htmlFor="xml_url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    XML-URL
+                  </label>
+                  <input
+                    type="url"
+                    id="xml_url"
+                    name="xml_url"
+                    defaultValue={formData.config?.xml_url || ''}
+                    className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    placeholder="https://beispiel.de/daten.xml"
+                  />
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    URL der XML-Datei, die für diesen Tenant importiert werden soll.
+                  </p>
                 </div>
               </div>
 

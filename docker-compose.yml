@@ -3,77 +3,80 @@ version: '3.8'
 services:
   frontend:
     build:
-      context: frontend
-      dockerfile: Dockerfile
+      context: ./frontend
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     environment:
+      - BACKEND_URL=http://backend:8000
       - NODE_ENV=development
+      - DOCKER_CONTAINER=true
     depends_on:
       - backend
-    restart: unless-stopped
+    networks:
+      - app-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   backend:
     build:
-      context: backend
-      dockerfile: Dockerfile
+      context: ./backend
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend:/app
+    depends_on:
+      - db
+      - weaviate
     environment:
-      - WEAVIATE_URL=http://weaviate:8080
       - POSTGRES_SERVER=db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=smg_dialog
-      - POSTGRES_HOST=db
-      - POSTGRES_PORT=5432
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=gpt-4-turbo-preview
-    depends_on:
-      - db
-      - weaviate
-    restart: unless-stopped
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/smg_dialog
+      - WEAVIATE_URL=http://weaviate:8080
+      - VECTOR_TRANSFORMER_URL=http://t2v-transformer:8080
+      - APP_ENV=development
+      - FRONTEND_URL=http://frontend:3000
+      - ADMIN_API_KEY=admin-secret-key-12345
+    networks:
+      - app-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  db:
+    image: postgres:15
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=smg_dialog
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
 
   weaviate:
     image: semitechnologies/weaviate:1.24.1
     ports:
       - "8080:8080"
     environment:
-      QUERY_DEFAULTS_LIMIT: 25
-      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
-      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
-      DEFAULT_VECTORIZER_MODULE: 'text2vec-transformers'
-      ENABLE_MODULES: 'text2vec-transformers'
-      TRANSFORMERS_INFERENCE_API: 'http://t2v-transformer:8080'
-    volumes:
-      - weaviate_data:/var/lib/weaviate
-    depends_on:
-      - t2v-transformer
-    restart: unless-stopped
+      - QUERY_DEFAULTS_LIMIT=20
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
+      - DEFAULT_VECTORIZER_MODULE=text2vec-transformers
+      - ENABLE_MODULES=text2vec-transformers
+      - TRANSFORMERS_INFERENCE_API=http://t2v-transformer:8080
+    networks:
+      - app-network
 
   t2v-transformer:
     image: semitechnologies/transformers-inference:sentence-transformers-multi-qa-MiniLM-L6-cos-v1
     environment:
-      ENABLE_CUDA: '0'
-    restart: unless-stopped
-
-  db:
-    image: postgres:15
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=smg_dialog
-    ports:
-      - "5433:5432"
-    restart: unless-stopped
+      - ENABLE_CUDA=0
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
-  weaviate_data:
+
+networks:
+  app-network:
+    driver: bridge

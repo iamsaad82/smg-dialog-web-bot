@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from ..core.config import settings
 
 # Datenbankverbindung erstellen
-SQLALCHEMY_DATABASE_URL = f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+SQLALCHEMY_DATABASE_URL = settings.SQLALCHEMY_DATABASE_URI
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

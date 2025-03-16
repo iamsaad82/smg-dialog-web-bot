@@ -68,14 +68,8 @@ async def get_tenant(
     
     # Logging für Debugging
     print(f"[get_tenant] Tenant mit ID {tenant_id}:", tenant.dict())
-    print(f"[get_tenant] is_brandenburg Wert: {tenant.is_brandenburg} (Typ: {type(tenant.is_brandenburg)})")
     
-    # Stelle sicher, dass is_brandenburg als boolean vorhanden ist
-    tenant_dict = tenant.dict()
-    if 'is_brandenburg' not in tenant_dict or tenant_dict['is_brandenburg'] is None:
-        tenant_dict['is_brandenburg'] = False
-    
-    return Tenant.model_validate(tenant_dict)
+    return tenant
 
 
 @router.put("/{tenant_id}", response_model=Tenant)
@@ -89,6 +83,12 @@ async def update_tenant(
     # Logging für eingehende Daten
     print(f"[update_tenant] Eingehende Daten für Tenant {tenant_id}:", tenant_update.dict(exclude_unset=True))
     
+    # Optional: XML-URL in Config speichern, wenn vorhanden
+    if hasattr(tenant_update, 'config') and tenant_update.config is not None and 'xml_url' in tenant_update.config:
+        xml_url = tenant_update.config.get('xml_url')
+        if xml_url:
+            print(f"[update_tenant] Neue XML-URL für Tenant {tenant_id}: {xml_url}")
+    
     updated_tenant = tenant_service.update_tenant(db, tenant_id, tenant_update)
     if not updated_tenant:
         raise HTTPException(
@@ -98,14 +98,9 @@ async def update_tenant(
     
     # Logging für aktualisierte Daten
     print(f"[update_tenant] Aktualisierter Tenant {tenant_id}:", updated_tenant.dict())
-    print(f"[update_tenant] is_brandenburg Wert: {updated_tenant.is_brandenburg} (Typ: {type(updated_tenant.is_brandenburg)})")
+    print(f"[update_tenant] Renderer-Typ: {updated_tenant.renderer_type}")
     
-    # Stelle sicher, dass is_brandenburg als boolean vorhanden ist
-    tenant_dict = updated_tenant.dict()
-    if 'is_brandenburg' not in tenant_dict or tenant_dict['is_brandenburg'] is None:
-        tenant_dict['is_brandenburg'] = False
-    
-    return Tenant.model_validate(tenant_dict)
+    return updated_tenant
 
 
 @router.delete("/{tenant_id}", status_code=status.HTTP_204_NO_CONTENT)

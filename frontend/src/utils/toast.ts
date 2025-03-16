@@ -10,6 +10,7 @@ interface ToastInterface {
   error: ToastFn;
   info: ToastFn;
   warning?: ToastFn;
+  loading: ToastFn;
 }
 
 // Toast-Implementierung
@@ -24,7 +25,7 @@ try {
   console.warn('Sonner konnte nicht geladen werden, verwende Fallback-Toast-System');
   
   // Verbesserte Fallback-Implementierung
-  const createToastElement = (message: string, type: 'success' | 'error' | 'info' | 'warning') => {
+  const createToastElement = (message: string, type: 'success' | 'error' | 'info' | 'warning' | 'loading') => {
     // Erstelle Toast-Container, falls er noch nicht existiert
     let toastContainer = document.getElementById('toast-container');
     if (!toastContainer) {
@@ -67,6 +68,33 @@ try {
       case 'warning':
         toast.style.backgroundColor = '#F59E0B';
         toast.style.color = 'white';
+        break;
+      case 'loading':
+        toast.style.backgroundColor = '#6B7280';
+        toast.style.color = 'white';
+        // Füge ein Lade-Icon hinzu
+        const loader = document.createElement('div');
+        loader.style.width = '16px';
+        loader.style.height = '16px';
+        loader.style.borderRadius = '50%';
+        loader.style.border = '2px solid #f3f3f3';
+        loader.style.borderTop = '2px solid #3498db';
+        loader.style.animation = 'spin 1s linear infinite';
+        loader.style.marginRight = '8px';
+        toast.prepend(loader);
+        
+        // Füge CSS-Animation für den Spinner hinzu
+        if (typeof document !== 'undefined' && !document.getElementById('spinner-style')) {
+          const style = document.createElement('style');
+          style.id = 'spinner-style';
+          style.textContent = `
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `;
+          document.head.appendChild(style);
+        }
         break;
       case 'info':
       default:
@@ -162,6 +190,14 @@ try {
         createToastElement(message, 'warning');
       } else {
         console.warn(`[WARNING] ${message}`);
+      }
+    },
+    loading: (message: string) => {
+      console.log(`[LOADING] ${message}`);
+      if (typeof document !== 'undefined') {
+        createToastElement(message, 'loading');
+      } else {
+        console.log(`[LOADING] ${message}`);
       }
     }
   };

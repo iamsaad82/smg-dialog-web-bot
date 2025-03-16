@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     # PostgreSQL Einstellungen
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "postgres")
-    POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "localhost")
+    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "db")  # Container-Name aus docker-compose
     POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "smg_dialog")
     SQLALCHEMY_DATABASE_URI: Optional[str] = None
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
         else:
             self.SQLALCHEMY_DATABASE_URI = (
                 f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-                f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+                f"@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
             )
 
     class Config:

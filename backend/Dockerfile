@@ -6,6 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     netcat-openbsd \
     curl \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Email-validator vor allen anderen Paketen installieren
@@ -23,35 +24,11 @@ RUN pip install --no-cache-dir --no-deps email-validator pydantic[email] && \
 # Überprüfen, ob das Package korrekt installiert wurde
 RUN python -c "from pydantic import EmailStr; print('EmailStr erfolgreich importiert')"
 
-# Start-Script erstellen
-RUN echo '#!/bin/bash\n\
-set -e\n\
-\n\
-# Warten auf PostgreSQL\n\
-echo "Warte auf PostgreSQL..."\n\
-while ! nc -z $POSTGRES_HOST 5432; do\n\
-  sleep 1\n\
-done\n\
-echo "PostgreSQL ist bereit"\n\
-\n\
-# Warten auf Weaviate\n\
-echo "Warte auf Weaviate..."\n\
-while ! curl -s http://weaviate:8080/v1/.well-known/ready > /dev/null; do\n\
-  sleep 1\n\
-done\n\
-echo "Weaviate ist bereit"\n\
-\n\
-# Migrationen ausführen\n\
-echo "Führe Datenbank-Migrationen aus..."\n\
-python run_migrations_direct.py || python run_migrations.py || alembic upgrade head\n\
-\n\
-# FastAPI-Server starten\n\
-echo "Starte FastAPI-Server..."\n\
-exec uvicorn app.main:app --host 0.0.0.0 --port $PORT' > /app/start.sh \
-    && chmod +x /app/start.sh
-
 # App-Code kopieren
 COPY . .
+
+# start.sh ausführbar machen
+RUN chmod +x /app/start.sh
 
 # Port exponieren
 EXPOSE 8000

@@ -18,12 +18,6 @@ class UserService:
         """
         return db.query(User).filter(User.id == user_id).first()
     
-    def get_user_by_username(self, db: Session, username: str) -> Optional[User]:
-        """
-        Gibt einen Benutzer anhand seines Benutzernamens zurück
-        """
-        return db.query(User).filter(User.username == username).first()
-    
     def get_user_by_email(self, db: Session, email: str) -> Optional[User]:
         """
         Gibt einen Benutzer anhand seiner E-Mail-Adresse zurück
@@ -42,11 +36,11 @@ class UserService:
         """
         return db.query(User).filter(User.agency_id == agency_id).all()
     
-    def authenticate_user(self, db: Session, username: str, password: str) -> Optional[User]:
+    def authenticate_user(self, db: Session, email: str, password: str) -> Optional[User]:
         """
-        Authentifiziert einen Benutzer anhand seines Benutzernamens und Passworts
+        Authentifiziert einen Benutzer anhand seiner E-Mail-Adresse und Passworts
         """
-        user = self.get_user_by_username(db, username)
+        user = self.get_user_by_email(db, email)
         if not user:
             return None
         if not verify_password(password, user.hashed_password):
@@ -59,11 +53,6 @@ class UserService:
         """
         Erstellt einen neuen Benutzer
         """
-        # Überprüfen, ob der Benutzername bereits existiert
-        existing_user = db.query(User).filter(User.username == user_create.username).first()
-        if existing_user:
-            raise ValueError(f"Benutzername '{user_create.username}' wird bereits verwendet")
-        
         # Überprüfen, ob die E-Mail-Adresse bereits existiert
         if user_create.email:
             existing_email = db.query(User).filter(User.email == user_create.email).first()
@@ -73,14 +62,11 @@ class UserService:
         # Neuen Benutzer erstellen
         db_user = User(
             id=str(uuid4()),
-            username=user_create.username,
             email=user_create.email,
             hashed_password=get_password_hash(user_create.password),
-            first_name=user_create.first_name,
-            last_name=user_create.last_name,
+            full_name=user_create.full_name,
             role=user_create.role,
             is_active=user_create.is_active,
-            created_by_id=created_by_id,
             agency_id=user_create.agency_id
         )
         
@@ -94,7 +80,7 @@ class UserService:
                 from .email_service import email_service
                 email_service.send_welcome_email(
                     email=db_user.email,
-                    username=db_user.username,
+                    name=db_user.full_name,
                     password=user_create.password if not user_create.is_temporary_password else None
                 )
             except Exception as e:
@@ -108,41 +94,44 @@ class UserService:
         self,
         db: Session,
         user_id: str,
-        username: Optional[str] = None,
         email: Optional[str] = None,
         password: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
+        full_name: Optional[str] = None,
         role: Optional[UserRole] = None,
         agency_id: Optional[str] = None,
         is_active: Optional[bool] = None
     ) -> Optional[User]:
         """
-        Aktualisiert einen Benutzer
+        Aktualisiert die Daten eines Benutzers
         """
         user = self.get_user_by_id(db, user_id)
         if not user:
             return None
-        
-        if username is not None:
-            user.username = username
-        if email is not None:
+
+        # Aktualisieren der Benutzerdaten, falls neue Werte übergeben wurden
+        if email is not None and email != user.email:
+            # Überprüfen, ob die neue E-Mail-Adresse bereits existiert
+            existing_email = db.query(User).filter(User.email == email).first()
+            if existing_email and existing_email.id != user_id:
+                raise ValueError(f"E-Mail-Adresse '{email}' wird bereits verwendet")
             user.email = email
+
         if password is not None:
             user.hashed_password = get_password_hash(password)
-        if first_name is not None:
-            user.first_name = first_name
-        if last_name is not None:
-            user.last_name = last_name
+
+        if full_name is not None:
+            user.full_name = full_name
+
         if role is not None:
             user.role = role
+
         if agency_id is not None:
             user.agency_id = agency_id
+
         if is_active is not None:
             user.is_active = is_active
-        
+
         user.updated_at = datetime.utcnow()
-        
         db.commit()
         db.refresh(user)
         return user

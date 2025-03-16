@@ -44,8 +44,7 @@ async def search(
     results = weaviate_service.search(
         tenant_id=tenant_id,
         query=query.query,
-        limit=query.limit,
-        hybrid_search=query.hybrid_search
+        limit=query.limit
     )
     
     return {"results": results}
@@ -55,6 +54,10 @@ async def process_bot_response(response: str) -> Dict[str, Any]:
     """
     Verarbeitet die Bot-Antwort und extrahiert UI-Komponenten und strukturierte Daten, falls vorhanden.
     """
+    # Sicherstellen, dass response nicht None ist
+    if response is None:
+        return {"text": "Es tut mir leid, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage.", "interactive_elements": []}
+    
     # Versuchen, JSON aus der Antwort zu extrahieren
     json_match = re.search(r'```(?:json)?\s*({[\s\S]*?})\s*```', response)
     
@@ -138,6 +141,10 @@ async def chat_completion(
         stream=False,
         use_mistral=use_mistral
     ):
+        # Sicherstellen, dass chunk nicht None ist
+        if chunk is None:
+            continue
+            
         full_response += chunk
     
     # Verarbeiten der Antwort für UI-Komponenten und strukturierte Daten
@@ -232,6 +239,10 @@ async def embed_chat(
             stream=False,
             use_mistral=use_mistral
         ):
+            # Sicherstellen, dass chunk nicht None ist
+            if chunk is None:
+                continue
+                
             full_response += chunk
         
         return {"response": full_response}
@@ -246,6 +257,9 @@ async def embed_chat(
             json_mode = False
             json_block_buffer = ""
             
+            # Flag zur Verfolgung, ob wir Chunks empfangen haben
+            received_chunks = False
+            
             async for chunk in rag_service.process_chat(
                 tenant_id=tenant_id,
                 messages=[{"role": msg.role, "content": msg.content} for msg in query.messages],
@@ -253,6 +267,13 @@ async def embed_chat(
                 stream=True,
                 use_mistral=use_mistral
             ):
+                # Sicherstellen, dass chunk nicht None ist
+                if chunk is None:
+                    continue
+                
+                # Markieren, dass wir Chunks empfangen haben
+                received_chunks = True
+                    
                 # Zum Buffer hinzufügen für spätere Verarbeitung
                 full_response += chunk
                 
@@ -297,17 +318,34 @@ async def embed_chat(
                 # Normale Chunks an Client senden
                 yield f"data: {chunk}\n\n"
             
-            # Am Ende der Antwort, überprüfen, ob UI-Komponenten vorhanden sind
-            processed_response = await process_bot_response(full_response)
+            # Überprüfen, ob wir überhaupt Chunks empfangen haben
+            if not received_chunks:
+                # Wenn keine Chunks generiert wurden, sende eine Fehlermeldung
+                error_msg = "Es konnten keine Informationen generiert werden. Bitte versuchen Sie es erneut."
+                yield f"data: {error_msg}\n\n"
+                yield "event: done\ndata: \n\n"
+                return
             
-            # Wenn UI-Komponenten erkannt wurden, als speziellen Event senden
-            if "component" in processed_response and not json_mode:
-                ui_component_event = json.dumps(processed_response)
-                yield f"event: ui_component\ndata: {ui_component_event}\n\n"
+            # Am Ende der Antwort, überprüfen, ob strukturierte Daten vorhanden sind
+            if full_response and len(full_response.strip()) > 0:  # Prüfen, ob full_response nicht leer ist
+                processed_response = await process_bot_response(full_response)
+                
+                # Prüfen auf strukturierte Daten und senden
+                if processed_response and "structured_data" in processed_response and processed_response["structured_data"]:
+                    structured_data_event = json.dumps({
+                        "text": processed_response["text"],
+                        "structured_data": processed_response["structured_data"]
+                    })
+                    yield f"data: {structured_data_event}\n\n"
+            else:
+                # Wenn keine Antwort generiert wurde, sende eine Fehlermeldung
+                error_msg = "Keine Antwort generiert. Bitte versuchen Sie es erneut."
+                yield f"data: {error_msg}\n\n"
             
             # Sende das DONE-Event als separaten Server-Sent Event, nicht als Teil des Inhalts
             yield "event: done\ndata: \n\n"
         except Exception as e:
+            logging.error(f"Fehler in chat_completion_stream: {str(e)}", exc_info=True)
             yield f"data: Error: {str(e)}\n\n"
             yield "event: done\ndata: \n\n"
     
@@ -348,6 +386,9 @@ async def chat_completion_stream(
             json_mode = False
             json_block_buffer = ""
             
+            # Flag zur Verfolgung, ob wir Chunks empfangen haben
+            received_chunks = False
+            
             async for chunk in rag_service.process_chat(
                 tenant_id=tenant_id,
                 messages=[{"role": msg.role, "content": msg.content} for msg in query.messages],
@@ -355,6 +396,13 @@ async def chat_completion_stream(
                 stream=True,
                 use_mistral=use_mistral
             ):
+                # Sicherstellen, dass chunk nicht None ist
+                if chunk is None:
+                    continue
+                
+                # Markieren, dass wir Chunks empfangen haben
+                received_chunks = True
+                    
                 # Zum Buffer hinzufügen für spätere Verarbeitung
                 full_response += chunk
                 
@@ -399,20 +447,34 @@ async def chat_completion_stream(
                 # Normale Chunks an Client senden
                 yield f"data: {chunk}\n\n"
             
-            # Am Ende der Antwort, überprüfen, ob strukturierte Daten vorhanden sind
-            processed_response = await process_bot_response(full_response)
+            # Überprüfen, ob wir überhaupt Chunks empfangen haben
+            if not received_chunks:
+                # Wenn keine Chunks generiert wurden, sende eine Fehlermeldung
+                error_msg = "Es konnten keine Informationen generiert werden. Bitte versuchen Sie es erneut."
+                yield f"data: {error_msg}\n\n"
+                yield "event: done\ndata: \n\n"
+                return
             
-            # Prüfen auf strukturierte Daten und senden
-            if "structured_data" in processed_response and processed_response["structured_data"]:
-                structured_data_event = json.dumps({
-                    "text": processed_response["text"],
-                    "structured_data": processed_response["structured_data"]
-                })
-                yield f"data: {structured_data_event}\n\n"
+            # Am Ende der Antwort, überprüfen, ob strukturierte Daten vorhanden sind
+            if full_response and len(full_response.strip()) > 0:  # Prüfen, ob full_response nicht leer ist
+                processed_response = await process_bot_response(full_response)
+                
+                # Prüfen auf strukturierte Daten und senden
+                if processed_response and "structured_data" in processed_response and processed_response["structured_data"]:
+                    structured_data_event = json.dumps({
+                        "text": processed_response["text"],
+                        "structured_data": processed_response["structured_data"]
+                    })
+                    yield f"data: {structured_data_event}\n\n"
+            else:
+                # Wenn keine Antwort generiert wurde, sende eine Fehlermeldung
+                error_msg = "Keine Antwort generiert. Bitte versuchen Sie es erneut."
+                yield f"data: {error_msg}\n\n"
             
             # Sende das DONE-Event als separaten Server-Sent Event, nicht als Teil des Inhalts
             yield "event: done\ndata: \n\n"
         except Exception as e:
+            logging.error(f"Fehler in chat_completion_stream: {str(e)}", exc_info=True)
             yield f"data: Error: {str(e)}\n\n"
             yield "event: done\ndata: \n\n"
     

@@ -31,7 +31,8 @@ export function TenantCreateForm({ onSubmit, isSubmitting }: TenantCreateFormPro
     secondary_color: "#ffffff",
     use_mistral: false,
     custom_instructions: "",
-    is_brandenburg: false,
+    renderer_type: "default",
+    config: {},
   })
 
   const handleChange = (
@@ -181,20 +182,6 @@ export function TenantCreateForm({ onSubmit, isSubmitting }: TenantCreateFormPro
               id="use_mistral"
               checked={formData.use_mistral || false}
               onCheckedChange={(checked) => handleSwitchChange("use_mistral", checked)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between space-x-2">
-            <Label htmlFor="is_brandenburg" className="flex-1">
-              Brandenburg-Integration aktivieren
-              <span className="text-xs block text-gray-500 mt-1">
-                Ermöglicht die Verarbeitung und Anzeige von strukturierten Daten aus Brandenburg.
-              </span>
-            </Label>
-            <Switch
-              id="is_brandenburg"
-              checked={formData.is_brandenburg || false}
-              onCheckedChange={(checked) => handleSwitchChange("is_brandenburg", checked)}
             />
           </div>
 

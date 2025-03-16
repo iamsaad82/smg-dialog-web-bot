@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { AdminLayout } from "@/components/layouts/admin-layout";
@@ -19,236 +19,173 @@ import {
   FileJson,
   BookOpen,
   Info,
+  Loader2,
+  FileText,
 } from "lucide-react";
 import { toast } from "@/utils/toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tenant } from "@/types/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { API_BASE_URL } from '@/api/core';
+import { Breadcrumb } from "@/components/breadcrumb";
+import { useTenant } from "@/hooks/use-tenant";
 
 export default function TenantDataImportsPage() {
   const router = useRouter();
-  const tenantId = router.query.id as string;
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchTenant = async () => {
-      if (!tenantId) return;
-      
-      try {
-        setIsLoading(true);
-        console.log("Anfrage an API wird gesendet:", `${API_BASE_URL}/tenants/${tenantId}/details`);
-        
-        // Admin-API-Key direkt verwenden (nur für Entwicklung)
-        const adminApiKey = "admin-secret-key-12345";
-        
-        // Zuerst versuchen, den Tenant über den /details-Endpunkt zu laden
-        let response = await fetch(`${API_BASE_URL}/tenants/${tenantId}/details`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': adminApiKey, // Admin-API-Key zur Authentifizierung
-          },
-          credentials: 'include'
-        });
-        
-        console.log("API-Antwort Status:", response.status);
-        
-        // Wenn der /details-Endpunkt fehlschlägt, den normalen Tenant-Endpunkt versuchen
-        if (response.status === 500) {
-          console.log("Fallback: Verwende normalen Tenant-Endpunkt");
-          response = await fetch(`${API_BASE_URL}/tenants/${tenantId}`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-API-Key': adminApiKey, // Admin-API-Key zur Authentifizierung
-            },
-            credentials: 'include'
-          });
-          console.log("Fallback API-Antwort Status:", response.status);
-        }
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("API-Fehlerdetails:", errorText);
-          throw new Error(`Fehler beim Laden der Tenant-Informationen: ${response.status} ${response.status === 500 ? "Internal Server Error" : errorText}`);
-        }
-        
-        const data = await response.json();
-        console.log("Geladene Tenant-Daten:", data);
-        setTenant(data);
-      } catch (err) {
-        console.error("Fehler beim Laden des Tenants:", err);
-        setError(`${err}`);
-        toast.error("Fehler beim Laden des Tenants", {
-          description: `${err}`,
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchTenant();
-  }, [tenantId]);
+  const { tenantId } = router.query;
+  const { tenant, isLoading, error } = useTenant(tenantId as string);
 
   if (isLoading) {
     return (
-      <AdminLayout
-        breadcrumbItems={[
-          { href: "/", label: "Dashboard" },
-          { href: "/tenants", label: "Tenants" },
-          { href: `/tenants/${tenantId}`, label: "Tenant" },
-          { href: `/tenants/${tenantId}/data-imports`, label: "Datenimporte", isCurrent: true },
-        ]}
-      >
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <Skeleton className="h-8 w-1/3" />
-            <Skeleton className="h-4 w-1/2" />
-          </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-48" />
-            ))}
-          </div>
+      <AdminLayout>
+        <Breadcrumb
+          items={[
+            { href: "/tenants", label: "Mandanten" },
+            { href: `/tenants/${tenantId}`, label: "Details" },
+            { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe", isCurrent: true },
+          ]}
+        />
+        <div className="flex justify-center items-center min-h-[60vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       </AdminLayout>
     );
   }
 
-  if (error || !tenant) {
+  if (error) {
     return (
-      <AdminLayout
-        breadcrumbItems={[
-          { href: "/", label: "Dashboard" },
-          { href: "/tenants", label: "Tenants" },
-          { href: `/tenants/${tenantId}`, label: "Tenant" },
-          { href: `/tenants/${tenantId}/data-imports`, label: "Datenimporte", isCurrent: true },
-        ]}
-      >
-        <Alert variant="destructive">
-          <Info className="h-4 w-4" />
-          <AlertTitle>Fehler</AlertTitle>
-          <AlertDescription>
-            {error || "Es ist ein unbekannter Fehler aufgetreten."}
-          </AlertDescription>
-        </Alert>
+      <AdminLayout>
+        <Breadcrumb
+          items={[
+            { href: "/tenants", label: "Mandanten" },
+            { href: `/tenants/${tenantId}`, label: "Details" },
+            { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe", isCurrent: true },
+          ]}
+        />
+        <div className="rounded-md bg-destructive/15 p-4 mt-4">
+          <div className="text-destructive">{error ? error.message : 'Ein unbekannter Fehler ist aufgetreten'}</div>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!tenant) {
+    return (
+      <AdminLayout>
+        <Breadcrumb
+          items={[
+            { href: "/tenants", label: "Mandanten" },
+            { href: `/tenants/${tenantId}`, label: "Details" },
+            { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe", isCurrent: true },
+          ]}
+        />
+        <div className="rounded-md bg-amber-100 p-4 mt-4">
+          <div className="text-amber-800">Tenant nicht gefunden.</div>
+        </div>
       </AdminLayout>
     );
   }
 
   return (
-    <AdminLayout
-      breadcrumbItems={[
-        { href: "/", label: "Dashboard" },
-        { href: "/tenants", label: "Tenants" },
-        { href: `/tenants/${tenantId}`, label: tenant.name || "Tenant" },
-        { href: `/tenants/${tenantId}/data-imports`, label: "Datenimporte", isCurrent: true },
-      ]}
-    >
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Datenimporte für {tenant.name}</h1>
-          <p className="text-muted-foreground">
-            Importieren und verwalten Sie externe Daten für diesen Tenant
-          </p>
+    <AdminLayout>
+      <Breadcrumb
+        items={[
+          { href: "/tenants", label: "Mandanten" },
+          { href: `/tenants/${tenantId}`, label: "Details" },
+          { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe", isCurrent: true },
+        ]}
+      />
+
+      <div className="flex flex-col gap-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold tracking-tight">Daten-Importe für {tenant.name}</h1>
+          <Button onClick={() => router.push(`/tenants/${tenantId}`)}>
+            Zurück zur Übersicht
+          </Button>
         </div>
 
-        {!tenant.is_brandenburg && tenant.name && (
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertTitle>Information</AlertTitle>
-            <AlertDescription>
-              Für diesen Tenant sind derzeit keine spezifischen Datenimporte konfiguriert.
-              Bei Bedarf können spezielle Import-Optionen für {tenant.name} aktiviert werden.
-            </AlertDescription>
-          </Alert>
-        )}
+        <p className="text-muted-foreground">
+          Importieren Sie Daten für den Bot, um seine Wissensbasis zu erweitern. Es stehen verschiedene Import-Möglichkeiten zur Verfügung.
+        </p>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {tenant.is_brandenburg && (
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Brandenburg-Integration
-                </CardTitle>
-                <Globe className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">Brandenburg XML</div>
-                <p className="text-xs text-muted-foreground">
-                  Importieren Sie strukturierte Daten aus Brandenburg-XML
-                </p>
-              </CardContent>
-              <CardFooter>
-                <Link href={`/tenants/${tenantId}/data-imports/brandenburg`} className="w-full">
-                  <Button className="w-full">
-                    Zum Brandenburg-Import
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </Link>
-              </CardFooter>
-            </Card>
-          )}
-
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
                 CSV-Import
               </CardTitle>
-              <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+              <CardDescription>
+                Importieren Sie Daten aus CSV-Dateien
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">CSV-Daten</div>
-              <p className="text-xs text-muted-foreground">
-                Import strukturierter Daten aus CSV-Dateien
+              <p className="text-sm text-muted-foreground">
+                Laden Sie Fragen und Antworten aus einer CSV-Datei hoch, um sie in die Wissensdatenbank zu integrieren.
+                Unterstützt strukturierte Daten mit Titeln, Inhalten und Metadaten.
               </p>
             </CardContent>
             <CardFooter>
-              <Button variant="outline" className="w-full" disabled>
-                Funktion kommt bald
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => router.push(`/tenants/${tenantId}/data-imports/csv`)}
+              >
+                CSV-Import starten
               </Button>
             </CardFooter>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                JSON-Import
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                XML-Import
               </CardTitle>
-              <FileJson className="h-4 w-4 text-muted-foreground" />
+              <CardDescription>
+                Importieren Sie strukturierte Daten aus XML-Dateien
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">JSON-Daten</div>
-              <p className="text-xs text-muted-foreground">
-                Import strukturierter Daten aus JSON-Dateien
+              <p className="text-sm text-muted-foreground">
+                Laden Sie strukturierte Daten aus XML-Dateien hoch oder importieren Sie sie direkt von einer URL.
+                Unterstützt verschiedene XML-Formate und wandelt sie in strukturierte Daten um.
               </p>
             </CardContent>
             <CardFooter>
-              <Button variant="outline" className="w-full" disabled>
-                Funktion kommt bald
+              <Button
+                className="w-full"
+                variant="outline" 
+                onClick={() => router.push(`/tenants/${tenantId}/data-imports/xml`)}
+              >
+                XML-Import starten
               </Button>
             </CardFooter>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Hilfe & Dokumentation
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe className="h-5 w-5" />
+                Website Crawler
               </CardTitle>
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
+              <CardDescription>
+                Crawlen Sie Websites, um Inhalte zu importieren
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">Dokumentation</div>
-              <p className="text-xs text-muted-foreground">
-                Hilfe zu Datenimporten und Formatierungsrichtlinien
+              <p className="text-sm text-muted-foreground">
+                Extrahieren Sie automatisch Inhalte von Webseiten durch Crawling.
+                Geben Sie eine Start-URL an und lassen Sie den Bot die Inhalte analysieren und importieren.
               </p>
             </CardContent>
             <CardFooter>
-              <Button variant="outline" className="w-full" disabled>
-                Zur Dokumentation
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => router.push(`/tenants/${tenantId}/data-imports/crawler`)}
+              >
+                Crawler starten
               </Button>
             </CardFooter>
           </Card>

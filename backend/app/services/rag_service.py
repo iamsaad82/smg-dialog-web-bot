@@ -1,13 +1,21 @@
-from typing import List, Dict, Any, AsyncGenerator, Optional
+from typing import List, Dict, Any, AsyncGenerator, Optional, Union
 from ..services.weaviate_service import weaviate_service
 from ..services.llm_service import llm_service
 from ..services.interactive.factory import interactive_factory
 from ..services.structured_data_service import structured_data_service
 from ..db.models import Tenant, TenantModel
+from ..services.tenant_service import tenant_service
+from ..services.weaviate.search_manager import SearchManager
+from sqlalchemy.orm import Session
+from app.db.session import get_db, SessionLocal
+from app.core.config import settings
 import json
 import re
 import logging
+from datetime import datetime
 
+# Logger konfigurieren
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -16,6 +24,43 @@ class RAGService:
     Retrieval-Augmented Generation (RAG) Service.
     Kombiniert die Retrieval-Funktionalität von Weaviate mit der Generationsfähigkeit eines LLM.
     """
+    
+    def __init__(self):
+        """Initialisiert den RAG-Service und seine Abhängigkeiten."""
+        self.search_manager = SearchManager
+        self.tenant_service = tenant_service
+        self.llm_service = llm_service
+    
+    def _get_default_system_prompt(self, tenant: Optional[Tenant] = None) -> str:
+        """
+        Erzeugt einen Standard-System-Prompt basierend auf dem Tenant.
+        
+        Args:
+            tenant: Optional[Tenant] - Der Tenant, für den der System-Prompt erzeugt werden soll.
+            
+        Returns:
+            str - Der System-Prompt.
+        """
+        base_prompt = """
+        Du bist ein hilfreicher Assistent, der Fragen zu den bereitgestellten Informationen beantwortet.
+        Verwende NUR die Informationen aus dem Kontext, um die Frage zu beantworten.
+        Es ist WICHTIG, dass du nur auf Basis der Informationen antwortest, die dir im Kontext zur Verfügung gestellt werden.
+        Du sollst KEINE Informationen erfinden oder aus deinem allgemeinen Wissen ergänzen.
+        
+        Wenn du die Antwort nicht im Kontext findest, sage ehrlich: "Zu dieser Frage liegen mir keine Informationen vor. 
+        Bitte wenden Sie sich für weitere Details direkt an die Stadtverwaltung."
+        
+        Gib keine Informationen preis, die nicht im Kontext enthalten sind.
+        Vermeide Halluzinationen und erfundene Antworten.
+        
+        Wenn möglich, verweise auf relevante Online-Dienste und Angebote, die im Kontext erwähnt werden.
+        """
+        
+        if tenant and tenant.custom_instructions:
+            # Tenant-spezifische Anpassungen aus den custom_instructions hinzufügen
+            base_prompt += f"\n\n{tenant.custom_instructions}"
+        
+        return base_prompt
     
     def format_ui_components_instructions(self, query: str, components_config) -> str:
         """
@@ -225,355 +270,230 @@ class RAGService:
         
         return instructions
 
-    async def get_structured_data_for_query(self, tenant_id: str, query: str) -> List[Dict[str, Any]]:
+    async def get_structured_data_for_query(self, tenant_id: str, query: str):
         """
-        Sucht strukturierte Daten in Weaviate, die zur Anfrage passen.
+        Hilfsmethode, die strukturierte Daten zu einer Query zurückgibt (für Testzwecke).
         
         Args:
             tenant_id: ID des Tenants
             query: Suchanfrage
             
         Returns:
-            Liste von gefundenen strukturierten Daten-Elementen
+            Dict: Ergebnisse je Datentyp
         """
-        structured_data_types = {
-            'school': ['schule', 'grundschule', 'gesamtschule', 'gymnasium', 'oberschule', 'schulen', 'bildung', 'bildungseinrichtung'],
-            'office': ['amt', 'ämter', 'behörde', 'verwaltung', 'bürgeramt', 'bürgerbüro', 'rathaus', 'verwaltungsstelle', 'bürgerdienst'],
-            'event': ['veranstaltung', 'event', 'termin', 'termine', 'veranstaltungen', 'events', 'festival', 'konzert', 'messe'],
-            'service': ['dienstleistung', 'service', 'dienst', 'angebot', 'servicebereich', 'serviceangebot'],
-            'local_law': ['ortsrecht', 'satzung', 'verordnung', 'rechtsvorschrift', 'kommunalrecht', 'recht', 'gesetz', 'regelung'],
-            'kindergarten': ['kita', 'kindergarten', 'krippe', 'kinderbetreuung', 'tagespflege', 'vorschule'],
-            'webpage': ['webseite', 'homepage', 'internetseite', 'website', 'online', 'portal'],
-            'waste_management': ['abfall', 'müll', 'entsorgung', 'wertstoff', 'recycling', 'mülltrennung', 'abfallentsorgung']
-        }
+        results = {}
+        data_types = ["school", "office", "event", "service", "local_law", "kindergarten", "webpage", "waste_management"]
         
-        # Anfrage auf Kleinbuchstaben normalisieren für die Erkennung
-        query_lower = query.lower()
-        
-        # Relevant detectierte Datentypen ermitteln
-        detected_types = []
-        for data_type, keywords in structured_data_types.items():
-            for keyword in keywords:
-                if keyword in query_lower:
-                    detected_types.append(data_type)
-                    break
-        
-        # Wenn keine strukturierten Daten in der Anfrage erkannt wurden, 
-        # versuche trotzdem eine allgemeine Suche mit allen Datentypen
-        # Das verbessert die Chancen, dass strukturierte Daten in die Antworten einfließen
-        if not detected_types:
-            # Versuche proaktiv mit allen Datentypen zu suchen
-            logger.info("Proaktive Suche nach strukturierten Daten...")
-            if tenant_id:
-                try:
-                    # Alle unterstützten Datentypen durchsuchen
-                    all_data_types = list(structured_data_types.keys())
-                    for data_type in all_data_types:
-                        # Nur eine kurze Probeanfrage
-                        test_results = structured_data_service.search_structured_data(
-                            tenant_id=tenant_id,
-                            data_type=data_type,
-                            query=query,
-                            limit=2  # Nur wenige Ergebnisse zur Probe
-                        )
-                        if test_results:
-                            detected_types.append(data_type)
-                            logger.info(f"Proaktiv {len(test_results)} Einträge vom Typ {data_type} gefunden")
-                except Exception as e:
-                    logger.error(f"Fehler bei der proaktiven Suche nach strukturierten Daten: {str(e)}")
-            
-        if not detected_types:
-            return []
-        
-        results = []
-        
-        # Wenn spezifische Entitäten erkannt wurden, nach diesen suchen
-        for data_type in detected_types:
-            entity_results = structured_data_service.search_structured_data(
-                tenant_id=tenant_id,
-                data_type=data_type,
-                query=query,
-                limit=3  # Limit auf wenige, aber hochrelevante Ergebnisse
-            )
-            results.extend(entity_results)
-        
-        # Allgemeine Suche für jeden erkannten Datentyp durchführen, wenn keine spezifischen Entitäten gefunden wurden
-        if not results:
-            for data_type in detected_types:
+        for data_type in data_types:
+            try:
                 type_results = structured_data_service.search_structured_data(
                     tenant_id=tenant_id,
-                    data_type=data_type,
                     query=query,
-                    limit=2  # Weniger Ergebnisse für allgemeine Suche
+                    data_type=data_type,
+                    limit=5
                 )
-                results.extend(type_results)
-        
-        # Duplikate entfernen (basierend auf ID)
-        unique_results = []
-        seen_ids = set()
-        for item in results:
-            item_id = item.get('data', {}).get('id', '')
-            if item_id and item_id not in seen_ids:
-                seen_ids.add(item_id)
-                unique_results.append(item)
-        
-        return unique_results[:5]  # Maximal 5 Ergebnisse zurückgeben
-    
-    async def generate_answer(
-        self,
-        tenant_id: str,
-        query: str, 
-        limit: int = 5,
-        hybrid_search: bool = True,
-        system_prompt: Optional[str] = None,
-        stream: bool = True,
-        use_mistral: bool = False
-    ) -> AsyncGenerator[str, None]:
-        """
-        Führt den RAG-Prozess durch:
-        1. Sucht relevante Dokumente in Weaviate
-        2. Formatiert die gefundenen Dokumente als Kontext
-        3. Generiert eine Antwort mit dem LLM
-        """
-        print(f"RAG generate_answer: Anfrage '{query}' für Tenant {tenant_id}")
-        
-        # Allgemeine Fragen, die keine Dokumente benötigen - vereinfachte Prüfung
-        general_questions = [
-            "wer bist du", "stell dich vor", "was kannst du", "wie heißt du", 
-            "wer hat dich entwickelt", "wer hat dich gemacht", "was ist deine aufgabe", 
-            "was machst du", "wie funktionierst du", "wofür bist du da",
-            "erzähl mir über dich", "erkläre dich", "definiere dich", "identifiziere dich",
-            "stelle dich vor", "beschreibe dich", "hilfe", "help"
-        ]
-        
-        # Prüfen, ob es sich um eine allgemeine Frage über den Bot handelt (vereinfachte Prüfung)
-        is_general_question = False
-        query_lower = query.lower()
-        for q in general_questions:
-            if q in query_lower:
-                is_general_question = True
-                print(f"Allgemeine Frage erkannt über Stichwort: '{q}'")
-                break
-        
-        print(f"Ist allgemeine Frage: {is_general_question}")
-        
-        # WICHTIG: Zuerst nach strukturierten Daten suchen
-        structured_data = await self.get_structured_data_for_query(tenant_id, query)
-        has_structured_data = bool(structured_data)
-        
-        print(f"Strukturierte Daten gefunden: {has_structured_data} (Anzahl: {len(structured_data)})")
-        
-        # Dann nach regulären Dokumenten suchen
-        retrieved_docs = [] if is_general_question else weaviate_service.search(
-            tenant_id=tenant_id,
-            query=query,
-            limit=limit,
-            hybrid_search=hybrid_search
-        )
-        
-        print(f"Gefundene Dokumente: {len(retrieved_docs)}")
-        if retrieved_docs:
-            print(f"Erster Dokumenttitel: {retrieved_docs[0].get('title', 'Kein Titel')}")
-            print(f"Alle gefundenen Dokumente: {[doc.get('title', 'Kein Titel') for doc in retrieved_docs]}")
-        else:
-            print("WARNUNG: Keine Dokumente gefunden für die Anfrage.")
-        
-        # Wenn keine Dokumente gefunden wurden und es keine allgemeine Frage ist
-        if not retrieved_docs and not is_general_question:
-            # Eine weitere Suche versuchen mit verringertem Alpha-Wert (mehr Vektorgewichtung)
-            print("Versuche erneute Suche mit angepassten Parametern...")
-            retrieved_docs = weaviate_service.search(
-                tenant_id=tenant_id,
-                query=query,
-                limit=limit + 5,  # Erhöhtes Limit
-                hybrid_search=True
-            )
-            
-            print(f"Zweiter Versuch - Gefundene Dokumente: {len(retrieved_docs)}")
-            if retrieved_docs:
-                print(f"Zweiter Versuch - Erster Dokumenttitel: {retrieved_docs[0].get('title', 'Kein Titel')}")
-                print(f"Zweiter Versuch - Alle gefundenen Dokumente: {[doc.get('title', 'Kein Titel') for doc in retrieved_docs]}")
-        
-        # Wenn weder Dokumente noch strukturierte Daten gefunden wurden und es keine allgemeine Frage ist
-        if not retrieved_docs and not has_structured_data and not is_general_question:
-            # Gib eine Standardantwort zurück
-            print("FEHLER: Weder Dokumente noch strukturierte Daten gefunden und keine allgemeine Frage")
-            yield "Ich konnte leider keine relevanten Informationen zu Ihrer Anfrage finden. Könnte ich Ihnen mit etwas anderem helfen?"
-            return
-        
-        # 2. Kontext formatieren (leerer Kontext für allgemeine Fragen)
-        context = "" if is_general_question else llm_service.format_retrieved_documents(retrieved_docs)
-        
-        # 3. Antwort generieren - vereinfachtes Streaming
-        try:
-            # System-Prompt generieren
-            system_prompt_text = await llm_service.generate_system_prompt(tenant_id, system_prompt)
-            
-            # UI-Komponenten-Anweisungen hinzufügen
-            from ..services.tenant_service import tenant_service
-            from sqlalchemy.orm import Session
-            from ..db.session import get_db
-            
-            # DB-Session holen
-            db = next(get_db())
-            
-            # UI-Komponenten-Konfiguration abrufen
-            ui_config = tenant_service.get_ui_components_config(db, tenant_id)
-            
-            # NUR tenant-spezifische Komponenten-Konfiguration laden und Anweisungen generieren
-            # Keine generischen UI-Komponenten mehr, wenn nicht explizit konfiguriert
-            tenant = db.query(TenantModel).filter(TenantModel.id == tenant_id).first()
-            
-            if tenant and tenant.ui_components_config:
-                try:
-                    # Verwende die vom Tenant konfigurierte UI-Komponenten-Konfiguration
-                    ui_instructions = self.format_ui_components_instructions(query, ui_config)
-                    if ui_instructions:
-                        system_prompt_text += ui_instructions
-                        logger.info(f"Tenant-spezifische UI-Anweisungen für {tenant_id} hinzugefügt")
-                except Exception as e:
-                    logger.error(f"Fehler beim Verarbeiten der UI-Komponenten-Konfiguration: {str(e)}")
-            else:
-                # Keine UI-Komponenten, wenn nicht explizit konfiguriert
-                logger.info(f"Keine UI-Komponenten-Konfiguration für Tenant {tenant_id} gefunden - verwende reinen Text")
-            
-            # Strukturierte Daten bereits gefunden, jetzt nur noch Anweisungen hinzufügen
-            structured_data_instructions = ""
-            
-            if structured_data:
-                print(f"Gefundene strukturierte Daten: {len(structured_data)}")
-                structured_data_instructions = self.format_structured_data_instructions(query)
                 
-                # Kontext mit strukturierten Daten erweitern
-                context += "\n\nStrukturierte Daten:\n"
-                for item in structured_data:
+                if type_results:
+                    results[data_type] = type_results
+                    logger.info(f"{len(type_results)} {data_type} gefunden für Query '{query}'")
+            except Exception as e:
+                logger.error(f"Fehler beim Suchen nach {data_type}: {e}")
+        
+        return results
+
+    async def get_answer(
+        self, 
+        query: str, 
+        tenant_id: str,
+        db: Session,
+        top_k: int = 5,
+        use_structured_data: bool = True
+    ):
+        """
+        Generiert eine Antwort auf eine Frage basierend auf den abgerufenen Dokumenten und ggf. strukturierten Daten.
+        
+        Args:
+            query: Die Frage des Benutzers
+            tenant_id: Die ID des Tenants
+            db: Die Datenbankverbindung
+            top_k: Anzahl der Dokumente, die abgerufen werden sollen
+            use_structured_data: Ob strukturierte Daten für die Antwort verwendet werden sollen
+            
+        Returns:
+            str: Die generierte Antwort
+        """
+        try:
+            # Tenant-Informationen abrufen
+            tenant = tenant_service.get_tenant_by_id(db, tenant_id)
+            if not tenant:
+                logger.error(f"Tenant mit ID {tenant_id} nicht gefunden")
+                return "Fehler: Tenant nicht gefunden"
+                
+            # Tenant-Name für die Antwort
+            tenant_name = tenant.name
+            
+            # Dokumente basierend auf der Frage abrufen
+            logger.info(f"Suche Dokumente für Query: '{query}', Tenant: {tenant_id}")
+            docs = self.search_manager.search(tenant_id, query, top_k=top_k)
+            
+            if docs:
+                logger.info(f"{len(docs)} Dokumente gefunden")
+                logger.info(f"Top-Dokument: {docs[0].get('title', 'Kein Titel')}")
+            else:
+                logger.info("Keine Dokumente gefunden")
+                
+            # Prüfen, ob strukturierte Daten verwendet werden sollen
+            structured_data_results = []
+            if use_structured_data:
+                # Strukturierte Daten für verschiedene Datentypen abfragen
+                data_types = ["school", "office", "event", "service", "local_law", "kindergarten", "webpage", "waste_management"]
+                
+                # Für jeden Datentyp nach strukturierten Daten suchen
+                for data_type in data_types:
+                    try:
+                        type_results = structured_data_service.search_structured_data(
+                            tenant_id=tenant_id,
+                            query=query,
+                            data_type=data_type,
+                            limit=3  # Begrenzt auf 3 Ergebnisse pro Typ
+                        )
+                        
+                        if type_results:
+                            logger.info(f"{len(type_results)} strukturierte Daten vom Typ '{data_type}' gefunden")
+                            structured_data_results.extend(type_results)
+                    except Exception as e:
+                        logger.error(f"Fehler beim Abrufen von strukturierten Daten vom Typ '{data_type}': {e}")
+                
+                if structured_data_results:
+                    logger.info(f"Insgesamt {len(structured_data_results)} strukturierte Daten gefunden")
+                else:
+                    logger.info("Keine strukturierten Daten gefunden")
+            
+            # Kontext für die Antwort erstellen
+            context = ""
+            
+            # Dokumente zum Kontext hinzufügen
+            if docs:
+                context += "===== DOKUMENTE =====\n\n"
+                for i, doc in enumerate(docs):
+                    title = doc.get("title", "Kein Titel")
+                    content = doc.get("content", "Kein Inhalt").strip()
+                    context += f"DOKUMENT {i+1}: {title}\n{content}\n\n"
+            
+            # Strukturierte Daten zum Kontext hinzufügen
+            if structured_data_results:
+                context += "===== STRUKTURIERTE DATEN =====\n\n"
+                
+                for i, item in enumerate(structured_data_results):
                     data_type = item.get("type", "unknown")
                     data = item.get("data", {})
                     
+                    context += f"STRUKTURIERTES DATUM {i+1} (Typ: {data_type}):\n"
+                    
+                    # Je nach Datentyp die strukturierten Daten formatieren
                     if data_type == "school":
-                        context += f"--- Schule: {data.get('name', 'Unbekannt')} ---\n"
-                        context += f"Typ: {data.get('type', 'Unbekannt')}\n"
-                        context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
-                        if "contact" in data:
-                            contact = data["contact"]
-                            context += f"Kontakt: Tel: {contact.get('phone', '-')}, E-Mail: {contact.get('email', '-')}, Website: {contact.get('website', '-')}\n"
-                        context += f"Weitere Infos: {data.get('additionalInfo', '-')}\n"
-                        context += f"Beschreibung: {data.get('description', '-')}\n"
-                    
+                        context += f"Name: {data.get('name', '')}\n"
+                        context += f"Typ: {data.get('type', '')}\n"
+                        context += f"Adresse: {data.get('address', '')}\n"
+                        
+                        contact = data.get('contact', {})
+                        if contact:
+                            context += f"Telefon: {contact.get('phone', '')}\n"
+                            context += f"E-Mail: {contact.get('email', '')}\n"
+                            context += f"Website: {contact.get('website', '')}\n"
+                            
+                        context += f"Beschreibung: {data.get('description', '')}\n"
+                        context += f"Link: {data.get('link', '')}\n"
+                        
                     elif data_type == "office":
-                        context += f"--- Amt/Behörde: {data.get('name', 'Unbekannt')} ---\n"
-                        context += f"Abteilung: {data.get('department', '-')}\n"
-                        context += f"Adresse: {data.get('address', 'Unbekannt')}\n"
-                        context += f"Öffnungszeiten: {data.get('openingHours', '-')}\n"
-                        if "contact" in data:
-                            contact = data["contact"]
-                            context += f"Kontakt: Tel: {contact.get('phone', '-')}, E-Mail: {contact.get('email', '-')}, Website: {contact.get('website', '-')}\n"
-                        if "services" in data and data["services"]:
-                            context += f"Angebotene Dienstleistungen: {', '.join(data['services'])}\n"
-                        context += f"Beschreibung: {data.get('description', '-')}\n"
-                    
+                        context += f"Name: {data.get('name', '')}\n"
+                        context += f"Abteilung: {data.get('department', '')}\n"
+                        context += f"Adresse: {data.get('address', '')}\n"
+                        context += f"Öffnungszeiten: {data.get('openingHours', '')}\n"
+                        
+                        contact = data.get('contact', {})
+                        if contact:
+                            context += f"Telefon: {contact.get('phone', '')}\n"
+                            context += f"E-Mail: {contact.get('email', '')}\n"
+                            context += f"Website: {contact.get('website', '')}\n"
+                            
+                        services = data.get('services', [])
+                        if services:
+                            context += "Dienstleistungen:\n"
+                            for service in services:
+                                context += f"- {service}\n"
+                                
+                        context += f"Beschreibung: {data.get('description', '')}\n"
+                        
                     elif data_type == "event":
-                        context += f"--- Veranstaltung: {data.get('title', 'Unbekannt')} ---\n"
-                        context += f"Datum: {data.get('date', '-')}\n"
-                        context += f"Uhrzeit: {data.get('time', '-')}\n"
-                        context += f"Ort: {data.get('location', '-')}\n"
-                        context += f"Veranstalter: {data.get('organizer', '-')}\n"
-                        if "contact" in data:
-                            contact = data["contact"]
-                            context += f"Kontakt: Tel: {contact.get('phone', '-')}, E-Mail: {contact.get('email', '-')}, Website: {contact.get('website', '-')}\n"
-                        context += f"Beschreibung: {data.get('description', '-')}\n"
-                        context += f"Inhalt: {data.get('content', '-')}\n"
-                    
-                    elif data_type == "service":
-                        context += f"--- Dienstleistung: {data.get('name', 'Unbekannt')} ---\n"
-                        context += f"Kostenpflichtig: {data.get('kostenpflichtig', False)}\n"
-                        context += f"Online verfügbar: {data.get('onlinedienst', False)}\n"
-                        context += f"Zuständiges Amt: {data.get('amt', '-')}\n"
-                        context += f"Beschreibung: {data.get('beschreibung', '-')}\n"
-                        context += f"Link: {data.get('link', '-')}\n"
-                    
-                    elif data_type == "local_law":
-                        context += f"--- Ortsrecht/Satzung: {data.get('title', 'Unbekannt')} ---\n"
-                        context += f"Beschreibung: {data.get('beschreibung', '-')}\n"
-                        context += f"Inhalt: {data.get('text', '-')}\n"
-                        context += f"Link: {data.get('link', '-')}\n"
-                    
-                    elif data_type == "kindergarten":
-                        context += f"--- Kindergarten/Kita: {data.get('name', 'Unbekannt')} ---\n"
-                        context += f"Adresse: {data.get('address', '-')}\n"
-                        context += f"Öffnungszeiten: {data.get('openingHours', '-')}\n"
-                        if "contact" in data:
-                            contact = data["contact"]
-                            context += f"Kontakt: Tel: {contact.get('phone', '-')}, E-Mail: {contact.get('email', '-')}, Website: {contact.get('website', '-')}\n"
-                        context += f"Link: {data.get('link', '-')}\n"
-                    
-                    elif data_type == "webpage":
-                        context += f"--- Webseite: {data.get('title', 'Unbekannt')} ---\n"
-                        context += f"URL: {data.get('url', '-')}\n"
-                        context += f"Inhalt: {data.get('content', '-')}\n"
-                    
-                    elif data_type == "waste_management":
-                        context += f"--- Abfallentsorgung: {data.get('name', 'Unbekannt')} ---\n"
-                        context += f"Beschreibung: {data.get('description', '-')}\n"
-                        context += f"Inhalt: {data.get('content', '-')}\n"
-                    
+                        context += f"Titel: {data.get('title', '')}\n"
+                        context += f"Datum: {data.get('date', '')}\n"
+                        context += f"Uhrzeit: {data.get('time', '')}\n"
+                        context += f"Ort: {data.get('location', '')}\n"
+                        context += f"Veranstalter: {data.get('organizer', '')}\n"
+                        
+                        contact = data.get('contact', {})
+                        if contact:
+                            context += f"Telefon: {contact.get('phone', '')}\n"
+                            context += f"E-Mail: {contact.get('email', '')}\n"
+                            context += f"Website: {contact.get('website', '')}\n"
+                            
+                        context += f"Beschreibung: {data.get('description', '')}\n"
+                        context += f"Inhalt: {data.get('content', '')}\n"
+                        context += f"Link: {data.get('link', '')}\n"
+                        
                     else:
-                        # Generische Darstellung für unbekannte Typen
-                        context += f"--- {data_type.capitalize()}: {data.get('name', data.get('title', 'Unbekannt'))} ---\n"
+                        # Allgemeine Formatierung für andere Datentypen
                         for key, value in data.items():
-                            if key not in ['id', 'name', 'title'] and not isinstance(value, dict) and not isinstance(value, list):
+                            if isinstance(value, dict):
+                                context += f"{key}:\n"
+                                for sub_key, sub_value in value.items():
+                                    context += f"  {sub_key}: {sub_value}\n"
+                            elif isinstance(value, list):
+                                context += f"{key}:\n"
+                                for item in value:
+                                    context += f"  - {item}\n"
+                            else:
                                 context += f"{key}: {value}\n"
                     
                     context += "\n"
             
-            # Füge die Anweisungen zum System-Prompt hinzu, wenn noch nicht getan
-            if structured_data_instructions and structured_data_instructions not in system_prompt_text:
-                system_prompt_text += structured_data_instructions
+            # Prompt für die Antwortgenerierung erstellen
+            prompt = f"""
+Du bist ein hilfreicher Assistent für {tenant_name}. Deine Aufgabe ist es, präzise, faktisch korrekte Antworten zu geben.
+
+FRAGE:
+{query}
+
+KONTEXT:
+{context}
+
+ANWEISUNGEN:
+1. Beantworte die Frage basierend auf den Informationen im Kontext.
+2. Wenn strukturierte Daten vorhanden sind (z.B. Schulen, Ämter, Veranstaltungen), priorisiere diese in deiner Antwort.
+3. Füge konkrete Details ein, wie Öffnungszeiten, Adressen, Kontaktdaten, wenn diese verfügbar sind.
+4. Bei Veranstaltungen, nenne Datum, Uhrzeit und Ort.
+5. Wenn keine relevanten Informationen im Kontext vorhanden sind, sage ehrlich, dass du diese Information nicht hast.
+6. Verwende einen freundlichen, professionellen Ton.
+7. Antworte auf Deutsch, auch wenn Teile des Kontexts in einer anderen Sprache sein sollten.
+
+ANTWORT:
+"""
             
-            # LLM mit Kontext, System-Prompt und UI-Komponenten-Anweisungen aufrufen
-            print(f"Übergebe Anfrage an LLM mit {len(context.split())} Wörtern Kontext")
+            # Antwort generieren
+            temperature = 0.2  # Niedrige Temperatur für faktenbasierte Antworten
             
-            if stream:
-                # Direkt jeden Chunk weitergeben, ohne Akkumulation
-                async for chunk in llm_service.generate_response(
-                    query=query,
-                    context=context,
-                    system_prompt=system_prompt_text,
-                    stream=True,
-                    use_mistral=use_mistral
-                ):
-                    yield chunk
-            else:
-                # Bei nicht-streaming Antworten sammeln wir den gesamten Text
-                full_response = ""
-                async for chunk in llm_service.generate_response(
-                    query=query,
-                    context=context,
-                    system_prompt=system_prompt_text,
-                    stream=False,
-                    use_mistral=use_mistral
-                ):
-                    full_response += chunk
-                
-                # Gesamte Antwort auf einmal zurückgeben
-                yield full_response
-                
-                # Interaktive Elemente extrahieren und zurückgeben
-                doc_texts = [doc.get("content", "") for doc in retrieved_docs]
-                interactive_elements = interactive_factory.extract_interactive_elements(
-                    tenant_id=tenant_id,
-                    query=query,
-                    doc_texts=doc_texts
-                )
-                
-                if interactive_elements:
-                    # Interaktive Elemente als JSON-String codieren
-                    elements_json = [element.to_json() for element in interactive_elements]
-                    yield f"\n\n<!-- INTERACTIVE_ELEMENTS: {json.dumps(elements_json)} -->"
+            response = await llm_service.generate_text(
+                prompt=prompt,
+                temperature=temperature,
+                max_tokens=1000
+            )
+            
+            return response.strip()
+            
         except Exception as e:
-            # Fehlerbehandlung verbessern
-            print(f"Fehler bei der Antwortgenerierung: {str(e)}")
-            yield f"Es tut mir leid, bei der Verarbeitung Ihrer Anfrage ist ein Fehler aufgetreten: {str(e)}"
+            logger.error(f"Fehler beim Erstellen der Antwort: {e}")
+            return f"Es ist ein Fehler bei der Beantwortung aufgetreten: {str(e)}"
     
     async def process_chat(
         self,
@@ -600,19 +520,37 @@ class RAGService:
         
         try:
             # RAG-Prozess durchführen mit vereinfachtem Streaming
-            async for chunk in self.generate_answer(
-                tenant_id=tenant_id,
-                query=query,
-                system_prompt=system_prompt,
-                stream=stream,
-                use_mistral=use_mistral
-            ):
-                yield chunk
+            if stream:
+                # Bei Streaming den Generator direkt verwenden
+                response_generator = await self.get_answer(
+                    query=query,
+                    tenant_id=tenant_id,
+                    db=SessionLocal(),
+                    top_k=5,
+                    use_structured_data=True
+                )
+                
+                async for chunk in response_generator:
+                    if chunk:
+                        yield chunk
+            else:
+                # Bei nicht-Streaming die komplette Antwort generieren
+                response = await self.get_answer(
+                    query=query,
+                    tenant_id=tenant_id,
+                    db=SessionLocal(),
+                    top_k=5,
+                    use_structured_data=True
+                )
+                
+                if response:
+                    yield response
         except Exception as e:
             # Verbesserte Fehlerbehandlung
-            print(f"Fehler bei der Chat-Verarbeitung: {str(e)}")
-            yield f"Es tut mir leid, bei der Verarbeitung Ihrer Anfrage ist ein Fehler aufgetreten: {str(e)}"
+            error_msg = str(e)
+            logging.error(f"Fehler bei der Chat-Verarbeitung: {error_msg}", exc_info=True)
+            yield f"Es tut mir leid, bei der Verarbeitung Ihrer Anfrage ist ein Fehler aufgetreten: {error_msg}"
 
 
-# Singleton-Instanz des Services
+# Instanz des RAG-Service erzeugen
 rag_service = RAGService() 

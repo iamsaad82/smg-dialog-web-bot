@@ -1,129 +1,180 @@
 #!/usr/bin/env python3
 """
-Brandenburg Structured Data Update Script
-
-Dieses Skript aktualisiert die strukturierten Daten für Brandenburg-Tenants.
-Es lädt die XML-Datei direkt von der Stadt-Brandenburg-Website herunter und
-importiert Schulen, Ämter und Veranstaltungen in die Weaviate-Datenbank.
-
-Verwendung:
-    python update_structured_data.py
+Skript zum regelmäßigen Update der strukturierten Daten aus XML-Quellen.
 """
 
-import sys
 import os
+import sys
 import logging
-from pathlib import Path
-import time
+from datetime import datetime
+import argparse
+import traceback
+
+# Pfad zum Backend-Verzeichnis hinzufügen, um Importe zu ermöglichen
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(backend_dir)
+
+from app.db.session import get_db, SessionLocal
+from app.db.models import Tenant
+from app.services.structured_data_service import structured_data_service
+from app.services.tenant_service import tenant_service
 
 # Logging konfigurieren
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(os.path.join(backend_dir, 'logs', 'update_structured_data.log'))
+    ]
 )
-logger = logging.getLogger("brandenburg_update")
+logger = logging.getLogger(__name__)
 
-# Projektroot finden und zum Python-Pfad hinzufügen
-current_file = Path(__file__).resolve()
-project_root = current_file.parent.parent
-sys.path.insert(0, str(project_root))
+# Konstanten
+TEMP_DIR = os.path.join(backend_dir, 'temp')
 
-# Benötigte Module importieren
-try:
-    from app.db.session import SessionLocal
-    from app.models.tenant import Tenant
-    from app.services.xml_parser_service import BrandenburgXMLParser
-    from app.services.structured_data_service import StructuredDataService
-    import weaviate
-    from weaviate.classes.config import DataType
-except ImportError as e:
-    logger.error(f"Fehler beim Importieren der benötigten Module: {e}")
-    sys.exit(1)
-
-# URL der XML-Datei
-BRANDENBURG_XML_URL = "https://www.stadt-brandenburg.de/_/a/chatbot/daten.xml"
-
-def patch_weaviate_datatypes():
+def download_and_import_xml(tenant_id, xml_url, xml_type="generic"):
     """
-    Patcht die Weaviate-Datentypen, falls nötig.
-    In neueren Weaviate-Versionen wurde BOOLEAN zu BOOL.
+    Lädt eine XML-Datei herunter und importiert sie für einen Tenant.
+    
+    Args:
+        tenant_id: ID des Tenants
+        xml_url: URL der XML-Datei
+        xml_type: Typ der XML-Datei (generic, brandenburg, etc.)
+        
+    Returns:
+        bool: True bei Erfolg, False bei Fehler
     """
-    # Überprüfen, ob BOOL oder BOOLEAN existiert
-    datatypes = [attr for attr in dir(DataType) if not attr.startswith('_')]
-    logger.info(f"Verfügbare DataType Enums: {datatypes}")
-    
-    if 'BOOLEAN' in datatypes and not 'BOOL' in datatypes:
-        # Ältere Weaviate-Version, nichts zu tun
-        logger.info("Verwende BOOLEAN DataType (ältere Weaviate-Version)")
-    elif 'BOOL' in datatypes and not 'BOOLEAN' in datatypes:
-        # Neuere Weaviate-Version, wo BOOLEAN nicht mehr existiert
-        logger.info("Verwende BOOL DataType (neuere Weaviate-Version)")
-    else:
-        logger.info("Beide Datentypen existieren oder keiner existiert, kein Patching notwendig")
-
-def get_brandenburg_tenants():
-    """Holt alle Tenants mit Brandenburg-Flag aus der Datenbank."""
-    try:
-        db = SessionLocal()
-        tenants = db.query(Tenant).filter(Tenant.is_brandenburg == True).all()
-        db.close()
-        return tenants
-    except Exception as e:
-        logger.error(f"Fehler beim Abrufen der Brandenburg-Tenants: {e}")
-        return []
-
-def update_tenant_data(tenant):
-    """Aktualisiert die Daten für einen Brandenburg-Tenant."""
-    tenant_id = str(tenant.id)
-    tenant_name = tenant.name
-    
-    logger.info(f"Starte Import für Tenant: {tenant_name} (ID: {tenant_id})")
+    import requests
+    import tempfile
     
     try:
-        # Daten importieren
-        result = StructuredDataService.import_brandenburg_data_from_url(
-            url=BRANDENBURG_XML_URL,
-            tenant_id=tenant_id
-        )
+        # Temporäres Verzeichnis erstellen, falls nicht vorhanden
+        os.makedirs(TEMP_DIR, exist_ok=True)
         
-        # Ergebnisse protokollieren
-        logger.info(f"Import für {tenant_name} abgeschlossen:")
-        logger.info(f"  - Schulen: {result['schools']}")
-        logger.info(f"  - Ämter: {result['offices']}")
-        logger.info(f"  - Veranstaltungen: {result['events']}")
+        # Temporäre Datei für XML-Download erstellen
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.xml', dir=TEMP_DIR)
+        temp_file_path = temp_file.name
+        temp_file.close()
         
-        total = result['schools'] + result['offices'] + result['events']
-        return total
+        logger.info(f"Starte Download von {xml_url} für Tenant {tenant_id}")
+        
+        # XML-Datei herunterladen
+        response = requests.get(xml_url, stream=True, timeout=30)
+        response.raise_for_status()
+        
+        with open(temp_file_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        logger.info(f"Download abgeschlossen: {temp_file_path}")
+        
+        # XML-Datei importieren
+        import_stats = structured_data_service.import_xml_data(temp_file_path, tenant_id, xml_type)
+        
+        logger.info(f"Import für Tenant {tenant_id} abgeschlossen: {import_stats}")
+        
+        # Temporäre Datei löschen
+        os.unlink(temp_file_path)
+        
+        return True
+        
     except Exception as e:
-        logger.error(f"Fehler beim Import für Tenant {tenant_name}: {e}")
-        return 0
+        logger.error(f"Fehler beim Download/Import für Tenant {tenant_id}: {str(e)}")
+        logger.error(traceback.format_exc())
+        return False
 
 def main():
-    """Hauptfunktion zum Ausführen des Updates."""
-    start_time = time.time()
-    logger.info("Starte Brandenburg Strukturdaten-Update...")
+    """Hauptfunktion zum Aktualisieren der strukturierten Daten aus XML-Quellen."""
+    logger.info("Starte Update der strukturierten Daten")
     
-    # Weaviate DataTypes patchen
-    patch_weaviate_datatypes()
+    try:
+        # Datenbankverbindung herstellen
+        db = SessionLocal()
+        
+        # Tenant-Konfigurationen abrufen
+        tenant_configs = db.query(Tenant).all()
+        
+        if not tenant_configs:
+            logger.warning("Keine Tenants gefunden")
+            return
+        
+        # XML-Daten für jeden Tenant aktualisieren
+        for tenant in tenant_configs:
+            # Prüfen, ob der Tenant einen spezifischen Renderer-Typ hat
+            xml_type = "generic"
+            if tenant.renderer_type != "default":
+                xml_type = tenant.renderer_type
+            
+            # Prüfen, ob XML-URL in der Tenant-Konfiguration vorhanden ist
+            config = tenant.config or {}
+            xml_url = config.get("xml_url", "")
+            
+            if not xml_url:
+                logger.info(f"Keine XML-URL für Tenant {tenant.id} konfiguriert, überspringe")
+                continue
+            
+            logger.info(f"Aktualisiere strukturierte Daten für Tenant {tenant.id} mit XML-Typ {xml_type}")
+            success = download_and_import_xml(tenant.id, xml_url, xml_type)
+            
+            if success:
+                logger.info(f"Update für Tenant {tenant.id} erfolgreich")
+            else:
+                logger.error(f"Update für Tenant {tenant.id} fehlgeschlagen")
+        
+        db.close()
+        logger.info("Update der strukturierten Daten abgeschlossen")
     
-    # Brandenburg-Tenants abrufen
-    tenants = get_brandenburg_tenants()
-    
-    if not tenants:
-        logger.warning("Keine Tenants mit Brandenburg-Flag gefunden!")
-        sys.exit(0)
-    
-    logger.info(f"Gefunden: {len(tenants)} Brandenburg-Tenants")
-    
-    # Daten für jeden Tenant aktualisieren
-    total_items = 0
-    for tenant in tenants:
-        items = update_tenant_data(tenant)
-        total_items += items
-    
-    # Zusammenfassung
-    elapsed_time = time.time() - start_time
-    logger.info(f"Update abgeschlossen. Insgesamt {total_items} Einträge in {elapsed_time:.2f} Sekunden importiert.")
+    except Exception as e:
+        logger.error(f"Fehler beim Update der strukturierten Daten: {str(e)}")
+        logger.error(traceback.format_exc())
+        if 'db' in locals():
+            db.close()
 
 if __name__ == "__main__":
-    main() 
+    # Kommandozeilenargumente parsen
+    parser = argparse.ArgumentParser(description='Update strukturierte Daten aus XML-Quellen')
+    parser.add_argument('--tenant', help='ID eines spezifischen Tenants (optional)')
+    parser.add_argument('--url', help='URL der XML-Datei (optional, überschreibt Tenant-Konfiguration)')
+    args = parser.parse_args()
+    
+    if args.tenant:
+        # Update für einen spezifischen Tenant
+        try:
+            db = SessionLocal()
+            tenant = db.query(Tenant).filter(Tenant.id == args.tenant).first()
+            
+            if not tenant:
+                logger.error(f"Tenant mit ID {args.tenant} nicht gefunden")
+                sys.exit(1)
+            
+            xml_type = "generic"
+            if tenant.renderer_type != "default":
+                xml_type = tenant.renderer_type
+            
+            xml_url = args.url or (tenant.config or {}).get("xml_url", "")
+            
+            if not xml_url:
+                logger.error(f"Keine XML-URL für Tenant {args.tenant} angegeben")
+                sys.exit(1)
+            
+            logger.info(f"Starte manuelles Update für Tenant {args.tenant}")
+            success = download_and_import_xml(args.tenant, xml_url, xml_type)
+            
+            if success:
+                logger.info(f"Manuelles Update für Tenant {args.tenant} erfolgreich")
+            else:
+                logger.error(f"Manuelles Update für Tenant {args.tenant} fehlgeschlagen")
+                sys.exit(1)
+                
+            db.close()
+        
+        except Exception as e:
+            logger.error(f"Fehler beim manuellen Update: {str(e)}")
+            logger.error(traceback.format_exc())
+            if 'db' in locals():
+                db.close()
+            sys.exit(1)
+    else:
+        # Update für alle Tenants
+        main() 

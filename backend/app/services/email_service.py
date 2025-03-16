@@ -122,62 +122,52 @@ class EmailService:
         self, 
         email: EmailStr,
         reset_token: str,
-        username: str
+        name: str
     ) -> bool:
         """
         Sendet eine E-Mail mit einem Link zum Zurücksetzen des Passworts
         """
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        reset_url = f"{frontend_url}/auth/reset-password-confirm?token={reset_token}"
-        
         context = {
-            "username": username,
-            "reset_url": reset_url,
-            "expires_in_hours": 24,
-            "application_name": "AI Bot Dashboard"
+            'reset_token': reset_token,
+            'name': name,
+            'reset_url': f"https://example.com/reset-password?token={reset_token}"
         }
         
         try:
-            html_content = self.render_template("password_reset", context)
-            
+            html_content = self.render_template('password_reset.html', context)
             return self.send_email(
                 to_emails=[email],
-                subject="Passwort zurücksetzen",
+                subject="Zurücksetzen Ihres Passworts",
                 html_content=html_content
             )
         except Exception as e:
-            logger.error(f"Fehler beim Senden der Passwort-Reset-E-Mail: {str(e)}")
+            logger.error(f"Fehler beim Generieren der Passwort-Reset-E-Mail: {str(e)}")
             return False
-
+    
     def send_welcome_email(
         self,
         email: EmailStr,
-        username: str,
+        name: str,
         password: Optional[str] = None
     ) -> bool:
         """
-        Sendet eine Willkommens-E-Mail an einen neuen Benutzer
+        Sendet eine Willkommens-E-Mail an einen neu erstellten Benutzer
         """
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-        login_url = f"{frontend_url}/auth/login"
-        
         context = {
-            "username": username,
-            "login_url": login_url,
-            "password": password,
-            "application_name": "AI Bot Dashboard"
+            'name': name,
+            'password': password,
+            'login_url': 'https://example.com/login'
         }
         
         try:
-            html_content = self.render_template("welcome", context)
-            
+            html_content = self.render_template('welcome.html', context)
             return self.send_email(
                 to_emails=[email],
-                subject="Willkommen beim AI Bot Dashboard",
+                subject="Willkommen beim KI-Bot-System",
                 html_content=html_content
             )
         except Exception as e:
-            logger.error(f"Fehler beim Senden der Willkommens-E-Mail: {str(e)}")
+            logger.error(f"Fehler beim Generieren der Willkommens-E-Mail: {str(e)}")
             return False
 
 # Singleton-Instanz erstellen

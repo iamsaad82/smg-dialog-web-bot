@@ -1,3 +1,5 @@
+import { InteractiveElement } from './interactive';
+
 // Tenant-Typen
 export interface Tenant {
   id: string;
@@ -18,7 +20,11 @@ export interface Tenant {
   bot_message_text_color?: string;
   user_message_bg_color?: string;
   user_message_text_color?: string;
-  is_brandenburg?: boolean;
+  renderer_type: string;
+  config?: {
+    xml_url?: string;
+    [key: string]: any;
+  };
 }
 
 export interface TenantCreate {
@@ -33,7 +39,11 @@ export interface TenantCreate {
   secondary_color?: string;
   logo_url?: string;
   use_mistral?: boolean;
-  is_brandenburg?: boolean;
+  renderer_type?: string;
+  config?: {
+    xml_url?: string;
+    [key: string]: any;
+  };
 }
 
 export interface TenantUpdate {
@@ -51,7 +61,11 @@ export interface TenantUpdate {
   bot_message_text_color?: string;
   user_message_bg_color?: string;
   user_message_text_color?: string;
-  is_brandenburg?: boolean;
+  renderer_type?: string;
+  config?: {
+    xml_url?: string;
+    [key: string]: any;
+  };
 }
 
 // Dokument-Typen
@@ -78,6 +92,9 @@ export interface DocumentCreate {
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  id?: string;
+  timestamp?: string;
+  interactiveElements?: InteractiveElement[];
 }
 
 export interface ChatQuery {

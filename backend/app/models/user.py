@@ -34,12 +34,10 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(String(36), primary_key=True, index=True, default=lambda: str(uuid4()))
-    username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
-    first_name = Column(String(50), nullable=False)
-    last_name = Column(String(50), nullable=False)
+    full_name = Column(String(100), nullable=True)
     hashed_password = Column(String(255), nullable=False)
-    role = Column(Enum(UserRole), default=UserRole.VIEWER, nullable=False)
+    role = Column(String, default=UserRole.VIEWER.value, nullable=False)
     agency_id = Column(String(36), ForeignKey("agencies.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     
@@ -57,16 +55,13 @@ class User(Base):
     assigned_tenants = relationship("Tenant", secondary=user_tenant, back_populates="assigned_users")
     
     def __repr__(self):
-        return f"<User {self.username}>"
+        return f"<User {self.email}>"
 
 
 # Pydantic-Modelle für API-Requests und Responses
 class UserBase(BaseModel):
-    username: str
-    # EmailStr wieder einführen
     email: EmailStr
-    first_name: str
-    last_name: str
+    full_name: Optional[str] = None
     role: UserRole
     agency_id: Optional[str] = None
     
@@ -79,12 +74,9 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    username: Optional[str] = None
-    # EmailStr wieder einführen
     email: Optional[EmailStr] = None
     password: Optional[str] = None
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    full_name: Optional[str] = None
     role: Optional[UserRole] = None
     agency_id: Optional[str] = None
     assigned_tenant_ids: Optional[List[str]] = None

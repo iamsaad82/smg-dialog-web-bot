@@ -28,43 +28,40 @@ def create_initial_superuser(db: Session) -> bool:
         return False
     
     # Prüfen, ob bereits ein Admin-Benutzer existiert
-    existing_admin = db.query(User).filter(User.role == UserRole.ADMIN).first()
+    existing_admin = db.query(User).filter(User.role == "admin").first()
     if existing_admin:
-        logger.info(f"Ein Admin-Benutzer existiert bereits ({existing_admin.username}). Kein neuer Superuser erstellt.")
+        logger.info(f"Ein Admin-Benutzer existiert bereits ({existing_admin.email}). Kein neuer Superuser erstellt.")
         return False
     
-    # Prüfen, ob ein Benutzer mit dem angegebenen Benutzernamen oder der E-Mail existiert
-    existing_user = db.query(User).filter(
-        (User.username == settings.FIRST_SUPERUSER_USERNAME) | 
-        (User.email == settings.FIRST_SUPERUSER_EMAIL)
-    ).first()
+    # Prüfen, ob ein Benutzer mit der angegebenen E-Mail existiert
+    existing_user = db.query(User).filter(User.email == settings.FIRST_SUPERUSER_EMAIL).first()
     
     if existing_user:
         logger.warning(
-            f"Ein Benutzer mit dem Benutzernamen '{settings.FIRST_SUPERUSER_USERNAME}' " 
-            f"oder der E-Mail '{settings.FIRST_SUPERUSER_EMAIL}' existiert bereits. " 
+            f"Ein Benutzer mit der E-Mail '{settings.FIRST_SUPERUSER_EMAIL}' existiert bereits. " 
             f"Kein neuer Superuser erstellt."
         )
         return False
     
     # Superuser erstellen
     try:
-        logger.info(f"Erstelle initialen Superuser '{settings.FIRST_SUPERUSER_USERNAME}'...")
+        logger.info(f"Erstelle initialen Superuser mit E-Mail '{settings.FIRST_SUPERUSER_EMAIL}'...")
+        
+        # Vollständigen Namen zusammensetzen
+        full_name = f"{settings.FIRST_SUPERUSER_FIRSTNAME} {settings.FIRST_SUPERUSER_LASTNAME}".strip()
         
         superuser = User(
-            username=settings.FIRST_SUPERUSER_USERNAME,
             email=settings.FIRST_SUPERUSER_EMAIL,
             hashed_password=get_password_hash(settings.FIRST_SUPERUSER_PASSWORD),
-            first_name=settings.FIRST_SUPERUSER_FIRSTNAME,
-            last_name=settings.FIRST_SUPERUSER_LASTNAME,
-            role=UserRole.ADMIN,
+            full_name=full_name,
+            role="admin",
             is_active=True
         )
         
         db.add(superuser)
         db.commit()
         
-        logger.info(f"Superuser '{settings.FIRST_SUPERUSER_USERNAME}' wurde erfolgreich erstellt!")
+        logger.info(f"Superuser mit E-Mail '{settings.FIRST_SUPERUSER_EMAIL}' wurde erfolgreich erstellt!")
         return True
         
     except Exception as e:

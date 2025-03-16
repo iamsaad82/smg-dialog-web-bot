@@ -7,6 +7,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   structured_data?: StructuredData[];
+  interactiveElements?: InteractiveElement[];
 }
 
 /**
