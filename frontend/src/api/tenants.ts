@@ -9,7 +9,7 @@ export class TenantApi {
     
     try {
       // Direkter Fetch mit Admin-API-Key statt axios
-      const response = await fetch(`${API_BASE_URL}/tenants`, {
+      const response = await fetch(`http://localhost:8000/api/v1/tenants`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -30,7 +30,7 @@ export class TenantApi {
         const { DEFAULT_BASE_PROMPT, DEFAULT_RULES } = await import('../components/ui-components-editor/shared/constants');
         
         // UI-Komponenten-Konfiguration speichern
-        await fetch(`${API_BASE_URL}/tenants/${newTenant.id}/ui-components`, {
+        await fetch(`http://localhost:8000/api/v1/tenants/${newTenant.id}/ui-components`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -56,7 +56,17 @@ export class TenantApi {
   }
 
   async getTenant(id: string): Promise<Tenant> {
-    const response = await fetch(`${API_BASE_URL}/tenants/${id}`);
+    const adminApiKey = "admin-secret-key-12345";
+    
+    // Direct fetch to backend
+    const response = await fetch(`http://localhost:8000/api/v1/tenants/${id}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': adminApiKey
+      }
+    });
+    
     if (!response.ok) {
       throw new Error(`Fehler beim Abrufen des Tenants: ${response.statusText}`);
     }
@@ -77,7 +87,17 @@ export class TenantApi {
   }
 
   async getAllTenants(): Promise<Tenant[]> {
-    const response = await fetch(`${API_BASE_URL}/tenants`);
+    const adminApiKey = "admin-secret-key-12345";
+    
+    // Direct fetch to backend
+    const response = await fetch(`http://localhost:8000/api/v1/tenants/`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': adminApiKey
+      }
+    });
+    
     if (!response.ok) {
       throw new Error(`Fehler beim Abrufen der Tenants: ${response.statusText}`);
     }
@@ -108,10 +128,13 @@ export class TenantApi {
     console.log("updateTenant - renderer_type:", sanitizedData.renderer_type);
     console.log("updateTenant - config:", sanitizedData.config);
     
-    const response = await fetch(`${API_BASE_URL}/tenants/${id}`, {
+    const adminApiKey = "admin-secret-key-12345";
+    
+    const response = await fetch(`http://localhost:8000/api/v1/tenants/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        'X-API-Key': adminApiKey
       },
       body: JSON.stringify(sanitizedData),
     });
@@ -131,7 +154,7 @@ export class TenantApi {
     const adminApiKey = "admin-secret-key-12345";
     
     try {
-      const response = await fetch(`${API_BASE_URL}/tenants/${id}`, {
+      const response = await fetch(`http://localhost:8000/api/v1/tenants/${id}`, {
         method: 'DELETE',
         headers: {
           'X-API-Key': adminApiKey
@@ -153,7 +176,7 @@ export class TenantApi {
     const adminApiKey = "admin-secret-key-12345";
     
     try {
-      const response = await fetch(`${API_BASE_URL}/admin/weaviate-status`, {
+      const response = await fetch(`http://localhost:8000/api/v1/admin/weaviate-status`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -175,7 +198,7 @@ export class TenantApi {
   async getEmbedConfig(apiKey: string): Promise<any> {
     try {
       // Direkter Fetch mit API-Key statt axios
-      const response = await fetch(`${API_BASE_URL}/embed/config`, {
+      const response = await fetch(`http://localhost:8000/api/v1/embed/config`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -199,7 +222,7 @@ export class TenantApi {
     const adminApiKey = "admin-secret-key-12345";
     
     try {
-      const response = await fetch(`${API_BASE_URL}/tenants/${id}/details`, {
+      const response = await fetch(`http://localhost:8000/api/v1/tenants/${id}/details`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -220,4 +243,4 @@ export class TenantApi {
 }
 
 // Singleton-Instanz
-export const tenantApi = new TenantApi(); 
+export const tenantApi = new TenantApi();

@@ -10,14 +10,10 @@ const nextConfig = {
   },
   // Proxy-Konfiguration für API-Anfragen
   async rewrites() {
-    // In Docker-Umgebung verwenden wir den Backend-Servicenamen
-    // In der Entwicklungsumgebung auf dem Host verwenden wir localhost
-    let backendUrl = process.env.BACKEND_URL || 'http://backend:8000';
+    // Hardcoded URL für den Backend-Service
+    let backendUrl = 'http://backend:8000';
     
-    // Wenn wir im Container sind und BACKEND_URL nicht gesetzt ist, verwenden wir den Container-Namen
-    if (process.env.NODE_ENV === 'development' && !process.env.BACKEND_URL && !process.env.DOCKER_CONTAINER) {
-      backendUrl = 'http://localhost:8000';
-    }
+    console.log('Using hardcoded backend URL:', backendUrl);
     
     console.log(`Backend URL for rewrites: ${backendUrl}`);
     
@@ -26,8 +22,12 @@ const nextConfig = {
         source: '/api/:path*',
         destination: `${backendUrl}/api/:path*`,
       },
+      {
+        source: '/api/:path*/',
+        destination: `${backendUrl}/api/:path*/`,
+      },
     ];
   },
 }
 
-module.exports = nextConfig 
+module.exports = nextConfig

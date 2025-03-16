@@ -65,8 +65,8 @@ export default function TenantXMLImportPage() {
       formData.append("tenant_id", tenantId as string);
       formData.append("xml_type", xmlType);
 
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
-      const response = await fetch(`${backendUrl}/api/v1/structured-data/import/xml`, {
+      const backendUrl = "http://localhost:8000/api/v1";
+      const response = await fetch(`${backendUrl}/structured-data/import/xml`, {
         method: "POST",
         headers: {
           "X-API-Key": tenant?.api_key || "",
@@ -116,9 +116,9 @@ export default function TenantXMLImportPage() {
     const toastId = startProgress("XML-Daten werden von URL importiert...");
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+      const backendUrl = "http://localhost:8000/api/v1";
       const response = await fetch(
-        `${backendUrl}/api/v1/structured-data/import/xml/url`,
+        `${backendUrl}/structured-data/import/xml/url`,
         {
           method: "POST",
           headers: {
@@ -169,9 +169,9 @@ export default function TenantXMLImportPage() {
     const toastId = startProgress("XML-Fix-Import wird im Hintergrund gestartet...");
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
+      const backendUrl = "http://localhost:8000/api/v1";
       const response = await fetch(
-        `${backendUrl}/api/v1/structured-data/admin/fix-xml-import`,
+        `${backendUrl}/structured-data/admin/fix-xml-import`,
         {
           method: "POST",
           headers: {
@@ -454,4 +454,4 @@ export default function TenantXMLImportPage() {
       </div>
     </AdminLayout>
   );
-} 
+}
