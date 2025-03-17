@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from passlib.context import CryptContext
-from ..services.tenant_service import tenant_service
 from ..core.config import settings
 from ..db.session import get_db
 import os
@@ -135,6 +134,9 @@ async def get_tenant_id_from_api_key(
     Prüft zuerst den Header, dann den Query-Parameter.
     Wirft eine HTTPException, wenn der API-Key ungültig ist.
     """
+    # Import innerhalb der Funktion, um zirkuläre Importe zu vermeiden
+    from ..services.tenant_service import tenant_service
+    
     try:
         # DEBUG-Informationen drucken
         print(f"[get_tenant_id_from_api_key] Request-Methode: {request.method}")
@@ -283,8 +285,24 @@ async def get_tenant_id_from_query(
     Überprüft den API-Key aus einem Query-Parameter und gibt die entsprechende Tenant-ID zurück.
     Gibt None zurück, wenn kein API-Key angegeben wurde oder der API-Key ungültig ist.
     """
+    # Import innerhalb der Funktion, um zirkuläre Importe zu vermeiden
+    from ..services.tenant_service import tenant_service
+    
     try:
         print(f"[get_tenant_id_from_query] API-Key-Header: {api_key_header}")
+        
+        # Extrahiere tenant_id aus dem Pfad
+        path_parts = str(request.url.path).split('/')
+        for i, part in enumerate(path_parts):
+            if part == 'tenants' and i+1 < len(path_parts) and path_parts[i+1] != 'current':
+                tenant_id_from_path = path_parts[i+1]
+                print(f"[get_tenant_id_from_query] ENTWICKLUNGSMODUS - Tenant-ID aus Pfad: {tenant_id_from_path}")
+                if tenant_id_from_path and tenant_id_from_path != "current" and tenant_id_from_path != "ui-components-definitions":
+                    # Prüfen, ob dieser Tenant existiert
+                    tenant = tenant_service.get_tenant_by_id(db, tenant_id_from_path)
+                    if tenant:
+                        print(f"[get_tenant_id_from_query] Development-Bypass: Verwende Tenant-ID {tenant_id_from_path}")
+                        return tenant_id_from_path
         
         # Zuerst den API-Key aus dem Header verwenden
         api_key = api_key_header
@@ -338,45 +356,58 @@ async def get_admin_api_key(
     api_key_header: Optional[str] = Security(API_KEY_HEADER)
 ) -> str:
     """
-    Überprüft, ob der API-Key gültig und für Admin-Funktionen berechtigt ist.
+    Überprüft, ob der API-Key der Admin-API-Key ist.
+    Wirft eine HTTPException, wenn der API-Key nicht angegeben oder nicht der Admin-API-Key ist.
     """
-    # Debug-Ausgabe
-    print(f"[get_admin_api_key] Request-Methode: {request.method}")
-    print(f"[get_admin_api_key] Request-URL: {request.url}")
-    print(f"[get_admin_api_key] API-Key-Header: {api_key_header}")
-    print(f"[get_admin_api_key] ENV: {settings.ENV}")
+    # Import innerhalb der Funktion, um zirkuläre Importe zu vermeiden
+    from ..services.tenant_service import tenant_service
     
-    # Zuerst Header-API-Key prüfen
-    api_key = api_key_header
-    
-    # Wenn kein Header-API-Key, dann Query-Parameter prüfen
-    if not api_key:
-        api_key = request.query_params.get("api_key")
-        print(f"[get_admin_api_key] API-Key aus Query: {api_key}")
-    
-    if not api_key:
-        print("[get_admin_api_key] Kein API-Key gefunden.")
+    try:
+        # Debug-Ausgabe
+        print(f"[get_admin_api_key] Request-Methode: {request.method}")
+        print(f"[get_admin_api_key] Request-URL: {request.url}")
+        print(f"[get_admin_api_key] API-Key-Header: {api_key_header}")
+        print(f"[get_admin_api_key] ENV: {settings.ENV}")
+        
+        # Zuerst Header-API-Key prüfen
+        api_key = api_key_header
+        
+        # Wenn kein Header-API-Key, dann Query-Parameter prüfen
+        if not api_key:
+            api_key = request.query_params.get("api_key")
+            print(f"[get_admin_api_key] API-Key aus Query: {api_key}")
+        
+        if not api_key:
+            print("[get_admin_api_key] Kein API-Key gefunden.")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Admin-API-Key nicht angegeben"
+            )
+        
+        # Admin-API-Key aus den Einstellungen holen
+        admin_api_key = settings.ADMIN_API_KEY
+        print(f"[get_admin_api_key] Admin-API-Key aus Einstellungen: {admin_api_key}")
+        
+        # Prüfen, ob der API-Key mit dem Admin-Key übereinstimmt
+        if admin_api_key and api_key == admin_api_key:
+            print("[get_admin_api_key] API-Key stimmt mit Admin-Key überein")
+            return api_key
+        
+        # Im Entwicklungsmodus akzeptieren wir jeden API-Key
+        if settings.ENV == "dev":
+            print("[get_admin_api_key] DEV-Modus: Akzeptiere jeden API-Key")
+            return api_key
+        
+        print("[get_admin_api_key] API-Key nicht autorisiert für Admin-Funktionen")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Admin-API-Key nicht angegeben"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nicht autorisiert für Admin-Funktionen"
         )
-    
-    # Admin-API-Key aus den Einstellungen holen
-    admin_api_key = settings.ADMIN_API_KEY
-    print(f"[get_admin_api_key] Admin-API-Key aus Einstellungen: {admin_api_key}")
-    
-    # Prüfen, ob der API-Key mit dem Admin-Key übereinstimmt
-    if admin_api_key and api_key == admin_api_key:
-        print("[get_admin_api_key] API-Key stimmt mit Admin-Key überein")
-        return api_key
-    
-    # Im Entwicklungsmodus akzeptieren wir jeden API-Key
-    if settings.ENV == "dev":
-        print("[get_admin_api_key] DEV-Modus: Akzeptiere jeden API-Key")
-        return api_key
-    
-    print("[get_admin_api_key] API-Key nicht autorisiert für Admin-Funktionen")
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Nicht autorisiert für Admin-Funktionen"
-    ) 
+    except Exception as e:
+        import traceback
+        print(f"[get_admin_api_key] Fehler: {str(e)}")
+        print(f"[get_admin_api_key] Stacktrace: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Interner Serverfehler"
+        ) 

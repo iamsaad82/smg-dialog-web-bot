@@ -31,7 +31,7 @@ def get_database_url():
     # Umgebungsvariablen lesen
     DB_USER = os.environ.get("POSTGRES_USER", "postgres")
     DB_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "postgres")
-    DB_HOST = os.environ.get("POSTGRES_HOST", "localhost")
+    DB_HOST = "db"  # Hardcoded to use the Docker service name
     DB_PORT = os.environ.get("POSTGRES_PORT", "5432")
     DB_NAME = os.environ.get("POSTGRES_DB", "dialog_ai")
     
@@ -175,4 +175,4 @@ if __name__ == "__main__":
         sys.exit(1)
     
     logger.info("Migrations-Skript erfolgreich abgeschlossen.")
-    sys.exit(0) 
+    sys.exit(0)

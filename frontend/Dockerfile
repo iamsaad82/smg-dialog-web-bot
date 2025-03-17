@@ -30,7 +30,8 @@ RUN npm install --legacy-peer-deps \
     @radix-ui/react-accordion \
     sonner \
     zod \
-    @hookform/resolvers
+    @hookform/resolvers \
+    formidable
 
 # Skript ausführbar machen
 RUN chmod +x ./docker-entrypoint.sh

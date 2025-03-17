@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { AdminLayout } from "@/components/layouts/admin-layout";
@@ -27,26 +27,60 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tenant } from "@/types/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { API_BASE_URL } from '@/api/core';
-import { Breadcrumb } from "@/components/breadcrumb";
-import { useTenant } from "@/hooks/use-tenant";
+import api from "@/api";
 
 export default function TenantDataImportsPage() {
   const router = useRouter();
-  const { tenantId } = router.query;
-  const { tenant, isLoading, error } = useTenant(tenantId as string);
+  const { id: tenantId } = router.query;
 
-  if (isLoading) {
+  // Client-only State für API-Aufrufe
+  const [isClient, setIsClient] = useState(false);
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  // Beim ersten Render prüfen, ob wir im Browser sind
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Tenant-Daten laden, aber nur im Browser
+  useEffect(() => {
+    if (!isClient || !tenantId) return;
+
+    const loadTenant = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        console.log(`Lade Tenant mit ID ${tenantId} (clientseitig)`);
+        const tenantData = await api.getTenant(tenantId as string);
+        setTenant(tenantData);
+      } catch (err) {
+        console.error("Fehler beim Laden des Tenants:", err);
+        setError(err instanceof Error ? err : new Error("Fehler beim Laden der Kundendaten"));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTenant();
+  }, [tenantId, isClient]);
+
+  // Standard Breadcrumb für alle Varianten
+  const breadcrumbItems = [
+    { href: "/tenants", label: "Mandanten" },
+    { href: `/tenants/${tenantId}`, label: "Details" },
+    { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe", isCurrent: true },
+  ];
+
+  // Während des serverseitigen Renderings oder beim Laden im Client eine einfache Ladeanzeige anzeigen
+  if (!isClient || isLoading) {
     return (
-      <AdminLayout>
-        <Breadcrumb
-          items={[
-            { href: "/tenants", label: "Mandanten" },
-            { href: `/tenants/${tenantId}`, label: "Details" },
-            { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe", isCurrent: true },
-          ]}
-        />
+      <AdminLayout breadcrumbItems={breadcrumbItems}>
         <div className="flex justify-center items-center min-h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          {!isClient && <span className="ml-2">Anwendung wird geladen...</span>}
         </div>
       </AdminLayout>
     );
@@ -54,14 +88,7 @@ export default function TenantDataImportsPage() {
 
   if (error) {
     return (
-      <AdminLayout>
-        <Breadcrumb
-          items={[
-            { href: "/tenants", label: "Mandanten" },
-            { href: `/tenants/${tenantId}`, label: "Details" },
-            { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe", isCurrent: true },
-          ]}
-        />
+      <AdminLayout breadcrumbItems={breadcrumbItems}>
         <div className="rounded-md bg-destructive/15 p-4 mt-4">
           <div className="text-destructive">{error ? error.message : 'Ein unbekannter Fehler ist aufgetreten'}</div>
         </div>
@@ -71,14 +98,7 @@ export default function TenantDataImportsPage() {
 
   if (!tenant) {
     return (
-      <AdminLayout>
-        <Breadcrumb
-          items={[
-            { href: "/tenants", label: "Mandanten" },
-            { href: `/tenants/${tenantId}`, label: "Details" },
-            { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe", isCurrent: true },
-          ]}
-        />
+      <AdminLayout breadcrumbItems={breadcrumbItems}>
         <div className="rounded-md bg-amber-100 p-4 mt-4">
           <div className="text-amber-800">Tenant nicht gefunden.</div>
         </div>
@@ -87,15 +107,7 @@ export default function TenantDataImportsPage() {
   }
 
   return (
-    <AdminLayout>
-      <Breadcrumb
-        items={[
-          { href: "/tenants", label: "Mandanten" },
-          { href: `/tenants/${tenantId}`, label: "Details" },
-          { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe", isCurrent: true },
-        ]}
-      />
-
+    <AdminLayout breadcrumbItems={breadcrumbItems}>
       <div className="flex flex-col gap-6">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold tracking-tight">Daten-Importe für {tenant.name}</h1>

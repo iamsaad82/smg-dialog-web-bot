@@ -18,37 +18,102 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Layers } from "lucide-react";
+import { GetServerSideProps } from 'next';
+import { serverSideApiCall } from '@/utils/serverSideApi';
 
-export default function TenantDetail() {
+// Server-Side Daten laden
+export const getServerSideProps: GetServerSideProps = async (context) => {
+  const { id } = context.params || {};
+  
+  if (!id || typeof id !== 'string') {
+    return {
+      notFound: true
+    };
+  }
+  
+  try {
+    console.log(`Server-Side: Lade Tenant mit ID ${id}`);
+    
+    // Lade alle Tenants, um den API-Key zu finden - jetzt mit der zentralen serverSideApiCall-Funktion
+    const allTenants = await serverSideApiCall<Tenant[]>('tenants', {
+      headers: {
+        'X-API-Key': 'admin-secret-key-12345'
+      }
+    });
+    
+    const currentTenant = allTenants.find(t => t.id === id);
+    
+    if (!currentTenant) {
+      return {
+        props: {
+          initialError: 'Tenant nicht gefunden'
+        }
+      };
+    }
+    
+    // Lade die detaillierten Tenant-Daten
+    const tenantDetails = await serverSideApiCall<Tenant>(`tenants/${id}`, {
+      headers: {
+        'X-API-Key': currentTenant.api_key
+      }
+    });
+    
+    // Stelle sicher, dass alle Felder korrekt gesetzt sind
+    const processedTenant = {
+      ...tenantDetails,
+      use_mistral: tenantDetails.hasOwnProperty('use_mistral') ? tenantDetails.use_mistral === true : false,
+      renderer_type: tenantDetails.renderer_type || 'default',
+      config: tenantDetails.config || {}
+    };
+    
+    return {
+      props: {
+        initialTenant: processedTenant
+      }
+    };
+  } catch (error) {
+    console.error('Server-Side: Fehler beim Laden des Tenants:', error);
+    return {
+      props: {
+        initialError: 'Fehler beim Laden der Kundendaten'
+      }
+    };
+  }
+};
+
+// Aktualisierte Props für die Seite
+interface TenantDetailProps {
+  initialTenant?: Tenant;
+  initialError?: string;
+}
+
+export default function TenantDetail({ initialTenant, initialError }: TenantDetailProps) {
   const router = useRouter();
   const { id } = router.query;
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [tenant, setTenant] = useState<Tenant | null>(initialTenant || null);
+  const [loading, setLoading] = useState(!initialTenant && !initialError);
+  const [error, setError] = useState<string | null>(initialError || null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  // Neues State für Client-Side-Erkennung
+  const [isClient, setIsClient] = useState(false);
 
+  // Client-Side-Erkennung
   useEffect(() => {
-    if (!id || typeof id !== 'string') return;
+    setIsClient(true);
+  }, []);
+
+  // Nur nachladen, wenn wir clientseitig aktualisieren müssen und keine Anfangsdaten haben
+  useEffect(() => {
+    if (!id || typeof id !== 'string' || initialTenant) return;
 
     const loadTenant = async () => {
       try {
         setLoading(true);
         
-        // Zuerst alle Tenants laden, um den API-Key des aktuellen Tenants zu bekommen
-        const allTenants = await api.getAllTenants();
-        const currentTenant = allTenants.find(t => t.id === id);
-        
-        if (currentTenant) {
-          // Den API-Key des aktuellen Tenants setzen
-          api.setApiKey(currentTenant.api_key);
-          
-          // Dann die Tenant-Details laden
-          const tenantData = await api.getTenant(id);
-          setTenant(tenantData);
-          setError(null);
-        } else {
-          setError('Tenant nicht gefunden');
-        }
+        // Die bereits verbesserte API verwenden, die nun die callApi-Funktion nutzt
+        const tenantData = await api.getTenant(id);
+        setTenant(tenantData);
+        setError(null);
       } catch (err) {
         console.error('Fehler beim Laden des Tenants:', err);
         setError('Fehler beim Laden der Kundendaten');
@@ -58,7 +123,15 @@ export default function TenantDetail() {
     };
 
     loadTenant();
-  }, [id]);
+  }, [id, initialTenant]);
+
+  // Hilfsfunktion für Embed-Code-URL, die nur clientseitig verwendet wird
+  const getEmbedBaseUrl = () => {
+    if (typeof window !== 'undefined') {
+      return window.location.hostname.includes('localhost') ? 'http://localhost:3000' : 'https://dialog-engine-frontend.onrender.com';
+    }
+    return 'https://dialog-engine-frontend.onrender.com';
+  };
 
   const handleBack = () => {
     router.push('/');
@@ -92,6 +165,54 @@ export default function TenantDetail() {
         description: "Bitte versuchen Sie es später erneut."
       });
     }
+  };
+
+  // Render-Funktion für Einbettungscode, die nur auf dem Client ausgeführt wird
+  const renderEmbedCode = () => {
+    if (!isClient || !tenant) return <div className="animate-pulse h-20 bg-gray-200 dark:bg-gray-700 rounded-md"></div>;
+    
+    const baseUrl = getEmbedBaseUrl();
+    
+    return (
+      <div className="mt-4 space-y-4">
+        <div>
+          <h4 className="text-md font-medium text-gray-900 dark:text-white">Klassisches Widget</h4>
+          <div className="mt-2 bg-gray-100 dark:bg-gray-700 p-3 rounded-md overflow-x-auto">
+            <code className="text-sm font-mono">{`<!-- SMG Dialog Chat Widget - Klassischer Modus -->
+<script 
+  src="${baseUrl}/embed.js" 
+  data-api-key="${tenant.api_key}" 
+  data-mode="classic"
+  data-primary-color="#4f46e5"
+  data-secondary-color="#ffffff">
+</script>`}</code>
+          </div>
+        </div>
+        <div>
+          <h4 className="text-md font-medium text-gray-900 dark:text-white">Inline-Widget</h4>
+          <div className="mt-2 bg-gray-100 dark:bg-gray-700 p-3 rounded-md overflow-x-auto">
+            <code className="text-sm font-mono">{`<!-- SMG Dialog Chat Widget - Inline-Modus -->
+<script 
+  src="${baseUrl}/embed.js" 
+  data-api-key="${tenant.api_key}" 
+  data-mode="inline" 
+  data-container-id="chat-container"
+  data-primary-color="#4f46e5"
+  data-secondary-color="#ffffff">
+</script>
+<div id="chat-container"></div>`}</code>
+          </div>
+        </div>
+        <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mb-2">Zusätzliche Parameter:</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li><code>data-bot-name</code>: Benutzerdefinierter Name des Bots</li>
+            <li><code>data-primary-color</code>: Primärfarbe als HEX-Code (z.B. #4f46e5)</li>
+            <li><code>data-secondary-color</code>: Sekundärfarbe als HEX-Code (z.B. #ffffff)</li>
+          </ul>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -133,10 +254,10 @@ export default function TenantDetail() {
                           Kontakt-E-Mail: <span className="font-medium text-gray-900 dark:text-white">{tenant.contact_email || 'Keine E-Mail'}</span>
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Erstellt am: <span className="font-medium text-gray-900 dark:text-white">{new Date(tenant.created_at).toLocaleDateString()}</span>
+                          Erstellt am: <span className="font-medium text-gray-900 dark:text-white">{new Date(tenant.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Aktualisiert am: <span className="font-medium text-gray-900 dark:text-white">{new Date(tenant.updated_at).toLocaleDateString()}</span>
+                          Aktualisiert am: <span className="font-medium text-gray-900 dark:text-white">{new Date(tenant.updated_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                         </p>
                       </div>
                     </div>
@@ -190,44 +311,8 @@ export default function TenantDetail() {
               <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-lg">
                 <div className="px-4 py-5 sm:p-6">
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white">Einbettungscode</h3>
-                  <div className="mt-4 space-y-4">
-                    <div>
-                      <h4 className="text-md font-medium text-gray-900 dark:text-white">Klassisches Widget</h4>
-                      <div className="mt-2 bg-gray-100 dark:bg-gray-700 p-3 rounded-md overflow-x-auto">
-                        <code className="text-sm font-mono">{`<!-- SMG Dialog Chat Widget - Klassischer Modus -->
-<script 
-  src="${window.location.hostname.includes('localhost') ? 'http://localhost:3000' : 'https://dialog-engine-frontend.onrender.com'}/embed.js" 
-  data-api-key="${tenant.api_key}" 
-  data-mode="classic"
-  data-primary-color="#4f46e5"
-  data-secondary-color="#ffffff">
-</script>`}</code>
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="text-md font-medium text-gray-900 dark:text-white">Inline-Widget</h4>
-                      <div className="mt-2 bg-gray-100 dark:bg-gray-700 p-3 rounded-md overflow-x-auto">
-                        <code className="text-sm font-mono">{`<!-- SMG Dialog Chat Widget - Inline-Modus -->
-<script 
-  src="${window.location.hostname.includes('localhost') ? 'http://localhost:3000' : 'https://dialog-engine-frontend.onrender.com'}/embed.js" 
-  data-api-key="${tenant.api_key}" 
-  data-mode="inline" 
-  data-container-id="chat-container"
-  data-primary-color="#4f46e5"
-  data-secondary-color="#ffffff">
-</script>
-<div id="chat-container"></div>`}</code>
-                      </div>
-                    </div>
-                    <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-                      <p className="mb-2">Zusätzliche Parameter:</p>
-                      <ul className="list-disc pl-5 space-y-1">
-                        <li><code>data-bot-name</code>: Benutzerdefinierter Name des Bots</li>
-                        <li><code>data-primary-color</code>: Primärfarbe als HEX-Code (z.B. #4f46e5)</li>
-                        <li><code>data-secondary-color</code>: Sekundärfarbe als HEX-Code (z.B. #ffffff)</li>
-                      </ul>
-                    </div>
-                  </div>
+                  {/* Client-Side Rendering für den Einbettungscode */}
+                  {renderEmbedCode()}
                 </div>
               </div>
 

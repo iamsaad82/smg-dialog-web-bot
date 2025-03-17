@@ -35,7 +35,7 @@ services:
           name: dialog-ai-db
           property: port
       - key: WEAVIATE_URL
-        value: http://weaviate:8080
+        value: https://dialog-engine-weaviate.onrender.com
       - key: SECRET_KEY
         generateValue: true
       - key: ADMIN_USER_EMAIL

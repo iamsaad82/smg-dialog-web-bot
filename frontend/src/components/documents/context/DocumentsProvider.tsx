@@ -79,23 +79,25 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
   children, 
   tenantId 
 }) => {
-  // Daten-States
+  // State für Daten
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
+  
+  // Status-States
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  
   // Filter-States
   const [titleFilter, setTitleFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([]);
-
+  const [statusFilter, setStatusFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  
   // Modal-States
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
-  const [viewOnlyMode, setViewOnlyMode] = useState(false);
+  const [viewOnlyMode, setViewOnlyMode] = useState(true);
   
   // Upload-States
   const [isUploading, setIsUploading] = useState(false);
@@ -104,6 +106,15 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
   
   // Dokumenten-Status
   const [documentStatus, setDocumentStatus] = useState<DocumentStatusMap>({});
+  
+  // Mounted-Status für Client-Side-only API-Aufrufe
+  const [isMounted, setIsMounted] = useState(false);
+  
+  // Setzen des mounted-Status, wenn die Komponente geladen ist
+  useEffect(() => {
+    setIsMounted(true);
+    return () => setIsMounted(false);
+  }, []);
 
   // Kategorien aus Metadaten extrahieren
   const categories = React.useMemo(() => {
@@ -144,28 +155,49 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
     });
   }, [documents, titleFilter, statusFilter, categoryFilter, documentStatus]);
 
-  // Laden der Daten
+  // Laden der Daten - nur auf der Client-Seite
   useEffect(() => {
-    if (!tenantId) return;
+    if (!tenantId || !isMounted) return;
 
     const loadData = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        // Tenant abrufen
-        const allTenants = await api.getAllTenants();
-        const currentTenant = allTenants.find(t => t.id === tenantId);
-        
-        if (!currentTenant) {
-          setError("Tenant nicht gefunden");
+        // Tenant abrufen mit aktualisierter API
+        try {
+          // Direkt versuchen, den spezifischen Tenant zu laden
+          try {
+            console.log(`Versuche direkten Tenant-Abruf für ID ${tenantId}`);
+            const tenantData = await api.getTenant(tenantId);
+            if (tenantData) {
+              api.setApiKey(tenantData.api_key);
+              setTenant(tenantData);
+              console.log("Tenant direkt geladen:", tenantData);
+            }
+          } catch (directErr) {
+            console.log("Direkter Tenant-Abruf fehlgeschlagen, versuche alle Tenants zu laden:", directErr);
+            
+            // Fallback-Methode: Alle Tenants laden
+            const allTenants = await api.getAllTenants();
+            const currentTenant = allTenants.find(t => t.id === tenantId);
+            
+            if (!currentTenant) {
+              setError("Tenant nicht gefunden");
+              setLoading(false);
+              return;
+            }
+
+            // API-Key für den Tenant setzen
+            api.setApiKey(currentTenant.api_key);
+            setTenant(currentTenant);
+          }
+        } catch (err) {
+          console.error('Fehler beim Laden des Tenants:', err);
+          setError('Fehler beim Laden der Kundendaten');
           setLoading(false);
           return;
         }
-
-        // API-Key setzen und Tenant speichern
-        api.setApiKey(currentTenant.api_key);
-        setTenant(currentTenant);
 
         // Dokumente abrufen
         try {
@@ -173,70 +205,78 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
           setDocuments(documentsData);
           
           // Dokumentenstatus abrufen
-          const statusPromises = documentsData.map(async (doc) => {
-            try {
-              const status = await api.getDocumentWeaviateStatus(tenantId, doc.id);
-              
-              // Wenn der Status einen Backend-Fehler enthält, setzen wir einen Standardstatus
-              if (status.error && status.error.includes("unexpected keyword")) {
-                console.log(`Backend-Fehler bei Dokument ${doc.id}, setze Standardstatus`);
+          if (documentsData.length > 0) {
+            const statusPromises = documentsData.map(async (doc) => {
+              try {
+                const status = await api.getDocumentWeaviateStatus(tenantId, doc.id);
+                
+                // Wenn der Status einen Backend-Fehler enthält, setzen wir einen Standardstatus
+                if (status.error && status.error.includes("unexpected keyword")) {
+                  console.log(`Backend-Fehler bei Dokument ${doc.id}, setze Standardstatus`);
+                  return {
+                    docId: doc.id,
+                    status: {
+                      status: IndexStatus.NICHT_INDIZIERT,
+                      error: undefined
+                    }
+                  };
+                }
+                
+                return {
+                  docId: doc.id,
+                  status
+                };
+              } catch (error) {
+                console.error(`Fehler beim Abrufen des Status für Dokument ${doc.id}:`, error);
                 return {
                   docId: doc.id,
                   status: {
                     status: IndexStatus.NICHT_INDIZIERT,
-                    error: undefined
+                    error: "Fehler beim Abrufen des Status"
                   }
                 };
               }
-              
-              return {
-                docId: doc.id,
-                status: {
-                  status: status.status || IndexStatus.NICHT_INDIZIERT,
-                  lastUpdated: status.lastUpdated,
-                  error: status.error
-                }
-              };
-            } catch (err) {
-              console.error(`Fehler beim Abrufen des Status für Dokument ${doc.id}:`, err);
-              return {
-                docId: doc.id,
-                status: {
-                  status: IndexStatus.FEHLER,
-                  error: "Status konnte nicht abgerufen werden"
-                }
-              };
-            }
-          });
+            });
+            
+            // Alle Status-Promises auflösen
+            const statusResults = await Promise.all(statusPromises);
+            
+            // Status-Map erstellen
+            const newDocumentStatus: DocumentStatusMap = {};
+            statusResults.forEach(result => {
+              newDocumentStatus[result.docId] = result.status;
+            });
+            
+            setDocumentStatus(newDocumentStatus);
+          }
+        } catch (err: any) {
+          // Spezielle Behandlung für 404-Fehler vom Backend
+          if (err.message && (err.message.includes("404 Not Found") || err.message.includes("Not Found"))) {
+            console.warn('Dokumenten-Endpunkt nicht verfügbar (404 Not Found):', err);
+            // Leere Dokumentenliste setzen, aber keinen Fehler auslösen
+            setDocuments([]);
+            setError("Der Dokumenten-Service ist derzeit nicht verfügbar oder wurde noch nicht konfiguriert. Bitte kontaktieren Sie Ihren Administrator.");
+          } else {
+            console.error('Fehler beim Laden der Dokumente:', err);
+            setError('Fehler beim Laden der Dokumente: ' + (err.message || 'Unbekannter Fehler'));
+          }
           
-          // Warten, bis alle Status abgerufen wurden
-          const results = await Promise.allSettled(statusPromises);
-          
-          // Status-Map erstellen
-          const statusMap: DocumentStatusMap = {};
-          results.forEach(result => {
-            if (result.status === 'fulfilled' && result.value) {
-              const { docId, status } = result.value;
-              statusMap[docId] = status;
-            }
-          });
-          
-          setDocumentStatus(statusMap);
-          
-        } catch (docError) {
-          console.error("Fehler beim Laden der Dokumente:", docError);
-          setError("Fehler beim Laden der Dokumente. Details: " + (docError as Error).message);
+          // Wir setzen loading auf false, behalten aber die Tenant-Daten bei
+          setLoading(false);
+          return;
         }
+        
+        setLoading(false);
       } catch (err) {
         console.error("Fehler beim Laden der Daten:", err);
-        setError("Fehler beim Laden der Daten. Details: " + (err as Error).message);
+        setError("Fehler beim Laden der Daten");
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [tenantId]);
+  }, [tenantId, isMounted]);
 
   // Dokumentauswahl
   const selectDocument = (docId: string, selected: boolean) => {
@@ -306,71 +346,71 @@ export const DocumentsProvider: React.FC<{ children: React.ReactNode; tenantId: 
       setDocumentStatus(prev => ({
         ...prev,
         [documentId]: {
-          status: IndexStatus.NICHT_INDIZIERT,
+          status: IndexStatus.WIRD_INDIZIERT,
           lastUpdated: new Date().toISOString()
         }
       }));
       
       // Dokument neu indizieren
-      await api.reindexDocument(tenantId, documentId);
-      
-      // Status prüfen
-      let statusResult;
       try {
-        statusResult = await api.getDocumentWeaviateStatus(tenantId, documentId);
-      } catch (error) {
-        console.error(`Fehler beim Abrufen des Status nach Reindexierung: ${error}`);
-        setError('Fehler beim Prüfen des Indizierungsstatus');
-        toast.error('Fehler beim Prüfen des Indizierungsstatus');
-        return;
-      }
-
-      // Status im State aktualisieren
-      setDocuments((prevDocuments) =>
-        prevDocuments.map((doc) =>
-          doc.id === documentId
-            ? {
-                ...doc,
-                status: {
-                  status: statusResult.status,
-                  error: statusResult.error,
-                  lastUpdated: new Date().toISOString(),
-                },
-              }
-            : doc
-        )
-      );
-
-      // Prüfen, ob die Indizierung abgeschlossen ist
-      if (statusResult.status === IndexStatus.INDIZIERT) {
-        console.log(`Document ${documentId} successfully indexed`);
-        toast.success('Dokument erfolgreich indiziert');
-      } else {
-        console.error(`Indexing error for document ${documentId}:`, statusResult.error);
-        setError(`Fehler bei der Indizierung: ${statusResult.error || 'Unbekannter Fehler'}`);
-        toast.error(`Indizierung fehlgeschlagen: ${statusResult.error || 'Unbekannter Fehler'}`);
+        await api.reindexDocument(tenantId, documentId);
+        
+        // Status nach kurzer Verzögerung prüfen, um dem Backend Zeit zu geben
+        setTimeout(async () => {
+          // Weaviate-Status abrufen
+          const statusResult = await api.getWeaviateStatus(tenantId, documentId);
+          
+          // Status im State aktualisieren
+          setDocumentStatus(prev => ({
+            ...prev,
+            [documentId]: {
+              status: statusResult.status === 'unknown' ? IndexStatus.NICHT_INDIZIERT : statusResult.status,
+              error: statusResult.error,
+              lastUpdated: new Date().toISOString()
+            }
+          }));
+          
+          // UI-Feedback geben
+          if (statusResult.status === 'unknown' || statusResult.error) {
+            console.warn(`Unklarer Status für Dokument ${documentId} nach Reindexierung: ${statusResult.error || 'Status unbekannt'}`);
+            toast.warning('Reindexierung gestartet, aber der Status konnte nicht abgerufen werden');
+          } else if (statusResult.status === IndexStatus.INDIZIERT) {
+            console.log(`Dokument ${documentId} erfolgreich indiziert`);
+            toast.success('Dokument erfolgreich indiziert');
+          } else {
+            console.log(`Dokument ${documentId} wird indiziert...`);
+            toast.info('Indizierung wurde gestartet');
+          }
+        }, 2000); // 2 Sekunden warten
+      } catch (reindexError) {
+        console.error(`Fehler bei der Reindexierung von Dokument ${documentId}:`, reindexError);
+        setError('Fehler bei der Reindexierung');
+        toast.error('Reindexierung fehlgeschlagen');
+        
+        // Status auf Fehler setzen
+        setDocumentStatus(prev => ({
+          ...prev,
+          [documentId]: {
+            status: IndexStatus.FEHLER,
+            error: reindexError instanceof Error ? reindexError.message : 'Reindexierung fehlgeschlagen',
+            lastUpdated: new Date().toISOString()
+          }
+        }));
       }
     } catch (error) {
       console.error('Error reindexing document:', error);
+      setError('Fehler bei der Dokumentreindexierung');
+      toast.error('Dokumentreindexierung fehlgeschlagen');
       
-      // Fehler im State aktualisieren
-      setDocuments((prevDocuments) =>
-        prevDocuments.map((doc) =>
-          doc.id === documentId
-            ? {
-                ...doc,
-                status: {
-                  status: IndexStatus.FEHLER,
-                  error: error instanceof Error ? error.message : String(error),
-                  lastUpdated: new Date().toISOString(),
-                },
-              }
-            : doc
-        )
-      );
-      
-      setError(`Fehler beim Reindexieren: ${error instanceof Error ? error.message : String(error)}`);
-      toast.error('Fehler beim Reindexieren des Dokuments');
+      // Fehler im Status aktualisieren
+      setDocumentStatus(prev => ({
+        ...prev,
+        [documentId]: {
+          status: IndexStatus.FEHLER,
+          error: error instanceof Error ? error.message : 'Unbekannter Fehler',
+          lastUpdated: new Date().toISOString()
+        }
+      }));
     }
   };
 

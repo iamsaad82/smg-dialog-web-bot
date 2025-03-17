@@ -192,9 +192,14 @@ export default function DocumentsView() {
 
         {/* Fehleranzeige */}
         {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+          <Alert 
+            variant={error.includes("nicht verfügbar") ? "default" : "destructive"}
+            className={error.includes("nicht verfügbar") ? "bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800" : ""}
+          >
+            <AlertCircle className={error.includes("nicht verfügbar") ? "h-4 w-4 text-yellow-500" : "h-4 w-4"} />
+            <AlertDescription className={error.includes("nicht verfügbar") ? "text-yellow-700 dark:text-yellow-300" : ""}>
+              {error}
+            </AlertDescription>
           </Alert>
         )}
 
@@ -251,8 +256,12 @@ export default function DocumentsView() {
               <div>
                 <CardTitle>Dokumenten-Liste</CardTitle>
                 <CardDescription>
-                  {filteredDocuments.length} Dokumente gefunden, 
-                  zeige {paginatedDocuments.length} Dokumente auf Seite {page} von {totalPages}
+                  {error && error.includes("nicht verfügbar") ? (
+                    "Dokumenten-Service ist nicht verfügbar"
+                  ) : (
+                    `${filteredDocuments.length} Dokumente gefunden, 
+                    zeige ${paginatedDocuments.length} Dokumente auf Seite ${page} von ${totalPages}`
+                  )}
                 </CardDescription>
               </div>
               
@@ -284,6 +293,19 @@ export default function DocumentsView() {
               <div className="flex justify-center items-center py-12">
                 <Spinner />
                 <span className="ml-2">Dokumente werden geladen...</span>
+              </div>
+            ) : error && error.includes("nicht verfügbar") ? (
+              <div className="text-center py-8 px-4">
+                <div className="mb-4">
+                  <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-2" />
+                  <h3 className="text-lg font-medium">Dokument-Verwaltung nicht verfügbar</h3>
+                </div>
+                <p className="text-muted-foreground mb-2">
+                  Die Dokument-Verwaltungsfunktion ist in diesem System derzeit nicht verfügbar oder nicht konfiguriert.
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Wenn Sie glauben, dass dies ein Fehler ist, kontaktieren Sie bitte Ihren Administrator.
+                </p>
               </div>
             ) : filteredDocuments.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground">

@@ -65,8 +65,10 @@ export default function Home() {
         // Admin-API-Key für den Zugriff auf die Kunden-Verwaltung
         const adminApiKey = "admin-secret-key-12345";
         
-        // Direkte Anfrage mit Admin-API-Key
-        const response = await fetch('http://localhost:8000/api/v1/tenants', {
+        // Verwende den Next.js API-Proxy statt direkter Anfrage
+        console.log('Using Next.js API proxy');
+        
+        const response = await fetch(`/api/v1/tenants/`, {
           headers: {
             'X-API-Key': adminApiKey
           }

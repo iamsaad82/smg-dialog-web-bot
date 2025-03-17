@@ -1,45 +1,34 @@
-import { apiCore, API_BASE_URL } from './core';
+import { apiCore, API_BASE_URL, callApi } from './core';
 import { Tenant, TenantCreate, TenantUpdate, TenantExtended } from '../types/api';
+
+// Standard-API-Key für Admin-Operationen
+const ADMIN_API_KEY = "admin-secret-key-12345";
 
 export class TenantApi {
   // --- Tenant-Endpunkte ---
 
-  async createTenant(data: TenantCreate): Promise<Tenant> {
-    const adminApiKey = "admin-secret-key-12345";
-    
+  async createTenant(tenant: TenantCreate): Promise<Tenant> {
     try {
-      // Direkter Fetch mit Admin-API-Key statt axios
-      const response = await fetch(`http://localhost:8000/api/v1/tenants`, {
+      const newTenant = await callApi<Tenant>('/v1/tenants', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': adminApiKey
-        },
-        body: JSON.stringify(data)
+        body: tenant,
+        apiKey: ADMIN_API_KEY
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      const newTenant = await response.json();
-      
+
       // Automatisch Standard-UI-Komponenten für den neuen Tenant erstellen
       try {
         // Standard-Prompt und -Regeln aus der Konstanten-Datei importieren
         const { DEFAULT_BASE_PROMPT, DEFAULT_RULES } = await import('../components/ui-components-editor/shared/constants');
         
         // UI-Komponenten-Konfiguration speichern
-        await fetch(`http://localhost:8000/api/v1/tenants/${newTenant.id}/ui-components`, {
+        console.log('Creating UI components for new tenant');
+        await callApi(`/v1/tenants/${newTenant.id}/ui-components`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': adminApiKey
-          },
-          body: JSON.stringify({
+          body: {
             prompt: DEFAULT_BASE_PROMPT,
             rules: DEFAULT_RULES
-          })
+          },
+          apiKey: ADMIN_API_KEY
         });
         
         console.log('Standard-UI-Komponenten für neuen Tenant erstellt:', newTenant.id);
@@ -47,71 +36,61 @@ export class TenantApi {
         // Fehler beim Erstellen der UI-Komponenten sollten nicht das Erstellen des Tenants verhindern
         console.error('Fehler beim Erstellen der Standard-UI-Komponenten:', err);
       }
-      
+
       return newTenant;
     } catch (error) {
-      console.error("Fehler beim Erstellen eines Tenants:", error);
+      console.error('Fehler beim Erstellen des Tenants:', error);
       throw error;
     }
   }
 
   async getTenant(id: string): Promise<Tenant> {
-    const adminApiKey = "admin-secret-key-12345";
+    console.log('Getting tenant with unified API approach');
     
-    // Direct fetch to backend
-    const response = await fetch(`http://localhost:8000/api/v1/tenants/${id}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': adminApiKey
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Fehler beim Abrufen des Tenants: ${response.statusText}`);
+    try {
+      const rawData = await callApi<any>(`/v1/tenants/${id}`, {
+        apiKey: ADMIN_API_KEY
+      });
+      
+      // Daten konvertieren und validieren
+      const tenant: Tenant = {
+        ...rawData,
+        use_mistral: rawData.hasOwnProperty('use_mistral') ? rawData.use_mistral === true : false,
+        renderer_type: rawData.renderer_type || 'default',
+        config: rawData.config || {}
+      };
+      
+      console.log("getTenant - renderer_type value:", tenant.renderer_type);
+      console.log("getTenant - config:", tenant.config);
+      
+      return tenant;
+    } catch (error) {
+      console.error("Fehler beim Abrufen des Tenants:", error);
+      throw error;
     }
-    const rawData = await response.json();
-    
-    // Daten konvertieren und validieren
-    const tenant: Tenant = {
-      ...rawData,
-      use_mistral: rawData.hasOwnProperty('use_mistral') ? rawData.use_mistral === true : false,
-      renderer_type: rawData.renderer_type || 'default',
-      config: rawData.config || {}
-    };
-    
-    console.log("getTenant - renderer_type value:", tenant.renderer_type);
-    console.log("getTenant - config:", tenant.config);
-    
-    return tenant;
   }
 
   async getAllTenants(): Promise<Tenant[]> {
-    const adminApiKey = "admin-secret-key-12345";
+    console.log('Getting all tenants with unified API approach');
     
-    // Direct fetch to backend
-    const response = await fetch(`http://localhost:8000/api/v1/tenants/`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': adminApiKey
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Fehler beim Abrufen der Tenants: ${response.statusText}`);
+    try {
+      const rawTenants = await callApi<any[]>('/v1/tenants', {
+        apiKey: ADMIN_API_KEY
+      });
+      
+      // Stelle sicher, dass alle Tenants die richtigen Felder haben
+      const tenants: Tenant[] = rawTenants.map((tenant: any) => ({
+        ...tenant,
+        use_mistral: tenant.hasOwnProperty('use_mistral') ? tenant.use_mistral === true : false,
+        renderer_type: tenant.renderer_type || 'default',
+        config: tenant.config || {}
+      }));
+      
+      return tenants;
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Tenants:', error);
+      throw error;
     }
-    const rawTenants = await response.json();
-    
-    // Stelle sicher, dass alle Tenants die richtigen Felder haben
-    const tenants: Tenant[] = rawTenants.map((tenant: any) => ({
-      ...tenant,
-      use_mistral: tenant.hasOwnProperty('use_mistral') ? tenant.use_mistral === true : false,
-      renderer_type: tenant.renderer_type || 'default',
-      config: tenant.config || {}
-    }));
-    
-    return tenants;
   }
 
   async updateTenant(id: string, data: TenantUpdate): Promise<Tenant> {
@@ -128,42 +107,31 @@ export class TenantApi {
     console.log("updateTenant - renderer_type:", sanitizedData.renderer_type);
     console.log("updateTenant - config:", sanitizedData.config);
     
-    const adminApiKey = "admin-secret-key-12345";
-    
-    const response = await fetch(`http://localhost:8000/api/v1/tenants/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': adminApiKey
-      },
-      body: JSON.stringify(sanitizedData),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Fehler beim Aktualisieren des Tenants: ${response.statusText}`);
+    try {
+      const tenant = await callApi<Tenant>(`/v1/tenants/${id}`, {
+        method: 'PUT',
+        body: sanitizedData,
+        apiKey: ADMIN_API_KEY
+      });
+      
+      console.log("renderer_type in response:", tenant.renderer_type);
+      console.log("config in response:", tenant.config);
+      
+      return tenant;
+    } catch (error) {
+      console.error("Fehler beim Aktualisieren des Tenants:", error);
+      throw error;
     }
-    
-    const tenant = await response.json();
-    console.log("renderer_type in response:", tenant.renderer_type);
-    console.log("config in response:", tenant.config);
-    
-    return tenant;
   }
 
   async deleteTenant(id: string): Promise<void> {
-    const adminApiKey = "admin-secret-key-12345";
-    
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/tenants/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'X-API-Key': adminApiKey
-        }
-      });
+      console.log('Deleting tenant with unified API approach');
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
+      await callApi(`/v1/tenants/${id}`, {
+        method: 'DELETE',
+        apiKey: ADMIN_API_KEY
+      });
     } catch (error) {
       console.error("Fehler beim Löschen des Tenants:", error);
       throw error;
@@ -173,22 +141,12 @@ export class TenantApi {
   // --- Admin-Endpunkte ---
   
   async getWeaviateStatus(): Promise<any> {
-    const adminApiKey = "admin-secret-key-12345";
-    
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/admin/weaviate-status`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': adminApiKey
-        }
+      console.log('Getting Weaviate status with unified API approach');
+      
+      return await callApi('/v1/admin/weaviate-status', {
+        apiKey: ADMIN_API_KEY
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      return await response.json();
     } catch (error) {
       console.error("Fehler beim Abrufen des Weaviate-Status:", error);
       return { status: 'error' };
@@ -197,20 +155,11 @@ export class TenantApi {
 
   async getEmbedConfig(apiKey: string): Promise<any> {
     try {
-      // Direkter Fetch mit API-Key statt axios
-      const response = await fetch(`http://localhost:8000/api/v1/embed/config`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': apiKey
-        }
+      console.log('Getting embed config with unified API approach');
+      
+      return await callApi('/v1/embed/config', {
+        apiKey
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      return await response.json();
     } catch (error) {
       console.error("Fehler beim Abrufen der Embed-Konfiguration:", error);
       throw error;
@@ -219,22 +168,12 @@ export class TenantApi {
 
   // Erweiterte Details eines Tenants abrufen, inklusive Agentur und zugewiesenen Redakteuren
   async getTenantDetails(id: string): Promise<TenantExtended> {
-    const adminApiKey = "admin-secret-key-12345";
-    
     try {
-      const response = await fetch(`http://localhost:8000/api/v1/tenants/${id}/details`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-API-Key': adminApiKey
-        }
+      console.log('Getting tenant details with unified API approach');
+      
+      return await callApi(`/v1/tenants/${id}/details`, {
+        apiKey: ADMIN_API_KEY
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      return await response.json();
     } catch (error) {
       console.error("Fehler beim Abrufen der erweiterten Tenant-Details:", error);
       throw error;

@@ -1,4 +1,4 @@
-import { apiCore, API_BASE_URL } from './core';
+import { apiCore, API_BASE_URL, callApi } from './core';
 import { ChatQuery, SearchQuery, SearchResult } from '../types/api';
 
 export class ChatApi {
@@ -7,8 +7,12 @@ export class ChatApi {
   async getCompletion(query: ChatQuery): Promise<string> {
     // Nicht-Streaming-Anfrage
     const nonStreamingQuery = { ...query, stream: false };
-    const response = await apiCore.getClient().post('/chat/completion', nonStreamingQuery);
-    return response.data.response;
+    const response = await callApi<{ response: string }>('chat/completion', {
+      method: 'POST',
+      body: nonStreamingQuery,
+      apiKey: apiCore.getApiKey() || undefined
+    });
+    return response.response;
   }
 
   // Streaming-Chat-Funktion
@@ -70,13 +74,32 @@ export class ChatApi {
       buffer = '';
     };
     
-    // Stream-Funktion mit Fetch
+    // Stream-Funktion mit Fetch über einheitliche API
     (async () => {
       try {
         console.log('Starte Chat-Stream mit API-Key:', apiCore.getApiKey());
         
-        // POST-Anfrage mit stream=true
-        const response = await fetch(`${API_BASE_URL}/chat/completion`, {
+        // Die relative URL verwenden, die durch den Next.js-Proxy geleitet wird
+        const url = 'chat/completion';
+        
+        // WICHTIG: Wir müssen prüfen, ob window definiert ist, da dieser Code 
+        // auch auf dem Server läuft (SSR), wo window nicht existiert
+        const isServer = typeof window === 'undefined';
+        
+        // Immer die relative URL verwenden, die durch den Next.js-Proxy geleitet wird
+        const apiUrl = `/api/v1/${url}`;
+        
+        // Ausführliche Logging für Debugging
+        console.log(`Bereite Chat-Stream-Anfrage vor: POST ${apiUrl}`);
+        if (!isServer) {
+          console.log(`  - Origin: ${window.location.origin}`);
+        } else {
+          console.log(`  - Serverseitiger Aufruf`);
+        }
+        console.log(`  - Pfad: ${apiUrl}`);
+        
+        // POST-Anfrage mit stream=true über Fetch
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json; charset=utf-8',
@@ -84,6 +107,10 @@ export class ChatApi {
             'Accept': 'text/event-stream; charset=utf-8',
           },
           body: JSON.stringify({...query, stream: true}),
+          // Mode auf same-origin setzen, um zu verhindern, dass der Browser die Anfrage umleitet
+          mode: 'same-origin',
+          // Credentials auf same-origin setzen, um Cookies nur für die gleiche Domain zu senden
+          credentials: 'same-origin',
           signal
         });
 
@@ -220,8 +247,12 @@ export class ChatApi {
   // --- Suchanfrage-Endpunkte ---
 
   async search(query: SearchQuery): Promise<SearchResult[]> {
-    const response = await apiCore.getClient().post('/chat/search', query);
-    return response.data.results;
+    const response = await callApi<{ results: SearchResult[] }>('chat/search', {
+      method: 'POST',
+      body: query,
+      apiKey: apiCore.getApiKey() || undefined
+    });
+    return response.results;
   }
 }
 

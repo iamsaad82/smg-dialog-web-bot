@@ -1,4 +1,4 @@
-import { apiCore } from './core';
+import { apiCore, callApi } from './core';
 import { Document, DocumentCreate, IndexStatus } from '../types/api';
 import axios from 'axios';
 
@@ -6,8 +6,26 @@ export class DocumentApi {
   // --- Dokument-Endpunkte ---
 
   async createDocument(data: DocumentCreate): Promise<Document> {
-    const response = await apiCore.getClient().post('/documents', data);
-    return response.data;
+    // DIREKT /api/v1 verwenden, nicht erst /v1
+    const url = `/api/v1/documents`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'X-API-Key': apiCore.getApiKey() || '',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data),
+      redirect: 'follow',
+      mode: 'same-origin',
+      credentials: 'same-origin'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return await response.json() as Document;
   }
 
   async getDocuments(tenantId: string, limit = 1000, offset = 0): Promise<Document[]> {
@@ -16,18 +34,37 @@ export class DocumentApi {
         throw new Error('API-Key ist nicht gesetzt');
       }
 
-      console.log('Sende Dokument-Anfrage mit Axios');
+      console.log('Starte Dokument-Anfrage mit callApi');
       console.log('Mit API-Key:', apiCore.getApiKey());
+      console.log('Für Tenant:', tenantId);
       
-      const response = await apiCore.getClient().get(`/tenants/${tenantId}/documents`, {
-        params: {
-          limit,
-          offset
-        }
+      // Der Endpunkt erwartet tenant_id als Query-Parameter
+      // DIREKT /api/v1 verwenden, nicht erst /v1
+      // WICHTIG: Keine Trailing-Slashes verwenden, die zu Redirects führen könnten
+      const url = `/api/v1/documents?tenant_id=${encodeURIComponent(tenantId)}`;
+      console.log('Verwende URL:', url);
+      
+      // Die callApi-Funktion würde normalerweise /api/v1 hinzufügen, was hier doppelt wäre
+      // Daher verwenden wir fetch direkt mit spezifischen Optionen, die Redirects erlauben
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': apiCore.getApiKey() || '',
+          'Content-Type': 'application/json'
+        },
+        // Weiterleitungen erlauben
+        redirect: 'follow',
+        // Wichtig: Nur Anfragen an die gleiche Herkunft zulassen
+        mode: 'same-origin',
+        // Wichtig: Credentials nur für gleiche Herkunft senden
+        credentials: 'same-origin'
       });
       
-      console.log('Server-Antwort:', response.data);
-      return response.data;
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      return await response.json() as Document[];
     } catch (error) {
       console.error("Fehler beim Abrufen der Dokumente:", error);
       throw error;
@@ -35,12 +72,47 @@ export class DocumentApi {
   }
 
   async getDocument(tenantId: string, documentId: string): Promise<Document> {
-    const response = await apiCore.getClient().get(`/tenants/${tenantId}/documents/${documentId}`);
-    return response.data;
+    // DIREKT /api/v1 verwenden, nicht erst /v1
+    const url = `/api/v1/documents/${documentId}?tenant_id=${encodeURIComponent(tenantId)}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-API-Key': apiCore.getApiKey() || '',
+        'Content-Type': 'application/json'
+      },
+      redirect: 'follow',
+      mode: 'same-origin',
+      credentials: 'same-origin'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return await response.json() as Document;
   }
 
   async deleteDocument(tenantId: string, documentId: string): Promise<void> {
-    await apiCore.getClient().delete(`/tenants/${tenantId}/documents/${documentId}`);
+    // DIREKT /api/v1 verwenden, nicht erst /v1
+    const url = `/api/v1/documents/${documentId}?tenant_id=${encodeURIComponent(tenantId)}`;
+    
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'X-API-Key': apiCore.getApiKey() || '',
+        'Content-Type': 'application/json'
+      },
+      redirect: 'follow',
+      mode: 'same-origin',
+      credentials: 'same-origin'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return;
   }
 
   async uploadCsv(tenantId: string, file: File, titleColumn = 'title', contentColumn = 'content', sourceColumn?: string): Promise<any> {
@@ -48,60 +120,108 @@ export class DocumentApi {
     formData.append('file', file);
     formData.append('title_column', titleColumn);
     formData.append('content_column', contentColumn);
+    formData.append('tenant_id', tenantId);
     if (sourceColumn) {
       formData.append('source_column', sourceColumn);
     }
 
-    const response = await apiCore.getClient().post(`/tenants/${tenantId}/documents/upload/csv`, formData, {
+    // FormData muss mit fetch gesendet werden, da callApi es nicht nativ unterstützt
+    const response = await fetch(`/api/v1/documents/upload/csv`, {
+      method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'X-API-Key': apiCore.getApiKey() || '',
       },
+      body: formData,
+      redirect: 'follow',
+      mode: 'same-origin',
+      credentials: 'same-origin'
     });
-    return response.data;
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    return await response.json();
   }
 
   async uploadJson(tenantId: string, file: File): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('tenant_id', tenantId);
 
-    const response = await apiCore.getClient().post(`/tenants/${tenantId}/documents/upload/json`, formData, {
+    // FormData muss mit fetch gesendet werden
+    const response = await fetch(`/api/v1/documents/upload/json`, {
+      method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'X-API-Key': apiCore.getApiKey() || '',
       },
+      body: formData,
+      redirect: 'follow',
+      mode: 'same-origin',
+      credentials: 'same-origin'
     });
-    return response.data;
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    return await response.json();
   }
 
   async uploadMarkdown(tenantId: string, file: File, source?: string): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('tenant_id', tenantId);
     
     if (source) {
       formData.append('source', source);
     }
 
-    const response = await apiCore.getClient().post(`/tenants/${tenantId}/documents/upload/markdown`, formData, {
+    // FormData muss mit fetch gesendet werden
+    const response = await fetch(`/api/v1/documents/upload/markdown`, {
+      method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'X-API-Key': apiCore.getApiKey() || '',
       },
+      body: formData,
+      redirect: 'follow',
+      mode: 'same-origin',
+      credentials: 'same-origin'
     });
-    return response.data;
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    return await response.json();
   }
 
   async uploadPdf(tenantId: string, file: File, source?: string): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('tenant_id', tenantId);
     
     if (source) {
       formData.append('source', source);
     }
 
-    const response = await apiCore.getClient().post(`/tenants/${tenantId}/documents/upload/pdf`, formData, {
+    // FormData muss mit fetch gesendet werden
+    const response = await fetch(`/api/v1/documents/upload/pdf`, {
+      method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'X-API-Key': apiCore.getApiKey() || '',
       },
+      body: formData,
+      redirect: 'follow',
+      mode: 'same-origin',
+      credentials: 'same-origin'
     });
-    return response.data;
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    return await response.json();
   }
 
   // --- Dokument-Status und Indizierung ---
@@ -121,66 +241,34 @@ export class DocumentApi {
     }
 
     try {
-      const response = await apiCore.getClient().get(
-        `/tenants/${tenantId}/documents/${documentId}/status`
-      );
+      // DIREKT /api/v1 verwenden, nicht erst /v1
+      const url = `/api/v1/documents/${documentId}/status?tenant_id=${encodeURIComponent(tenantId)}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'X-API-Key': apiCore.getApiKey() || '',
+          'Content-Type': 'application/json'
+        },
+        redirect: 'follow',
+        mode: 'same-origin',
+        credentials: 'same-origin'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const data = await response.json() as {status: IndexStatus};
 
-      if (response.status >= 200 && response.status < 300) {
-        console.log(`Document status retrieved successfully: ${JSON.stringify(response.data)}`);
-        return { status: response.data.status };
-      } else {
-        console.warn(`Unexpected status code: ${response.status}`);
-        return { 
-          status: IndexStatus.NICHT_INDIZIERT, 
-          error: `Unerwarteter Statuscode: ${response.status}` 
-        };
-      }
+      console.log(`Document status retrieved successfully: ${JSON.stringify(data)}`);
+      return { status: data.status };
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        if (error.response) {
-          // Der Server hat mit einem Statuscode außerhalb des 2xx-Bereichs geantwortet
-          if (error.response.status === 404) {
-            console.warn(`Document ${documentId} not found in tenant ${tenantId}`);
-            return { 
-              status: IndexStatus.NICHT_INDIZIERT, 
-              error: 'Dokument nicht gefunden' 
-            };
-          } else if (error.response.status === 500) {
-            console.warn(`Backend error when retrieving status for document ${documentId}`);
-            return { 
-              status: IndexStatus.NICHT_INDIZIERT, 
-              error: 'Backend-Fehler: Interner Serverfehler' 
-            };
-          } else {
-            console.error(`Error retrieving document status: ${error.response.status} - ${error.response.statusText}`);
-            return { 
-              status: IndexStatus.NICHT_INDIZIERT, 
-              error: `API-Fehler: ${error.response.status} ${error.response.statusText}` 
-            };
-          }
-        } else if (error.request) {
-          // Die Anfrage wurde gestellt, aber es gab keine Antwort
-          console.error('Error retrieving document status: No response received');
-          return { 
-            status: IndexStatus.NICHT_INDIZIERT, 
-            error: 'Netzwerkfehler: Keine Antwort vom Server' 
-          };
-        } else {
-          // Beim Einrichten der Anfrage ist ein Fehler aufgetreten
-          console.error(`Error retrieving document status: ${error.message}`);
-          return { 
-            status: IndexStatus.NICHT_INDIZIERT, 
-            error: `Anfragefehler: ${error.message}` 
-          };
-        }
-      } else {
-        // Nicht-Axios-Fehler
-        console.error(`Unexpected error retrieving document status: ${error}`);
-        return { 
-          status: IndexStatus.NICHT_INDIZIERT, 
-          error: `Unerwarteter Fehler: ${error}` 
-        };
-      }
+      console.error('Error retrieving document status:', error);
+      return { 
+        status: IndexStatus.NICHT_INDIZIERT, 
+        error: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      };
     }
   }
   
@@ -193,17 +281,29 @@ export class DocumentApi {
         throw new Error('Tenant-ID und Dokument-ID müssen angegeben werden');
       }
 
-      const response = await apiCore.getClient().post(
-        `/tenants/${tenantId}/documents/${documentId}/reindex`
-      );
+      // Zuerst das Dokument abrufen, um die vollständigen Daten zu haben
+      const document = await this.getDocument(tenantId, documentId);
       
-      if (response.status >= 200 && response.status < 300) {
-        console.log(`API: Reindexierung erfolgreich für Dokument ${documentId}`);
-        return response.data;
-      } else {
-        console.error(`API: Unerwarteter Status bei Reindexierung: ${response.status}`);
-        throw new Error(`Fehler beim Reindexieren: HTTP-Status ${response.status}`);
+      // DIREKT /api/v1 verwenden, nicht erst /v1
+      const url = `/api/v1/documents/${documentId}/reindex?tenant_id=${encodeURIComponent(tenantId)}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-API-Key': apiCore.getApiKey() || '',
+          'Content-Type': 'application/json'
+        },
+        redirect: 'follow',
+        mode: 'same-origin',
+        credentials: 'same-origin',
+        body: JSON.stringify(document) // Dokumentdaten im Request-Body senden
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
       }
+      
+      return await response.json();
     } catch (error) {
       console.error('Reindexierung fehlgeschlagen:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -214,7 +314,25 @@ export class DocumentApi {
   // Alle Dokumente eines Tenants neu indizieren
   async reindexAllDocuments(tenantId: string): Promise<any> {
     try {
-      const response = await apiCore.getClient().post(`/tenants/${tenantId}/documents/reindex-all`);
+      // DIREKT /api/v1 verwenden, nicht erst /v1
+      const url = `/api/v1/documents/reindex-all?tenant_id=${encodeURIComponent(tenantId)}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-API-Key': apiCore.getApiKey() || '',
+          'Content-Type': 'application/json'
+        },
+        redirect: 'follow',
+        mode: 'same-origin',
+        credentials: 'same-origin'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      
+      const result = await response.json();
       
       // Wir prüfen den Status der Indizierung im Hintergrund und geben eine sofortige Antwort
       this.pollBulkIndexingStatus(tenantId);
@@ -222,21 +340,38 @@ export class DocumentApi {
       return {
         success: true,
         message: "Indizierung aller Dokumente gestartet",
-        ...response.data
+        ...result
       };
     } catch (error: any) {
       console.error(`Fehler beim Indizieren aller Dokumente für Tenant ${tenantId}:`, error);
       
       // Bei Serverfehlern noch einmal versuchen
-      if (error.response && error.response.status >= 500) {
+      if (error.status >= 500) {
         console.log("Serverfehler beim Massenindizieren, versuche erneut in 5 Sekunden...");
         
         return new Promise((resolve, reject) => {
           setTimeout(async () => {
             try {
-              const retryResponse = await apiCore.getClient().post(
-                `/tenants/${tenantId}/documents/reindex-all`
-              );
+              // DIREKT /api/v1 verwenden, nicht erst /v1
+              const url = `/api/v1/documents/reindex-all?tenant_id=${encodeURIComponent(tenantId)}`;
+              
+              const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                  'X-API-Key': apiCore.getApiKey() || '',
+                  'Content-Type': 'application/json'
+                },
+                redirect: 'follow',
+                mode: 'same-origin',
+                credentials: 'same-origin'
+              });
+              
+              if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+              }
+              
+              const retryResult = await response.json();
+              
               console.log("Wiederholungsversuch der Massenindizierung erfolgreich");
               
               // Polling im Hintergrund starten
@@ -245,7 +380,7 @@ export class DocumentApi {
               resolve({
                 success: true,
                 message: "Indizierung aller Dokumente gestartet (nach Wiederholung)",
-                ...retryResponse.data
+                ...retryResult
               });
             } catch (retryError) {
               console.error("Auch der Wiederholungsversuch der Massenindizierung ist fehlgeschlagen:", retryError);
@@ -262,7 +397,7 @@ export class DocumentApi {
       throw {
         error: "Massenindizierung fehlgeschlagen",
         details: error,
-        message: error.response?.data?.message || "Ein unbekannter Fehler ist aufgetreten."
+        message: error.data?.message || "Ein unbekannter Fehler ist aufgetreten."
       };
     }
   }
@@ -273,9 +408,26 @@ export class DocumentApi {
     
     const checkStatus = async () => {
       try {
-        // Endpunkt für den Indexierungsstatus abrufen
-        const response = await apiCore.getClient().get(`/tenants/${tenantId}/indexing-status`);
-        const status = response.data;
+        // DIREKT /api/v1 verwenden, nicht erst /v1
+        const url = `/api/v1/documents/indexing-status?tenant_id=${encodeURIComponent(tenantId)}`;
+        
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'X-API-Key': apiCore.getApiKey() || '',
+            'Content-Type': 'application/json'
+          },
+          redirect: 'follow',
+          mode: 'same-origin',
+          credentials: 'same-origin'
+        });
+        
+        if (!response.ok) {
+          console.error(`HTTP error bei Abruf des Indizierungsstatus! Status: ${response.status}`);
+          return;
+        }
+        
+        const status = await response.json();
         
         console.log(`Indizierungsstatus für Tenant ${tenantId}:`, status);
         
@@ -304,8 +456,32 @@ export class DocumentApi {
   }
   
   async updateDocument(tenantId: string, documentId: string, data: any): Promise<any> {
-    const response = await apiCore.getClient().put(`/tenants/${tenantId}/documents/${documentId}`, data);
-    return response.data;
+    // DIREKT /api/v1 verwenden, nicht erst /v1
+    const url = `/api/v1/documents/${documentId}?tenant_id=${encodeURIComponent(tenantId)}`;
+    
+    const response = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'X-API-Key': apiCore.getApiKey() || '',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data),
+      redirect: 'follow',
+      mode: 'same-origin',
+      credentials: 'same-origin'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    
+    return await response.json();
+  }
+
+  // Weaviate-Status eines Dokuments abrufen (alte Methode)
+  async getDocumentWeaviateStatus(tenantId: string, documentId: string): Promise<any> {
+    // Delegieren an die neue Methode
+    return this.getWeaviateStatus(tenantId, documentId);
   }
 
   // Weaviate-Status eines Dokuments abrufen
@@ -317,21 +493,47 @@ export class DocumentApi {
         throw new Error('Tenant-ID und Dokument-ID müssen angegeben werden');
       }
 
-      const response = await apiCore.getClient().get(
-        `/tenants/${tenantId}/documents/${documentId}/weaviate-status`
-      );
+      // DIREKT /api/v1 verwenden, nicht erst /v1
+      const url = `/api/v1/documents/${documentId}/weaviate-status?tenant_id=${encodeURIComponent(tenantId)}`;
       
-      if (response.status >= 200 && response.status < 300) {
-        console.log(`API: Weaviate-Status-Abruf erfolgreich für Dokument ${documentId}:`, response.data);
-        return response.data;
-      } else {
-        console.error(`API: Unerwarteter Status bei Weaviate-Status-Abruf: ${response.status}`);
-        throw new Error(`Fehler beim Abrufen des Weaviate-Status: HTTP-Status ${response.status}`);
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'X-API-Key': apiCore.getApiKey() || '',
+            'Content-Type': 'application/json'
+          },
+          redirect: 'follow',
+          mode: 'same-origin',
+          credentials: 'same-origin'
+        });
+        
+        if (!response.ok) {
+          // Wenn der Backend-Endpunkt fehlschlägt, liefern wir einen Status zurück, der anzeigt,
+          // dass wir den Status nicht abrufen konnten, aber die UI kann weiterlaufen
+          console.warn(`Weaviate-Status konnte nicht abgerufen werden: HTTP Status ${response.status}`);
+          return {
+            status: 'unknown',
+            error: `Konnte Status nicht abrufen: HTTP Status ${response.status}`
+          };
+        }
+        
+        return await response.json();
+      } catch (fetchError) {
+        // Bei Netzwerkfehler oder anderen Problemen
+        console.warn('Netzwerkfehler beim Abrufen des Weaviate-Status:', fetchError);
+        return {
+          status: 'unknown',
+          error: 'Netzwerkfehler beim Abrufen des Status'
+        };
       }
     } catch (error) {
       console.error('Weaviate-Status-Abruf fehlgeschlagen:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`Weaviate-Dokumentstatus konnte nicht abgerufen werden: ${errorMessage}`);
+      // Fallback-Status zurückgeben, damit die UI nicht abstürzt
+      return {
+        status: 'unknown',
+        error: error instanceof Error ? error.message : 'Unbekannter Fehler beim Abrufen des Status'
+      };
     }
   }
 }

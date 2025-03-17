@@ -360,8 +360,15 @@ async def get_document_weaviate_status(
     if not document:
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
     
-    status = await weaviate_service.get_document_status(tenant_id, document_id)
-    return status
+    try:
+        # Da die get_document_status-Methode nicht asynchron ist, verwenden wir sie ohne await
+        status = weaviate_service.get_document_status(tenant_id, document_id)
+        return status
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Fehler beim Abrufen des Weaviate-Status: {str(e)}"
+        )
 
 
 @router.post("/{document_id}/reindex")
@@ -380,8 +387,35 @@ async def reindex_document(
         raise HTTPException(status_code=404, detail="Dokument nicht gefunden")
     
     try:
-        await weaviate_service.reindex_document(document)
-        return {"message": "Dokument erfolgreich neu indiziert"}
+        # Dokument-Daten als Dictionary aufbereiten
+        document_data = {
+            "title": document.title,
+            "content": document.content,
+            "document_id": document.id,
+            "tenant_id": document.tenant_id,
+            "source": document.source if document.source else None,
+            "status": "INDIZIERT",  # Setze den Status auf indiziert
+            "created_at": document.created_at.isoformat() if hasattr(document, 'created_at') else datetime.now().isoformat()
+        }
+        
+        # Füge Metadaten hinzu, wenn vorhanden
+        if document.doc_metadata:
+            document_data.update(document.doc_metadata)
+        
+        # Rufe die reindex_document-Methode mit den drei erwarteten Parametern auf
+        success = weaviate_service.reindex_document(
+            tenant_id=tenant_id,
+            document_id=document_id,
+            document_data=document_data
+        )
+        
+        if success:
+            return {"message": "Dokument erfolgreich neu indiziert"}
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Dokument konnte nicht neu indiziert werden"
+            )
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -408,9 +442,9 @@ async def reindex_all_documents(
         doc_schemas = [Document.model_validate(doc) for doc in documents]
         
         # Alle Dokumente neu indizieren
-        await weaviate_service.reindex_all_documents(tenant_id, doc_schemas)
+        success_count = weaviate_service.reindex_all_documents(tenant_id, doc_schemas)
         
-        return {"message": f"{len(documents)} Dokumente erfolgreich neu indiziert"}
+        return {"message": f"{success_count} Dokumente erfolgreich neu indiziert"}
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -438,5 +472,11 @@ async def get_document_status(
         )
     
     # Status von Weaviate abrufen
-    status = await weaviate_service.get_document_status(tenant_id, document_id)
-    return status 
+    try:
+        status = weaviate_service.get_document_status(tenant_id, document_id)
+        return status
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Fehler beim Abrufen des Dokumentenstatus: {str(e)}"
+        ) 

@@ -3,139 +3,203 @@ Schema-Manager-Modul für die Verwaltung von Weaviate-Schemas und Klassen.
 """
 
 import logging
-from typing import Dict, Any, Optional, List
+import uuid
+from typing import Dict, Any, Optional, List, Tuple
 import weaviate
-# weaviate.classes existiert in Weaviate v4 nicht mehr in dieser Form
-# import weaviate.classes as wvc
-from .client import weaviate_client
-from ...utils.uuid_helper import to_str  # Importiere die UUID-Hilfsfunktion
+from weaviate.collections.classes.config import DataType, Property, VectorizerConfig
+from .client import get_client
 
 class SchemaManager:
     """Manager für die Verwaltung von Weaviate-Schemas und Klassen."""
     
+    def __init__(self, client: weaviate.Client):
+        self.client = client
+        self.logger = logging.getLogger(__name__)
+
     @staticmethod
-    def get_tenant_class_name(tenant_id) -> str:
-        """Erzeugt einen eindeutigen Klassennamen für jeden Tenant."""
-        # Konvertiere tenant_id zu String mit der Hilfsfunktion
-        tenant_str = to_str(tenant_id)
-        return f"Tenant{tenant_str.replace('-', '')}"
+    def get_tenant_class_name(tenant_id: str) -> str:
+        """Generiert einen standardisierten Klassennamen für einen Tenant."""
+        # Weaviate v4 erfordert gültige Klassennamen: nur Buchstaben
+        # und Ziffern, beginnt mit einem Großbuchstaben
+        # Wir ersetzen die UUIDs durch einen kürzeren, gültigen Namen
+        
+        # Entferne alle Bindestriche und verwende nur die ersten 8 Zeichen zur Identifikation
+        tenant_short_id = tenant_id.replace('-', '')[:8]
+        
+        # Stelle sicher, dass der Name mit einem Großbuchstaben beginnt
+        return f"Tenant{tenant_short_id.capitalize()}"
     
     @staticmethod
     def class_exists(class_name: str) -> bool:
         """Prüft, ob eine Klasse in Weaviate existiert."""
-        if not weaviate_client:
+        if not get_client():
             logging.error("Weaviate-Client ist nicht initialisiert")
             return False
-            
+        
         try:
-            # In v4 wird die Klasse als "Collection" bezeichnet
-            return weaviate_client.collections.exists(class_name)
+            # In v4 versuchen wir einfach, die Collection zu erhalten
+            # Wenn sie nicht existiert, wird eine Exception geworfen
+            try:
+                get_client().collections.get(class_name)
+                return True
+            except Exception:
+                return False
         except Exception as e:
-            logging.error(f"Fehler beim Prüfen der Klasse {class_name}: {e}")
+            logging.error(f"Fehler beim Prüfen der Klasse '{class_name}': {e}")
             return False
     
     @staticmethod
     def create_standard_schema() -> bool:
-        """Initialisiert ein Standard-Schema, um Weaviate zu aktivieren."""
-        if not weaviate_client:
-            logging.error("Weaviate-Client ist nicht initialisiert")
+        """
+        Erstellt das Standardschema mit vorkonfigurierten Klassen.
+        """
+        try:
+            # Erstelle die Standard-Schema-Konfiguration
+            schema_created = SchemaManager._create_standard_schema_config()
+            if schema_created:
+                logging.info("Standard-Schema erfolgreich erstellt")
+            return schema_created
+        except Exception as e:
+            logging.error(f"Fehler beim Erstellen des Standard-Schemas: {str(e)}")
             return False
-            
-        schema_class_name = "StandbyClass"
-        
-        # Prüfen, ob Klasse bereits existiert
-        if SchemaManager.class_exists(schema_class_name):
-            return True
+    
+    @staticmethod
+    def _create_standard_schema_config() -> bool:
+        """
+        Erstellt die Standardkonfiguration für das Schema.
+        """
+        client = get_client()
         
         try:
-            # Standard-Schema erstellen mit Weaviate v4 API
-            weaviate_client.collections.create(
-                name=schema_class_name,
-                description="Standard-Klasse für Weaviate-Initialisierung",
-                vectorizer_config={"vectorizer": "text2vec-transformers"},
+            # Erstelle eine Standardklasse für FAQ-Daten
+            # Diese Klasse kann für allgemeine Informationen verwendet werden
+            faq_class_name = "FAQ"
+            
+            # Prüfe, ob die Klasse bereits existiert
+            if SchemaManager.class_exists(faq_class_name):
+                logging.info(f"Klasse {faq_class_name} existiert bereits")
+                return True
+            
+            # Erstelle die Klasse mit dem Transformers-Modul
+            faq_collection = client.collections.create(
+                name=faq_class_name,
+                vectorizer_config=VectorizerConfig(
+                    vectorizer="text2vec-transformers",
+                    model="text2vec-transformers",
+                    vectorize_collection_name=False
+                ),
                 properties=[
-                    {
-                        "name": "text",
-                        "data_type": ["text"],
-                        "description": "Ein Textfeld"
-                    }
+                    Property(
+                        name="title",
+                        data_type=DataType.TEXT
+                    ),
+                    Property(
+                        name="content",
+                        data_type=DataType.TEXT
+                    ),
+                    Property(
+                        name="category",
+                        data_type=DataType.TEXT
+                    ),
+                    Property(
+                        name="tags",
+                        data_type=DataType.TEXT_ARRAY
+                    )
                 ]
             )
             
-            logging.info(f"Standard-Schema '{schema_class_name}' erstellt")
+            logging.info(f"FAQ-Klasse {faq_class_name} erfolgreich erstellt")
             return True
+            
         except Exception as e:
-            logging.error(f"Fehler beim Erstellen des Standard-Schemas: {e}")
+            logging.error(f"Fehler beim Erstellen der Standardklassen: {str(e)}")
             return False
     
     @staticmethod
     def create_tenant_schema(tenant_id: str) -> bool:
-        """Erstellt ein Schema (Klasse) für einen neuen Tenant."""
-        if not weaviate_client:
-            logging.error("Weaviate-Client ist nicht initialisiert")
-            return False
-            
-        class_name = SchemaManager.get_tenant_class_name(tenant_id)
-        
-        # Prüfen, ob Klasse bereits existiert
-        if SchemaManager.class_exists(class_name):
-            return True
+        """
+        Erstellt das Schema für einen spezifischen Tenant.
+        Ein Tenant hat seine eigene Klasse für Dokumente.
+        """
+        client = get_client()
         
         try:
-            # Schema mit Text- und Metadatenfeldern erstellen mit Weaviate v4 API
-            weaviate_client.collections.create(
+            # Name der Klasse basierend auf der Tenant-ID
+            class_name = f"Tenant{tenant_id}"
+            
+            # Prüfe, ob die Klasse bereits existiert
+            if SchemaManager.class_exists(class_name):
+                logging.info(f"Tenant-Klasse {class_name} existiert bereits")
+                return True
+            
+            # Erstelle die Tenant-Klasse
+            tenant_collection = client.collections.create(
                 name=class_name,
-                description=f"Wissensbasis für Tenant {tenant_id}",
-                vectorizer_config={"vectorizer": "text2vec-transformers"},
+                vectorizer_config=VectorizerConfig(
+                    vectorizer="text2vec-transformers",
+                    model="text2vec-transformers",
+                    vectorize_collection_name=False
+                ),
                 properties=[
-                    {
-                        "name": "title",
-                        "data_type": ["text"],
-                        "description": "Der Titel des Dokuments"
-                    },
-                    {
-                        "name": "content",
-                        "data_type": ["text"],
-                        "description": "Der Inhalt des Dokuments"
-                    },
-                    {
-                        "name": "metadata",
-                        "data_type": ["text"],
-                        "description": "Zusätzliche Metadaten zum Dokument"
-                    },
-                    {
-                        "name": "source",
-                        "data_type": ["text"],
-                        "description": "Die Quelle des Dokuments"
-                    }
+                    Property(
+                        name="title",
+                        data_type=DataType.TEXT
+                    ),
+                    Property(
+                        name="content", 
+                        data_type=DataType.TEXT
+                    ),
+                    Property(
+                        name="document_id",
+                        data_type=DataType.TEXT,
+                        indexFilterable=True
+                    ),
+                    Property(
+                        name="chunk_id",
+                        data_type=DataType.TEXT,
+                        indexFilterable=True
+                    ),
+                    Property(
+                        name="metadata",
+                        data_type=DataType.TEXT
+                    ),
+                    Property(
+                        name="source",
+                        data_type=DataType.TEXT
+                    ),
+                    Property(
+                        name="status",
+                        data_type=DataType.TEXT,
+                        indexFilterable=True
+                    )
                 ]
             )
             
-            logging.info(f"Schema für Tenant {tenant_id} erstellt")
+            logging.info(f"Tenant-Klasse {class_name} erfolgreich erstellt")
             return True
+            
         except Exception as e:
-            logging.error(f"Fehler beim Erstellen des Tenant-Schemas: {e}")
+            logging.error(f"Fehler beim Erstellen des Tenant-Schemas {tenant_id}: {str(e)}")
             return False
     
     @staticmethod
     def delete_tenant_schema(tenant_id: str) -> bool:
         """Löscht das Schema (Klasse) eines Tenants."""
-        if not weaviate_client:
+        if not get_client():
             logging.error("Weaviate-Client ist nicht initialisiert")
             return False
             
         class_name = SchemaManager.get_tenant_class_name(tenant_id)
         
+        # Prüfen, ob Klasse existiert
+        if not SchemaManager.class_exists(class_name):
+            return True  # Klasse existiert nicht, also nichts zu löschen
+        
         try:
-            # Prüfen, ob Klasse existiert
-            if not SchemaManager.class_exists(class_name):
-                logging.warning(f"Klasse {class_name} existiert nicht")
-                return True
-                
             # Klasse löschen
-            weaviate_client.collections.delete(class_name)
-            logging.info(f"Klasse {class_name} erfolgreich gelöscht")
+            get_client().collections.delete(class_name)
+            logging.info(f"Schema für Tenant {tenant_id} gelöscht")
             return True
         except Exception as e:
-            logging.error(f"Fehler beim Löschen der Klasse {class_name}: {e}")
+            logging.error(f"Fehler beim Löschen des Tenant-Schemas: {e}")
             return False 

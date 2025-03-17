@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { toast } from "@/utils/toast";
@@ -16,15 +16,48 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useProgressToast } from "@/hooks/use-progress-toast";
 import { Loader2 } from "lucide-react";
-import { useTenant } from "@/hooks/use-tenant";
 import { AdminLayout } from "@/components/layouts/admin-layout";
-import { Breadcrumb } from "@/components/breadcrumb";
+import { Tenant } from "@/types/api";
+import api from "@/api";
 
 export default function TenantXMLImportPage() {
   const router = useRouter();
-  const { tenantId } = router.query;
-  const { tenant, isLoading, error } = useTenant(tenantId as string);
+  const { id: tenantId } = router.query;
   const { startProgress, updateProgress, finishProgress } = useProgressToast();
+
+  // Client-only State für API-Aufrufe
+  const [isClient, setIsClient] = useState(false);
+  const [tenant, setTenant] = useState<Tenant | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  // Beim ersten Render prüfen, ob wir im Browser sind
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Tenant-Daten laden, aber nur im Browser
+  useEffect(() => {
+    if (!isClient || !tenantId) return;
+
+    const loadTenant = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        console.log(`Lade Tenant mit ID ${tenantId} (clientseitig)`);
+        const tenantData = await api.getTenant(tenantId as string);
+        setTenant(tenantData);
+      } catch (err) {
+        console.error("Fehler beim Laden des Tenants:", err);
+        setError(err instanceof Error ? err : new Error("Fehler beim Laden der Kundendaten"));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadTenant();
+  }, [tenantId, isClient]);
 
   const [file, setFile] = useState<File | null>(null);
   const [xmlType, setXmlType] = useState<string>("generic");
@@ -65,8 +98,7 @@ export default function TenantXMLImportPage() {
       formData.append("tenant_id", tenantId as string);
       formData.append("xml_type", xmlType);
 
-      const backendUrl = "http://localhost:8000/api/v1";
-      const response = await fetch(`${backendUrl}/structured-data/import/xml`, {
+      const response = await fetch(`/api/v1/structured-data/import/xml`, {
         method: "POST",
         headers: {
           "X-API-Key": tenant?.api_key || "",
@@ -116,7 +148,7 @@ export default function TenantXMLImportPage() {
     const toastId = startProgress("XML-Daten werden von URL importiert...");
 
     try {
-      const backendUrl = "http://localhost:8000/api/v1";
+      const backendUrl = "/api/v1";
       const response = await fetch(
         `${backendUrl}/structured-data/import/xml/url`,
         {
@@ -169,7 +201,7 @@ export default function TenantXMLImportPage() {
     const toastId = startProgress("XML-Fix-Import wird im Hintergrund gestartet...");
 
     try {
-      const backendUrl = "http://localhost:8000/api/v1";
+      const backendUrl = "/api/v1";
       const response = await fetch(
         `${backendUrl}/structured-data/admin/fix-xml-import`,
         {
@@ -210,20 +242,21 @@ export default function TenantXMLImportPage() {
     }
   };
 
-  // Fehlerbehandlung und Ladeanimation
-  if (isLoading) {
+  // Standard Breadcrumb für alle Varianten
+  const breadcrumbItems = [
+    { href: "/tenants", label: "Mandanten" },
+    { href: `/tenants/${tenantId}`, label: "Details" },
+    { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe" },
+    { href: `/tenants/${tenantId}/data-imports/xml`, label: "XML-Import", isCurrent: true },
+  ];
+
+  // Während des serverseitigen Renderings oder beim Laden im Client eine einfache Ladeanzeige anzeigen
+  if (!isClient || isLoading) {
     return (
-      <AdminLayout>
-        <Breadcrumb
-          items={[
-            { href: "/tenants", label: "Mandanten" },
-            { href: `/tenants/${tenantId}`, label: "Details" },
-            { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe" },
-            { href: `/tenants/${tenantId}/data-imports/xml`, label: "XML-Import", isCurrent: true },
-          ]}
-        />
+      <AdminLayout breadcrumbItems={breadcrumbItems}>
         <div className="flex justify-center items-center min-h-[60vh]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          {!isClient && <span className="ml-2">Anwendung wird geladen...</span>}
         </div>
       </AdminLayout>
     );
@@ -231,15 +264,7 @@ export default function TenantXMLImportPage() {
 
   if (error) {
     return (
-      <AdminLayout>
-        <Breadcrumb
-          items={[
-            { href: "/tenants", label: "Mandanten" },
-            { href: `/tenants/${tenantId}`, label: "Details" },
-            { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe" },
-            { href: `/tenants/${tenantId}/data-imports/xml`, label: "XML-Import", isCurrent: true },
-          ]}
-        />
+      <AdminLayout breadcrumbItems={breadcrumbItems}>
         <div className="rounded-md bg-destructive/15 p-4 mt-4">
           <div className="text-destructive">{error ? error.message : 'Ein unbekannter Fehler ist aufgetreten'}</div>
         </div>
@@ -249,15 +274,7 @@ export default function TenantXMLImportPage() {
 
   if (!tenant) {
     return (
-      <AdminLayout>
-        <Breadcrumb
-          items={[
-            { href: "/tenants", label: "Mandanten" },
-            { href: `/tenants/${tenantId}`, label: "Details" },
-            { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe" },
-            { href: `/tenants/${tenantId}/data-imports/xml`, label: "XML-Import", isCurrent: true },
-          ]}
-        />
+      <AdminLayout breadcrumbItems={breadcrumbItems}>
         <div className="rounded-md bg-amber-100 p-4 mt-4">
           <div className="text-amber-800">Tenant nicht gefunden.</div>
         </div>
@@ -266,18 +283,9 @@ export default function TenantXMLImportPage() {
   }
 
   return (
-    <AdminLayout>
-      <Breadcrumb
-        items={[
-          { href: "/tenants", label: "Mandanten" },
-          { href: `/tenants/${tenantId}`, label: "Details" },
-          { href: `/tenants/${tenantId}/data-imports`, label: "Daten-Importe" },
-          { href: `/tenants/${tenantId}/data-imports/xml`, label: "XML-Import", isCurrent: true },
-        ]}
-      />
-
+    <AdminLayout breadcrumbItems={breadcrumbItems}>
       <div className="flex flex-col gap-8">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <h1 className="text-3xl font-bold tracking-tight">XML-Import für {tenant.name}</h1>
           <Button onClick={() => router.push(`/tenants/${tenantId}/data-imports`)}>
             Zurück zur Übersicht

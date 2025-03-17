@@ -334,7 +334,7 @@ class RAGService:
             
             # Dokumente basierend auf der Frage abrufen
             logger.info(f"Suche Dokumente für Query: '{query}', Tenant: {tenant_id}")
-            docs = self.search_manager.search(tenant_id, query, top_k=top_k)
+            docs = self.search_manager.search(tenant_id, query, limit=top_k)
             
             if docs:
                 logger.info(f"{len(docs)} Dokumente gefunden")
@@ -519,32 +519,17 @@ ANTWORT:
             return
         
         try:
-            # RAG-Prozess durchführen mit vereinfachtem Streaming
-            if stream:
-                # Bei Streaming den Generator direkt verwenden
-                response_generator = await self.get_answer(
-                    query=query,
-                    tenant_id=tenant_id,
-                    db=SessionLocal(),
-                    top_k=5,
-                    use_structured_data=True
-                )
-                
-                async for chunk in response_generator:
-                    if chunk:
-                        yield chunk
-            else:
-                # Bei nicht-Streaming die komplette Antwort generieren
-                response = await self.get_answer(
-                    query=query,
-                    tenant_id=tenant_id,
-                    db=SessionLocal(),
-                    top_k=5,
-                    use_structured_data=True
-                )
-                
-                if response:
-                    yield response
+            # RAG-Prozess durchführen
+            response = await self.get_answer(
+                query=query,
+                tenant_id=tenant_id,
+                db=SessionLocal(),
+                top_k=5,
+                use_structured_data=True
+            )
+            
+            if response:
+                yield response
         except Exception as e:
             # Verbesserte Fehlerbehandlung
             error_msg = str(e)
@@ -553,4 +538,4 @@ ANTWORT:
 
 
 # Instanz des RAG-Service erzeugen
-rag_service = RAGService() 
+rag_service = RAGService()

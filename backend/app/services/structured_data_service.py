@@ -10,7 +10,7 @@ import weaviate
 from datetime import datetime
 from weaviate.util import generate_uuid5
 from .xml_parser_service import XMLParserBase
-from .weaviate.client import weaviate_client
+from .weaviate.client import get_client
 from .weaviate.schema_manager import SchemaManager
 from .weaviate import WeaviateService, weaviate_service
 from .xml_parser_factory import XMLParserFactory
@@ -70,7 +70,8 @@ class StructuredDataService:
     @staticmethod
     def create_schema_for_type(tenant_id: str, data_type: str) -> bool:
         """Erstellt ein Schema (Klasse) für einen strukturierten Datentyp und Tenant."""
-        if not weaviate_client:
+        client = get_client()
+        if not client:
             logger.error("Weaviate-Client ist nicht initialisiert")
             return False
             
@@ -80,7 +81,7 @@ class StructuredDataService:
         if SchemaManager.class_exists(class_name):
             return True
         
-        from weaviate.classes.config import Property, DataType, Configure
+        from weaviate.collections.classes.config import Property, DataType, VectorizerConfig
 
         try:
             # Eigenschaften für den Datentyp definieren
@@ -197,9 +198,13 @@ class StructuredDataService:
             logger.info(f"Erstelle Schema für {data_type} - Tenant {tenant_id}")
             
             # Vektorkonfiguration für Weaviate v4 korrekt einrichten
-            vectorizer_config = Configure.Vectorizer.text2vec_transformers()
+            vectorizer_config = VectorizerConfig(
+                vectorizer="text2vec-transformers",
+                model="text2vec-transformers",
+                vectorize_collection_name=False
+            )
             
-            weaviate_client.collections.create(
+            client.collections.create(
                 name=class_name,
                 description=f"Strukturierte Daten vom Typ {data_type} für Tenant {tenant_id}",
                 properties=properties,
@@ -236,7 +241,8 @@ class StructuredDataService:
     
     def store_structured_data(self, tenant_id: str, data_type: str, data: Dict[str, Any]) -> bool:
         """Speichert strukturierte Daten in Weaviate."""
-        if not weaviate_client:
+        client = get_client()
+        if not client:
             logger.error("Weaviate-Client ist nicht initialisiert")
             return False
             
@@ -248,12 +254,19 @@ class StructuredDataService:
             return False
         
         try:
-            # Daten in strukturierte Klasse speichern
-            collection = weaviate_client.collections.get(class_name)
+            # Daten flachen und in Weaviate speichern
+            flattened_data = self.flatten_data(data)
+            
+            # "Volltextsuche" Feld für bessere Suchergebnisse
+            full_text = " ".join(str(value) for value in flattened_data.values() if value)
+            flattened_data["fullTextSearch"] = full_text
+            
+            # Weaviate-Dokument erstellen
+            collection = client.collections.get(class_name)
             doc_id = str(uuid.uuid4())
             collection.data.insert(
                 uuid=doc_id,
-                properties=data
+                properties=flattened_data
             )
             
             # Daten auch als durchsuchbares Dokument in Tenant-Klasse speichern
@@ -266,7 +279,7 @@ class StructuredDataService:
             doc_content = []
             
             # Alle relevanten Felder zum Content hinzufügen
-            for key, value in data.items():
+            for key, value in flattened_data.items():
                 if isinstance(value, str) and value:
                     if key in ["name", "title"]:
                         continue  # Diese werden schon im Titel verwendet
@@ -277,7 +290,7 @@ class StructuredDataService:
                             doc_content.append(f"{sub_key}: {sub_value}")
             
             # Dokument in Tenant-Klasse speichern
-            tenant_collection = weaviate_client.collections.get(tenant_class)
+            tenant_collection = client.collections.get(tenant_class)
             tenant_collection.data.insert(
                 uuid=str(uuid.uuid4()),
                 properties={
@@ -369,76 +382,44 @@ class StructuredDataService:
         Returns:
             bool: True bei Erfolg, False bei Fehler
         """
-        logger.info(f"Beginne Löschung existierender Daten für Tenant {tenant_id}")
-        
-        try:
-            if not weaviate_client:
-                logger.error("Weaviate-Client konnte nicht initialisiert werden")
-                return False
-            
-            deleted_count = 0
-            
-            # Für jeden unterstützten Datentyp die entsprechende Klasse löschen oder zurücksetzen
-            for data_type in StructuredDataService.SUPPORTED_TYPES:
-                class_name = StructuredDataService.get_class_name(tenant_id, data_type)
-                
-                try:
-                    # Prüfen, ob die Klasse existiert
-                    if weaviate_client.collections.exists(class_name):
-                        # Sammlung abrufen
-                        collection = weaviate_client.collections.get(class_name)
-                        
-                        # In Weaviate v4 kann man direkt die gesamte Sammlung löschen und neu erstellen
-                        # oder alle Objekte über eine Abfrage löschen
-                        try:
-                            # Zuerst versuchen, die Anzahl der Objekte zu ermitteln
-                            count_result = collection.query.fetch_objects(limit=1, include_vector=False)
-                            
-                            # Wenn Objekte existieren, führe eine Löschabfrage aus
-                            if count_result and len(count_result.objects) > 0:
-                                # Alle Objekte löschen mit einer WHERE-Abfrage, die alle Objekte einschließt
-                                # In Weaviate v4 nutzen wir dafür die Batch-API oder delete_many mit einem Filter
-                                deleted = collection.data.delete_many(
-                                    where={"path": ["id"], "operator": "LessThanEqual", "valueString": "ffffffff-ffff-ffff-ffff-ffffffffffff"}
-                                )
-                                deleted_count += deleted
-                                logger.info(f"Gelöschte Objekte in {class_name}: {deleted}")
-                            else:
-                                logger.info(f"Keine Objekte in {class_name} vorhanden")
-                        except Exception as delete_error:
-                            # Wenn die Löschabfrage fehlschlägt, versuchen wir es mit einer alternativen Methode
-                            logger.warning(f"Fehler bei der Löschabfrage, versuche alternative Methode: {delete_error}")
-                            
-                            # Alternative: Sammlung löschen und neu erstellen
-                            try:
-                                # Schema-Definition speichern
-                                schema_info = collection.config
-                                # Sammlung löschen
-                                weaviate_client.collections.delete(class_name)
-                                logger.info(f"Sammlung {class_name} gelöscht")
-                                
-                                # Sammlung mit gleichem Schema neu erstellen
-                                weaviate_client.collections.create(
-                                    name=class_name,
-                                    description=schema_info.description,
-                                    properties=schema_info.properties,
-                                    vectorizer_config=schema_info.vectorizer_config
-                                )
-                                logger.info(f"Sammlung {class_name} neu erstellt")
-                                deleted_count += 1  # Als eine Operation zählen
-                            except Exception as recreate_error:
-                                logger.error(f"Fehler beim Neuerstellen der Sammlung {class_name}: {recreate_error}")
-                    else:
-                        logger.info(f"Klasse {class_name} existiert nicht, keine Löschung erforderlich")
-                except Exception as e:
-                    logger.error(f"Fehler beim Löschen der Daten vom Typ {data_type}: {str(e)}")
-            
-            logger.info(f"Insgesamt {deleted_count} strukturierte Daten-Objekte gelöscht")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Fehler beim Löschen existierender Daten: {str(e)}")
+        client = get_client()
+        if not client:
+            logger.error("Weaviate-Client ist nicht initialisiert")
             return False
+        
+        success = True
+        
+        # Für jeden unterstützten Datentyp das entsprechende Schema löschen und neu erstellen
+        for data_type in StructuredDataService.SUPPORTED_TYPES:
+            class_name = StructuredDataService.get_class_name(tenant_id, data_type)
+            
+            try:
+                # Prüfen, ob die Klasse existiert
+                if client.schema.exists_class(class_name):
+                    # Klasse löschen
+                    collection = client.collections.get(class_name)
+                    collection.delete()
+                    logger.info(f"Klasse {class_name} gelöscht")
+                    
+                    # Kurze Pause, um sicherzustellen, dass Weaviate die Änderung verarbeitet
+                    time.sleep(0.5)
+                    
+                # Klasse neu erstellen
+                client.collections.create(
+                    name=class_name,
+                    description=f"Strukturierte Daten vom Typ {data_type} für Tenant {tenant_id}",
+                    vectorizer_config=VectorizerConfig(
+                        "text2vec-transformers",
+                        vectorize_collection_name=False
+                    )
+                )
+                
+                logger.info(f"Klasse {class_name} neu erstellt")
+            except Exception as e:
+                logger.error(f"Fehler beim Löschen/Neuerstellen von {class_name}: {str(e)}")
+                success = False
+        
+        return success
     
     @staticmethod
     def search_structured_data(
@@ -459,7 +440,8 @@ class StructuredDataService:
         Returns:
             Liste von gefundenen Elementen
         """
-        if not weaviate_client:
+        client = get_client()
+        if not client:
             logger.error("Weaviate-Client ist nicht initialisiert")
             return []
             
@@ -475,8 +457,11 @@ class StructuredDataService:
             return []
         
         try:
-            # Suche durchführen mit Weaviate v4 API
-            collection = weaviate_client.collections.get(class_name)
+            # Vectorsuche durchführen
+            logger.info(f"Führe Suche in {class_name} mit Query '{query}' durch")
+            
+            collection = client.collections.get(class_name)
+            
             # Hybrid-Suche ohne expliziten fusion_type Parameter
             results = collection.query.hybrid(
                 query=query,

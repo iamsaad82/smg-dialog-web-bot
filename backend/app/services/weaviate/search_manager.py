@@ -6,65 +6,48 @@ import logging
 import json
 from typing import Dict, Any, Optional, List, Tuple
 import weaviate
-import weaviate.classes as wvc
 from ...core.config import settings
-from .client import weaviate_client, connect_to_local
+from .client import get_client
 from .schema_manager import SchemaManager
 
 # Konstanten für strukturierte Daten
-STRUCTURED_CLASS_PREFIX = "StructuredData"
+STRUCTURED_DATA_PREFIX = "StructuredData"
 
 # Suchkonfiguration
 SEARCH_CONFIG = {
-    "vector_certainty": 0.3,    # Niedrigerer Schwellwert für semantische Ähnlichkeit
-    "hybrid_certainty": 0.2,    # Niedrigerer Schwellwert für Hybrid-Fallback
-    "hybrid_alpha": 0.1         # Noch stärkerer Fokus auf semantische Ähnlichkeit
+    "hybrid": True, 
+    "properties": ["content", "title"],
+    "limit": 10
 }
 
 class SearchManager:
     """Manager für die Suche in Weaviate."""
     
-    @classmethod
-    def _get_tenant_classes(cls, tenant_id: str) -> List[str]:
-        """Ermittelt alle verfügbaren Klassen für einen Tenant."""
+    @staticmethod
+    def _get_tenant_classes(tenant_id: str) -> List[str]:
+        """
+        Prüft ob Tenant-Klassen existieren, da Weaviate v4 keine direkte Methode zum Auflisten aller Collections bietet
+        """
+        tenant_class = f"Tenant{tenant_id}"
+        structured_data_class = f"{STRUCTURED_DATA_PREFIX}{tenant_id}"
+        
+        classes = []
+        client = get_client()
+        
         try:
-            client = connect_to_local()
-            collection_names = client.collections.list_all()
+            # Prüfe ob die Tenant-Klasse existiert
+            if SchemaManager.class_exists(tenant_class):
+                classes.append(tenant_class)
+                logging.info(f"Tenant-Klasse {tenant_class} gefunden")
             
-            print(f"\nSuche Klassen für Tenant {tenant_id}")
-            print(f"Tenant-ID ohne Bindestriche: {tenant_id.replace('-', '')}")
-            
-            # Alle Klassen für den Tenant filtern
-            tenant_classes = []
-            structured_classes = []
-            other_classes = []
-            
-            print("\nVerfügbare Klassen im Schema:")
-            for class_name in collection_names:
-                print(f"- {class_name}")
-                if tenant_id.replace("-", "") in class_name:
-                    print(f"  -> Gehört zu Tenant {tenant_id}")
-                    if class_name.startswith(STRUCTURED_CLASS_PREFIX):
-                        structured_classes.append(class_name)
-                        print(f"  -> Als strukturierte Daten erkannt")
-                    else:
-                        other_classes.append(class_name)
-                        print(f"  -> Als andere Klasse erkannt")
-            
-            # Strukturierte Daten zuerst, dann andere
-            tenant_classes = structured_classes + other_classes
-            
-            if not tenant_classes:
-                print(f"Keine Klassen gefunden für Tenant {tenant_id}")
-            else:
-                print(f"\nGefundene Klassen für Tenant {tenant_id}:")
-                print("Strukturierte Daten:", ", ".join(structured_classes) if structured_classes else "Keine")
-                print("Andere Klassen:", ", ".join(other_classes) if other_classes else "Keine")
-            
-            return tenant_classes
-            
+            # Prüfe ob die StructuredData-Klasse existiert
+            if SchemaManager.class_exists(structured_data_class):
+                classes.append(structured_data_class)
+                logging.info(f"StructuredData-Klasse {structured_data_class} gefunden")
+                
+            return classes
         except Exception as e:
-            print(f"Fehler beim Abrufen der Klassen: {str(e)}")
+            logging.error(f"Fehler beim Abrufen der Tenant-Klassen: {str(e)}")
             return []
     
     @staticmethod
@@ -93,95 +76,57 @@ class SearchManager:
         
         return "\n".join(filter(None, content_parts))
 
-    @classmethod
-    def search(
-        cls,
-        tenant_id: str, 
-        query: str, 
-        limit: int = 5
-    ) -> List[Dict[str, Any]]:
+    @staticmethod
+    def search(tenant_id: str, query: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
-        Führt eine Hybrid-Suche über alle Klassen des Mandanten durch.
+        Führt eine Hybrid-Suche über alle Klassen eines Tenants durch
         """
-        all_results = []
-        tenant_classes = cls._get_tenant_classes(tenant_id)
-        logging.info(f"Durchsuche {len(tenant_classes)} Klassen für Tenant {tenant_id} mit Query: '{query}'")
+        client = get_client()
+        tenant_classes = SearchManager._get_tenant_classes(tenant_id)
         
-        for class_name in tenant_classes:
-            try:
-                logging.info(f"Suche in Klasse: {class_name}")
+        if not tenant_classes:
+            logging.warning(f"Keine Tenant-Klassen für Tenant {tenant_id} gefunden")
+            return []
+        
+        results = []
+        
+        try:
+            for class_name in tenant_classes:
+                logging.info(f"Suche in Klasse {class_name} nach '{query}'")
                 
-                # Hole die Collection
-                collection = weaviate_client.collections.get(class_name)
+                # Hybrid-Suche mit der v4 API durchführen
+                collection = client.collections.get(class_name)
                 
-                # Führe die Hybrid-Suche durch
-                logging.info("Führe Hybrid-Suche durch...")
-                results = collection.query.hybrid(
+                # Angepasste Hybrid-Suche für Weaviate v4
+                # properties auflisten, die zurückgegeben werden sollen
+                properties = ["content", "title", "document_id", "chunk_id", "metadata"]
+                
+                # In v4 wird die Query direkt ausgeführt ohne do()
+                response = collection.query.hybrid(
                     query=query,
-                    alpha=0.75,
-                    limit=limit
+                    limit=limit,
+                    properties=properties,
+                    include_vector=True
                 )
                 
-                # Extrahiere die Objekte aus den Ergebnissen
-                objects = results.objects if hasattr(results, 'objects') else []
-                logging.info(f"Hybrid-Suche gefunden: {len(objects)} Ergebnisse")
-                
-                formatted_results = []
-                for obj in objects:
-                    if not obj or not hasattr(obj, 'properties'):
-                        continue
-                        
-                    properties = obj.properties
-                    if not properties:
-                        continue
-                        
-                    title = properties.get('title', 'Kein Titel')
-                    content = properties.get('content', '')
-                    
-                    # Extrahiere die erste Zeile des Contents für die Vorschau
-                    content_preview = content.split('\n')[0] if content else ''
-                    
-                    # Score extrahieren (falls vorhanden)
-                    score = None
-                    if hasattr(obj, 'score'):
-                        score = obj.score
-                    elif hasattr(obj, 'certainty'):
-                        score = obj.certainty
-                    elif hasattr(obj, 'distance'):
-                        # Bei distance: kleinere Werte sind besser, also invertieren wir
-                        score = 1.0 - obj.distance if obj.distance <= 1.0 else 0.0
-                    
-                    formatted_result = {
-                        'title': title,
-                        'content_preview': content_preview[:100] + '...' if len(content_preview) > 100 else content_preview,
-                        'content': content,
-                        'class_name': class_name,
-                        'score': score
-                    }
-                    formatted_results.append(formatted_result)
-                
-                if formatted_results:
-                    logging.info(f"Gefundene Ergebnisse in {class_name}:")
-                    for i, result in enumerate(formatted_results):
-                        logging.info(f"[{i+1}] {result['title']} (Score: {result['score']})")
-                        logging.info(f"    Vorschau: {result['content_preview']}")
-                    
-                    all_results.extend(formatted_results)
-                    logging.info(f"Insgesamt {len(formatted_results)} Ergebnisse in {class_name} gefunden")
+                if response.objects:
+                    logging.info(f"{len(response.objects)} Ergebnisse in {class_name} gefunden")
+                    for obj in response.objects:
+                        # Konvertiere die Antwort in das erwartete Format
+                        item = {
+                            "class": class_name,
+                            "id": obj.uuid,
+                            "score": getattr(obj, "score", 0),
+                            "properties": obj.properties
+                        }
+                        results.append(item)
                 else:
-                    logging.info(f"Keine relevanten Ergebnisse in {class_name} gefunden")
-                
-            except Exception as e:
-                logging.error(f"Fehler bei der Suche in {class_name}: {str(e)}")
-                continue
-        
-        # Sortiere alle Ergebnisse nach Score (wenn vorhanden)
-        all_results.sort(key=lambda x: x.get('score', 0) if x.get('score') is not None else 0, reverse=True)
-        
-        logging.info(f"Gesamt: {len(all_results)} Ergebnisse gefunden")
-        if all_results:
-            logging.info(f"Top-Ergebnis: {all_results[0]['title']} (Score: {all_results[0]['score']})")
-        else:
-            logging.warning("Keine Suchergebnisse gefunden!")
+                    logging.info(f"Keine Ergebnisse in {class_name} gefunden")
             
-        return all_results 
+            # Sortiere Ergebnisse nach Score (absteigend)
+            results.sort(key=lambda x: x.get("score", 0), reverse=True)
+            return results[:limit]
+            
+        except Exception as e:
+            logging.error(f"Fehler bei der Suche über Tenant {tenant_id}: {str(e)}")
+            return [] 

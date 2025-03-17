@@ -1,0 +1,310 @@
+[
+  {
+    "postgres": {
+      "createdAt": "2025-03-13T09:39:26.846145Z",
+      "dashboardUrl": "https://dashboard.render.com/d/dpg-cv9afj9c1ekc73e61ul0-a",
+      "databaseName": "dialog_engine_db_76jg",
+      "databaseUser": "dialog_engine_db_76jg_user",
+      "expiresAt": "2025-04-12T09:39:26.846145Z",
+      "highAvailabilityEnabled": false,
+      "id": "dpg-cv9afj9c1ekc73e61ul0-a",
+      "ipAllowList": [
+        {
+          "cidrBlock": "0.0.0.0/0",
+          "description": "everywhere"
+        }
+      ],
+      "name": "dialog-engine-db",
+      "owner": {
+        "email": "mm@schickma.de",
+        "id": "tea-cspspe0gph6c73f4erug",
+        "name": "My Workspace",
+        "type": "team"
+      },
+      "plan": "free",
+      "readReplicas": [],
+      "region": "frankfurt",
+      "role": "primary",
+      "status": "available",
+      "suspended": "not_suspended",
+      "suspenders": [],
+      "updatedAt": "2025-03-13T09:39:26.846145Z",
+      "version": "16"
+    }
+  },
+  {
+    "service": {
+      "autoDeploy": "yes",
+      "branch": "main",
+      "createdAt": "2025-03-13T09:41:20.596898Z",
+      "dashboardUrl": "https://dashboard.render.com/web/srv-cv9agg1c1ekc73e62dn0",
+      "id": "srv-cv9agg1c1ekc73e62dn0",
+      "name": "dialog-engine-backend",
+      "notifyOnFail": "default",
+      "ownerId": "tea-cspspe0gph6c73f4erug",
+      "repo": "https://github.com/iamsaad82/smg-dialog-web-bot",
+      "rootDir": "",
+      "serviceDetails": {
+        "buildPlan": "starter",
+        "env": "python",
+        "envSpecificDetails": {
+          "buildCommand": "cd backend \u0026\u0026 pip install -r requirements.txt",
+          "startCommand": "cd backend \u0026\u0026 uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+        },
+        "healthCheckPath": "",
+        "maintenanceMode": {
+          "enabled": false,
+          "uri": ""
+        },
+        "numInstances": 1,
+        "openPorts": [
+          {
+            "port": 10000,
+            "protocol": "TCP"
+          }
+        ],
+        "plan": "starter",
+        "previews": {
+          "generation": "off"
+        },
+        "pullRequestPreviewsEnabled": "no",
+        "region": "frankfurt",
+        "runtime": "python",
+        "sshAddress": "srv-cv9agg1c1ekc73e62dn0@ssh.frankfurt.render.com",
+        "url": "https://dialog-engine-backend.onrender.com"
+      },
+      "slug": "dialog-engine-backend",
+      "suspended": "not_suspended",
+      "suspenders": [],
+      "type": "web_service",
+      "updatedAt": "2025-03-16T23:15:30.039581Z"
+    }
+  },
+  {
+    "service": {
+      "autoDeploy": "yes",
+      "branch": "main",
+      "createdAt": "2025-03-13T09:54:35.773168Z",
+      "dashboardUrl": "https://dashboard.render.com/web/srv-cv9ammpc1ekc73e657fg",
+      "id": "srv-cv9ammpc1ekc73e657fg",
+      "name": "dialog-engine-frontend",
+      "notifyOnFail": "default",
+      "ownerId": "tea-cspspe0gph6c73f4erug",
+      "repo": "https://github.com/iamsaad82/smg-dialog-web-bot",
+      "rootDir": "",
+      "serviceDetails": {
+        "buildPlan": "starter",
+        "env": "node",
+        "envSpecificDetails": {
+          "buildCommand": "cd frontend \u0026\u0026 chmod +x render-build.sh \u0026\u0026  npm install typescript@5.3.2 @types/react @types/react-dom --no-save \u0026\u0026  ./render-build.sh\n",
+          "startCommand": "cd frontend \u0026\u0026 chmod +x render-start.sh \u0026\u0026 ./render-start.sh"
+        },
+        "healthCheckPath": "",
+        "maintenanceMode": {
+          "enabled": false,
+          "uri": ""
+        },
+        "numInstances": 1,
+        "openPorts": [
+          {
+            "port": 10000,
+            "protocol": "TCP"
+          }
+        ],
+        "plan": "starter",
+        "previews": {
+          "generation": "off"
+        },
+        "pullRequestPreviewsEnabled": "no",
+        "region": "frankfurt",
+        "runtime": "node",
+        "sshAddress": "srv-cv9ammpc1ekc73e657fg@ssh.frankfurt.render.com",
+        "url": "https://dialog-engine-frontend.onrender.com"
+      },
+      "slug": "dialog-engine-frontend",
+      "suspended": "not_suspended",
+      "suspenders": [],
+      "type": "web_service",
+      "updatedAt": "2025-03-16T23:19:24.163704Z"
+    }
+  },
+  {
+    "service": {
+      "autoDeploy": "yes",
+      "branch": "main",
+      "createdAt": "2025-03-13T09:39:25.781294Z",
+      "dashboardUrl": "https://dashboard.render.com/web/srv-cv9afj9c1ekc73e61ukg",
+      "id": "srv-cv9afj9c1ekc73e61ukg",
+      "name": "dialog-engine-transformer",
+      "notifyOnFail": "default",
+      "ownerId": "tea-cspspe0gph6c73f4erug",
+      "repo": "https://github.com/iamsaad82/smg-dialog-web-bot",
+      "rootDir": "",
+      "serviceDetails": {
+        "buildPlan": "starter",
+        "env": "docker",
+        "envSpecificDetails": {
+          "dockerCommand": "",
+          "dockerContext": ".",
+          "dockerfilePath": "transformer.Dockerfile"
+        },
+        "healthCheckPath": "",
+        "maintenanceMode": {
+          "enabled": false,
+          "uri": ""
+        },
+        "numInstances": 1,
+        "openPorts": [
+          {
+            "port": 8080,
+            "protocol": "TCP"
+          }
+        ],
+        "plan": "starter",
+        "previews": {
+          "generation": "off"
+        },
+        "pullRequestPreviewsEnabled": "no",
+        "region": "frankfurt",
+        "runtime": "docker",
+        "sshAddress": "srv-cv9afj9c1ekc73e61ukg@ssh.frankfurt.render.com",
+        "url": "https://dialog-engine-transformer.onrender.com"
+      },
+      "slug": "dialog-engine-transformer",
+      "suspended": "not_suspended",
+      "suspenders": [],
+      "type": "web_service",
+      "updatedAt": "2025-03-16T23:23:02.979721Z"
+    }
+  },
+  {
+    "service": {
+      "autoDeploy": "yes",
+      "branch": "main",
+      "createdAt": "2025-03-13T09:39:25.796488Z",
+      "dashboardUrl": "https://dashboard.render.com/web/srv-cv9afj9c1ekc73e61ulg",
+      "id": "srv-cv9afj9c1ekc73e61ulg",
+      "name": "dialog-engine-weaviate",
+      "notifyOnFail": "default",
+      "ownerId": "tea-cspspe0gph6c73f4erug",
+      "repo": "https://github.com/iamsaad82/smg-dialog-web-bot",
+      "rootDir": "",
+      "serviceDetails": {
+        "buildPlan": "starter",
+        "disk": {
+          "id": "dsk-cv9afj9c1ekc73e61uqg",
+          "mountPath": "/var/lib/weaviate",
+          "name": "weaviate-data",
+          "sizeGB": 1
+        },
+        "env": "docker",
+        "envSpecificDetails": {
+          "dockerCommand": "",
+          "dockerContext": ".",
+          "dockerfilePath": "weaviate.Dockerfile"
+        },
+        "healthCheckPath": "",
+        "maintenanceMode": {
+          "enabled": false,
+          "uri": ""
+        },
+        "numInstances": 1,
+        "openPorts": [
+          {
+            "port": 6060,
+            "protocol": "TCP"
+          },
+          {
+            "port": 7946,
+            "protocol": "TCP"
+          },
+          {
+            "port": 7946,
+            "protocol": "UDP"
+          },
+          {
+            "port": 7947,
+            "protocol": "TCP"
+          },
+          {
+            "port": 8080,
+            "protocol": "TCP"
+          },
+          {
+            "port": 50051,
+            "protocol": "TCP"
+          }
+        ],
+        "plan": "starter",
+        "previews": {
+          "generation": "off"
+        },
+        "pullRequestPreviewsEnabled": "no",
+        "region": "frankfurt",
+        "runtime": "docker",
+        "sshAddress": "srv-cv9afj9c1ekc73e61ulg@ssh.frankfurt.render.com",
+        "url": "https://dialog-engine-weaviate.onrender.com"
+      },
+      "slug": "dialog-engine-weaviate",
+      "suspended": "not_suspended",
+      "suspenders": [],
+      "type": "web_service",
+      "updatedAt": "2025-03-16T23:16:32.840558Z"
+    }
+  },
+  {
+    "service": {
+      "autoDeploy": "no",
+      "branch": "main",
+      "createdAt": "2024-03-27T14:57:38.463367Z",
+      "dashboardUrl": "https://dashboard.render.com/web/srv-co237on109ks738ht770",
+      "id": "srv-co237on109ks738ht770",
+      "name": "Flowise-MallPilot",
+      "notifyOnFail": "default",
+      "ownerId": "tea-cspspe0gph6c73f4erug",
+      "repo": "https://github.com/sawmuedev/Flowise",
+      "rootDir": "",
+      "serviceDetails": {
+        "buildPlan": "starter",
+        "disk": {
+          "id": "dsk-co23c30cmk4c73ecc6og",
+          "mountPath": "/opt/render/.flowise",
+          "name": "flowise-disk",
+          "sizeGB": 5
+        },
+        "env": "docker",
+        "envSpecificDetails": {
+          "dockerCommand": "",
+          "dockerContext": ".",
+          "dockerfilePath": "./Dockerfile"
+        },
+        "healthCheckPath": "",
+        "maintenanceMode": {
+          "enabled": false,
+          "uri": ""
+        },
+        "numInstances": 1,
+        "openPorts": [
+          {
+            "port": 10000,
+            "protocol": "TCP"
+          }
+        ],
+        "plan": "standard",
+        "previews": {
+          "generation": "off"
+        },
+        "pullRequestPreviewsEnabled": "no",
+        "region": "frankfurt",
+        "runtime": "docker",
+        "sshAddress": "srv-co237on109ks738ht770@ssh.frankfurt.render.com",
+        "url": "https://flowise-mallpilot.onrender.com"
+      },
+      "slug": "flowise-mallpilot",
+      "suspended": "not_suspended",
+      "suspenders": [],
+      "type": "web_service",
+      "updatedAt": "2025-02-05T13:48:35.852306Z"
+    }
+  }
+]

@@ -70,18 +70,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       isActive: mounted && router.pathname === "/",
     },
     {
-      title: "Tenants",
-      url: "/tenants",
-      icon: Package,
-      isActive: mounted && router.pathname.includes("/tenants") && !tenantId,
-    },
-    {
-      title: "Nutzer",
-      url: "/users",
-      icon: Users,
-      isActive: mounted && router.pathname.includes("/users"),
-    },
-    {
       title: "Agenturen",
       url: "/agencies",
       icon: Building,

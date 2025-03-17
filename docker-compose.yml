@@ -4,11 +4,14 @@ services:
   frontend:
     build:
       context: ./frontend
+      target: prod
     ports:
       - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      # - /app/node_modules
     environment:
-      - BACKEND_URL=http://backend:8000
-      - NODE_ENV=development
+      - NODE_ENV=production
       - DOCKER_CONTAINER=true
     depends_on:
       - backend
@@ -27,6 +30,7 @@ services:
       - weaviate
     environment:
       - POSTGRES_SERVER=db
+      - POSTGRES_HOST=db
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=smg_dialog
@@ -36,10 +40,17 @@ services:
       - APP_ENV=development
       - FRONTEND_URL=http://frontend:3000
       - ADMIN_API_KEY=admin-secret-key-12345
+      - OPENAI_API_KEY=your-openai-api-key-here
     networks:
-      - app-network
+      app-network:
+        aliases:
+          - backend
+          - localhost
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ./backend:/app
+      - /app/venv
 
   db:
     image: postgres:15
@@ -66,6 +77,8 @@ services:
       - TRANSFORMERS_INFERENCE_API=http://t2v-transformer:8080
     networks:
       - app-network
+    volumes:
+      - weaviate_data:/var/lib/weaviate
 
   t2v-transformer:
     image: semitechnologies/transformers-inference:sentence-transformers-multi-qa-MiniLM-L6-cos-v1
@@ -76,6 +89,7 @@ services:
 
 volumes:
   postgres_data:
+  weaviate_data:
 
 networks:
   app-network:

@@ -140,7 +140,8 @@ export interface ApiResponse<T> {
 export enum IndexStatus {
   INDIZIERT = "INDIZIERT",
   NICHT_INDIZIERT = "NICHT_INDIZIERT",
-  FEHLER = "FEHLER"
+  FEHLER = "FEHLER",
+  WIRD_INDIZIERT = "WIRD_INDIZIERT"
 }
 
 export interface WeaviateStatus {

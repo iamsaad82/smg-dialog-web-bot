@@ -3,13 +3,12 @@ Skript zur Validierung und Reparatur von Weaviate-Klassen.
 Dieses Skript kann als eigenständiges Tool oder als Teil der Anwendung ausgeführt werden.
 """
 
-import asyncio
 import logging
 from typing import Tuple
 
 from .health_manager import HealthManager
 
-async def validate_all_tenant_classes() -> Tuple[int, int]:
+def validate_all_tenant_classes() -> Tuple[int, int]:
     """
     Validiert alle Tenant-Klassen in Weaviate und repariert beschädigte Klassen.
     
@@ -20,7 +19,7 @@ async def validate_all_tenant_classes() -> Tuple[int, int]:
     
     try:
         # Validiere alle Klassen
-        checked, repaired = await HealthManager.validate_all_tenant_classes()
+        checked, repaired = HealthManager.validate_all_tenant_classes()
         
         logging.info(f"Validierung abgeschlossen: {checked} Klassen geprüft, {repaired} Klassen repariert")
         return checked, repaired
@@ -37,4 +36,4 @@ if __name__ == "__main__":
     )
     
     # Führe die Validierung aus
-    asyncio.run(validate_all_tenant_classes()) 
+    validate_all_tenant_classes() 

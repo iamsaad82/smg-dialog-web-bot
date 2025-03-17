@@ -43,9 +43,13 @@ export function TopCustomersCard() {
         // Für den Prototyp verwenden wir die Standard-Kunden-API,
         // die reale Kunden holt, und fügen simulierte Statistiken hinzu
         try {
-          const response = await fetch('http://localhost:8000/api/v1/tenants', {
+          // Verwende den Next.js API-Proxy statt direkter Anfrage
+          console.log('Using Next.js API proxy in TopCustomersCard');
+          
+          const response = await fetch(`/api/v1/tenants/`, {
             headers: {
               'Content-Type': 'application/json',
+              'X-API-Key': 'admin-secret-key-12345'
             }
           });
         
@@ -165,4 +169,4 @@ export function TopCustomersCard() {
       </CardContent>
     </Card>
   );
-} 
+}

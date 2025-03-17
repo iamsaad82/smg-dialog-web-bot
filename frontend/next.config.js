@@ -8,26 +8,11 @@ const nextConfig = {
     // Optimierte Builds
     optimizeCss: process.env.NODE_ENV === 'production', // CSS-Optimierungen nur in Produktion aktivieren
   },
-  // Proxy-Konfiguration für API-Anfragen
-  async rewrites() {
-    // Hardcoded URL für den Backend-Service
-    let backendUrl = 'http://backend:8000';
-    
-    console.log('Using hardcoded backend URL:', backendUrl);
-    
-    console.log(`Backend URL for rewrites: ${backendUrl}`);
-    
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${backendUrl}/api/:path*`,
-      },
-      {
-        source: '/api/:path*/',
-        destination: `${backendUrl}/api/:path*/`,
-      },
-    ];
-  },
+  // Keine Proxy-Konfiguration mehr erforderlich, da wir jetzt API-Routen verwenden
+  
+  // Hinweis: Wir verwenden jetzt API-Routen in pages/api/v1/*, 
+  // um die Backend-Anfragen weiterzuleiten. Dies bietet mehr Kontrolle
+  // und vermeidet Probleme mit Redirects.
 }
 
 module.exports = nextConfig

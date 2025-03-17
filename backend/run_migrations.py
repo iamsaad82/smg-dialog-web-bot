@@ -35,7 +35,7 @@ def wait_for_db():
     for i in range(max_retries):
         try:
             # Verbindungsstring aus den Umgebungsvariablen erstellen
-            conn_string = f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+            conn_string = f"postgresql://{settings.POSTGRES_USER}:{settings.POSTGRES_PASSWORD}@db:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
             
             # Versuchen, eine Verbindung herzustellen
             conn = psycopg2.connect(conn_string)
@@ -87,4 +87,4 @@ if __name__ == "__main__":
         sys.exit(1)
     
     logger.info("Migrations-Skript erfolgreich abgeschlossen.")
-    sys.exit(0) 
+    sys.exit(0)

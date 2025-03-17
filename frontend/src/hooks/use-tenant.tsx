@@ -1,9 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Tenant } from '@/types/api';
-import { TenantApi } from '@/api/tenants';
-
-// Initialisieren der API
-const tenantApi = new TenantApi();
+import api from '@/api';
 
 interface UseTenantResult {
   tenant: Tenant | null;
@@ -33,7 +30,8 @@ export function useTenant(tenantId?: string): UseTenantResult {
     setError(null);
 
     try {
-      const data = await tenantApi.getTenant(tenantId);
+      // Zentrale API-Instanz verwenden
+      const data = await api.getTenant(tenantId);
       setTenant(data);
     } catch (err) {
       console.error('Fehler beim Laden des Tenants:', err);
